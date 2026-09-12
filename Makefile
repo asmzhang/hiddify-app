@@ -536,7 +536,28 @@ android-aab-release:
 	  --build-dart-define=sentry_dsn=$(SENTRY_DSN) \
 	  --build-dart-define=release=google-play
 
-windows-release: windows-zip-release windows-exe-release windows-msix-release
+# ---------------------------------------------------------------------------
+# windows-release = zip + exe + msix。
+#
+# 但 exe 需要 Inno Setup、msix 需要商店签名证书 —— 这两样通常只有发布环境才有
+# （GitHub 的 windows runner 现在连 Inno Setup 都不预装了）。所以这个**聚合**
+# 目标改成"尽力而为"：能做的都做，做不了的**明确打印跳过原因**，整体仍以 0 退出。
+#
+# 单独的 windows-exe-release / windows-msix-release **保持严格** ——
+# 你明确要的就是那一个包，缺前置就应当报错停下（见 EXE_PREREQ / MSIX_PREREQ）。
+# ---------------------------------------------------------------------------
+windows-release:
+	@$(MAKE) --no-print-directory windows-zip-release
+	@if [ -n "$(ISCC)" ]; then \
+	  $(MAKE) --no-print-directory windows-exe-release; \
+	else \
+	  printf "    SKIP windows-exe-release   (Inno Setup 6 not found)\n"; \
+	fi
+	@if [ -f windows/sign.pfx ]; then \
+	  $(MAKE) --no-print-directory windows-msix-release; \
+	else \
+	  printf "    SKIP windows-msix-release  (windows/sign.pfx not found - store signing cert)\n"; \
+	fi
 
 windows-zip-release:
 	"$(FASTFORGE)" package \
