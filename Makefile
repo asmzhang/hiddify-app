@@ -575,7 +575,7 @@ windows-zip-release:
 	cd "$$ZIP_DIR"; \
 	$(BLUE)Extracting and Repacking...$(DONE); \
 	mkdir -p Hiddify; \
-	unzip -q "$$ZIP_FILE" -d Hiddify/; \
+	unzip -oq "$$ZIP_FILE" -d Hiddify/; \
 	rm "$$ZIP_FILE"; \
 	$(call MAKE_ZIP,$$FILE_NAME.zip,Hiddify); \
 	rm -rf Hiddify; \
