@@ -416,7 +416,7 @@ jobs:
         with:
           name: ${{matrix.platform}}
           path: ./out
-          retention-days: 1
+          retention-days: 30
 
       - name: Clean up keychain and provisioning profile
         if: ${{ always() && startsWith(matrix.os,'macos')}}
