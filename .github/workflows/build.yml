@@ -70,54 +70,77 @@ jobs:
   # `platforms` behaves exactly as before; this job only computes the
   # `exclude:` list, which GitHub Actions accepts as an expression.
   # ---------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # Builds the matrix for the `build` job from the `platforms` input.
+  #
+  # Kept in a separate job so that callers which do not pass `platforms`
+  # (ci.yml, release.yml) keep the previous behaviour: the input defaults to
+  # "all", which reproduces the matrix exactly as it was.
+  # ---------------------------------------------------------------------------
   plan:
     runs-on: ubuntu-latest
     outputs:
-      exclude: ${{ steps.pick.outputs.exclude }}
+      matrix: ${{ steps.pick.outputs.matrix }}
     steps:
-      - name: Decide which platforms to skip
+      - name: Decide which platforms to build
         id: pick
         env:
           SEL: ${{ inputs.platforms }}
         run: |
           set -euo pipefail
+
+          # Keep these five entries in sync with the matrix documented in
+          # docs/BUILD.md. `os` must stay matched to the platform: the Windows
+          # package is built on a Windows runner, never cross-built from Linux.
+          entry() {
+            case "$1" in
+              android-apk) echo '{"platform":"android-apk","os":"ubuntu-latest","targets":"apk"}' ;;
+              android-aab) echo '{"platform":"android-aab","os":"ubuntu-latest","targets":"aab"}' ;;
+              windows)     echo '{"platform":"windows","os":"windows-latest","aarch":"amd64","targets":"exe,msix,zip"}' ;;
+              linux)       echo '{"platform":"linux","os":"ubuntu-22.04","aarch":"amd64","targets":"deb,gz,AppImage"}' ;;
+              macos)       echo '{"platform":"macos","os":"macos-15","aarch":"universal","targets":"dmg,pkg"}' ;;
+            esac
+          }
+
           ALL="android-apk android-aab windows linux macos"
-          # "none" is the sentinel the manual workflow sends when nothing was ticked.
-          # An omitted input still falls back to "all" via ${SEL:-all} below, so
-          # ci.yml / release.yml (which do not pass `platforms`) are unaffected.
+
+          # "none" is the sentinel the manual workflow sends when nothing is ticked.
           if [ "${SEL:-all}" = "none" ]; then
-            echo "::error::no platform selected - tick at least one of android / windows / linux / macos."; exit 1
+            echo "::error::no platform selected - tick at least one of android / windows / linux / macos."
+            exit 1
           fi
-          WANT="$(printf '%s' "${SEL:-all}" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$' || true)"
+
+          if [ "${SEL:-all}" = "all" ]; then
+            WANT="$ALL"
+          else
+            WANT="$(printf '%s' "$SEL" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$' || true)"
+          fi
           if [ -z "$WANT" ]; then
-            echo "::error::'platforms' is empty - nothing selected to build."; exit 1
+            echo "::error::'platforms' is empty - nothing selected to build."
+            exit 1
           fi
-          if printf '%s\n' "$WANT" | grep -qx 'all'; then
-            echo 'exclude=[]' >> "$GITHUB_OUTPUT"
-            echo "platforms=all -> nothing excluded"
-            exit 0
-          fi
-          EXCL='['; FIRST=1; KEPT=0
+
+          M='['; FIRST=1; KEPT=0
           for p in $ALL; do
             keep=0
             for w in $WANT; do
               case "$p" in "$w"*) keep=1 ;; esac
             done
-            if [ "$keep" = 1 ]; then
-              KEPT=$((KEPT + 1))
-            else
-              [ "$FIRST" = 1 ] || EXCL="$EXCL,"
-              EXCL="$EXCL{\"platform\":\"$p\"}"
-              FIRST=0
-            fi
+            [ "$keep" = 1 ] || continue
+            KEPT=$((KEPT + 1))
+            [ "$FIRST" = 1 ] || M="$M,"
+            M="$M$(entry "$p")"
+            FIRST=0
           done
-          EXCL="$EXCL]"
-          if [ "$KEPT" = 0 ]; then
-            echo "::error::none of the requested platforms ('$SEL') matched: $ALL"; exit 1
-          fi
-          echo "exclude=$EXCL" >> "$GITHUB_OUTPUT"
-          echo "requested='$SEL' -> exclude=$EXCL (keeping $KEPT of 5)"
+          M="$M]"
 
+          if [ "$KEPT" = 0 ]; then
+            echo "::error::none of the requested platforms ('$SEL') matched. Known: $ALL"
+            exit 1
+          fi
+
+          echo "matrix=$M" >> "$GITHUB_OUTPUT"
+          echo "requested='$SEL' -> keeping $KEPT of 5: $M"
   build:
     needs: [test, plan]
     permissions: write-all
@@ -126,56 +149,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - platform: android-apk
-            os: ubuntu-latest
-            targets: apk
-
-          - platform: android-aab
-            os: ubuntu-latest
-            targets: aab
-
-          - platform: windows
-            os: windows-latest
-            aarch: amd64
-            targets: exe,msix,zip
-
-          - platform: linux
-            os: ubuntu-22.04
-            aarch: amd64
-            targets: deb,gz,AppImage
-
-          # - platform: linux-amd64
-          #   os: ubuntu-22.04
-          #   aarch: amd64
-          #   targets: deb,gz
-
-          # - platform: linux-arm64
-          #   os: ubuntu-24.04-arm
-          #   aarch: arm64
-          #   targets: deb,gz
-
-          # - platform: linux-amd64-musl
-          #   os: ubuntu-22.04
-          #   aarch: amd64
-          #   targets: deb,gz
-
-          # - platform: linux-arm64-musl
-          #   os: ubuntu-24.04-arm
-          #   aarch: arm64
-          #   targets: deb,gz
-            
-          - platform: macos
-            os: macos-15
-            aarch: universal
-            targets: dmg,pkg
-            
-          # - platform: ios
-          #   os: macos-15
-          #   aarch: universal
-          #   filename: hiddify-ios
-          #   targets: ipa
-        exclude: ${{ fromJson(needs.plan.outputs.exclude) }}
+        include: ${{ fromJson(needs.plan.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     steps:
       - name: checkout
