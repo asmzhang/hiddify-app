@@ -11,6 +11,13 @@ on:
       channel:
         type: string
         default: "dev"
+      # Comma-separated list of platforms to build, or "all".
+      # Matching is by prefix, so "android" selects both android-apk and android-aab.
+      # Known values: android, windows, linux, macos, all
+      # Callers that do not pass this get "all", i.e. unchanged behaviour.
+      platforms:
+        type: string
+        default: "all"
 
 env:
   IS_GITHUB_ACTIONS: 1
@@ -56,8 +63,63 @@ jobs:
         run: echo "::set-output name=datetime::$(date +'%d.%H.%M')"
 
 
+  # ---------------------------------------------------------------------------
+  # Decides which matrix entries to skip, based on the `platforms` input.
+  #
+  # build.yml keeps its static matrix so that a caller which does not pass
+  # `platforms` behaves exactly as before; this job only computes the
+  # `exclude:` list, which GitHub Actions accepts as an expression.
+  # ---------------------------------------------------------------------------
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      exclude: ${{ steps.pick.outputs.exclude }}
+    steps:
+      - name: Decide which platforms to skip
+        id: pick
+        env:
+          SEL: ${{ inputs.platforms }}
+        run: |
+          set -euo pipefail
+          ALL="android-apk android-aab windows linux macos"
+          # "none" is the sentinel the manual workflow sends when nothing was ticked.
+          # An omitted input still falls back to "all" via ${SEL:-all} below, so
+          # ci.yml / release.yml (which do not pass `platforms`) are unaffected.
+          if [ "${SEL:-all}" = "none" ]; then
+            echo "::error::no platform selected - tick at least one of android / windows / linux / macos."; exit 1
+          fi
+          WANT="$(printf '%s' "${SEL:-all}" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$' || true)"
+          if [ -z "$WANT" ]; then
+            echo "::error::'platforms' is empty - nothing selected to build."; exit 1
+          fi
+          if printf '%s\n' "$WANT" | grep -qx 'all'; then
+            echo 'exclude=[]' >> "$GITHUB_OUTPUT"
+            echo "platforms=all -> nothing excluded"
+            exit 0
+          fi
+          EXCL='['; FIRST=1; KEPT=0
+          for p in $ALL; do
+            keep=0
+            for w in $WANT; do
+              case "$p" in "$w"*) keep=1 ;; esac
+            done
+            if [ "$keep" = 1 ]; then
+              KEPT=$((KEPT + 1))
+            else
+              [ "$FIRST" = 1 ] || EXCL="$EXCL,"
+              EXCL="$EXCL{\"platform\":\"$p\"}"
+              FIRST=0
+            fi
+          done
+          EXCL="$EXCL]"
+          if [ "$KEPT" = 0 ]; then
+            echo "::error::none of the requested platforms ('$SEL') matched: $ALL"; exit 1
+          fi
+          echo "exclude=$EXCL" >> "$GITHUB_OUTPUT"
+          echo "requested='$SEL' -> exclude=$EXCL (keeping $KEPT of 5)"
+
   build:
-    needs: test
+    needs: [test, plan]
     permissions: write-all
     continue-on-error: true
 
@@ -113,6 +175,7 @@ jobs:
           #   aarch: universal
           #   filename: hiddify-ios
           #   targets: ipa
+        exclude: ${{ fromJson(needs.plan.outputs.exclude) }}
     runs-on: ${{ matrix.os }}
     steps:
       - name: checkout

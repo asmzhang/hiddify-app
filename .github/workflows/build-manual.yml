@@ -1,0 +1,68 @@
+# ---------------------------------------------------------------------------
+# Manual build - tick exactly which platforms to build.
+#
+# Use this instead of pushing a tag when you only want to check that a given
+# platform still compiles.
+#
+#   Actions -> "Build (manual)" -> Run workflow, tick the platforms, run.
+#
+# Or from the command line:
+#   gh workflow run build-manual.yml -f windows=true
+#   gh workflow run build-manual.yml -f windows=true -f linux=true
+#   gh workflow run build-manual.yml -f android=true -f windows=true -f macos=true
+#   gh workflow run build-manual.yml -f windows=true -f upload-artifact=true
+#
+# Leave "upload-artifact" off for a plain compile check. With it off the
+# signing/publishing steps are skipped, so no repository secrets are needed.
+# With it on the run behaves like a release build and needs the signing
+# secrets (WINDOWS_SIGNING_KEY, SENTRY_DSN, ...).
+#
+# The platform selection is passed to build.yml as a comma separated list and
+# applied as a matrix `exclude`, so build.yml keeps its single static matrix.
+# ---------------------------------------------------------------------------
+name: Build (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      android:
+        description: 'Android  (apk + aab)'
+        type: boolean
+        default: false
+      windows:
+        description: 'Windows  (zip + exe + msix)'
+        type: boolean
+        default: true
+      linux:
+        description: 'Linux    (deb + AppImage)'
+        type: boolean
+        default: false
+      macos:
+        description: 'macOS    (dmg + pkg)'
+        type: boolean
+        default: false
+      upload-artifact:
+        description: 'Upload artifacts (runs signing steps - needs repo secrets)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    permissions: write-all
+    with:
+      upload-artifact: ${{ inputs.upload-artifact }}
+      # `none` tells build.yml's plan job to fail with a clear message instead of
+      # silently falling back to building every platform when nothing was ticked.
+      platforms: ${{ (inputs.android || inputs.windows || inputs.linux || inputs.macos)
+        && format('{0}{1}{2}{3}',
+             inputs.android && 'android,' || '',
+             inputs.windows && 'windows,' || '',
+             inputs.linux   && 'linux,'   || '',
+             inputs.macos   && 'macos,'   || '')
+        || 'none' }}
