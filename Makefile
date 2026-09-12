@@ -226,15 +226,24 @@ endif
 
 # ---------------------------------------------------------------------------
 # Windows 打包 exe 安装程序 需要 Inno Setup（fastforge 的 exe target 会调用它）。
-# 同样用 $(wildcard) 探测，不依赖外部命令。
+#
+# 注意：**不能用 $(wildcard) 探测**。$(wildcard) 的实参语义是
+# "空格分隔的多个 pattern"，而 Inno Setup 的路径里就有空格
+# （`Program Files` / `Inno Setup 6`），会被切成若干无效 pattern 而
+# **永远匹配不到**。这个 bug 实测在 CI 上暴露过：runner 上明明已经装了
+# Inno Setup v6.7.1，探针却报 not found，于是 exe 被无谓地跳过。
+#
+# 因此改用 $(shell)，并且**只用 shell 内建**（for / [ -f ] / echo），
+# 不调用 ls / head 之类外部命令 —— 那些在从 PowerShell 启动 make 时可能不存在。
+# 同时把 fastforge 也认的 INNO_SETUP_PATH 纳入考虑。
 # ---------------------------------------------------------------------------
 ifeq ($(OS),Windows_NT)
-  ISCC := $(firstword $(wildcard \
-      $(ProgramFiles)/Inno Setup 6/ISCC.exe \
-      $(ProgramFiles)/Inno Setup 5/ISCC.exe \
-      $(ProgramFilesX86)/Inno Setup 6/ISCC.exe \
-      C:/Program Files (x86)/Inno Setup 6/ISCC.exe \
-      C:/Program Files/Inno Setup 6/ISCC.exe))
+  ISCC := $(firstword $(shell for p in \
+      "$${INNO_SETUP_PATH:+$$INNO_SETUP_PATH/ISCC.exe}" \
+      "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
+      "/c/Program Files/Inno Setup 6/ISCC.exe" \
+      "/c/Program Files (x86)/Inno Setup 5/ISCC.exe"; \
+      do [ -f "$$p" ] && echo "$$p"; done))
 endif
 
 # ---------------------------------------------------------------------------
