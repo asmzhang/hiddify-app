@@ -18,6 +18,16 @@ on:
       platforms:
         type: string
         default: "all"
+      # 是否执行"发布"类任务（把产物发到 GitHub Release / TestFlight）。
+      #
+      # 默认 true，所以 ci.yml / release.yml 的行为完全不变。
+      # 但在 fork 里这些任务注定失败：它们要用 GITHUB_TOKEN 写 Release，而仓库的
+      # "Workflow permissions" 默认是只读（job 里的 permissions: write-all 会被降级），
+      # 报 "Resource not accessible by integration"。产物本身仍然可以从这次运行的
+      # Artifacts 里下载，所以 fork 一般只需要关掉这个开关。
+      publish:
+        type: boolean
+        default: true
 
 env:
   IS_GITHUB_ACTIONS: 1
@@ -338,7 +348,7 @@ jobs:
           Get-ChildItem -Path out
           
       - name: Upload Debug Symbols
-        if: ${{ inputs.upload-artifact && inputs.tag-name != 'draft' }}
+        if: ${{ inputs.publish && inputs.upload-artifact && inputs.tag-name != 'draft' }}
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
@@ -415,7 +425,7 @@ jobs:
           rm ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision ||echo ok
   update-draft:
     permissions: write-all
-    if: ${{ inputs.upload-artifact }}
+    if: ${{ inputs.publish && inputs.upload-artifact }}
     needs: [build]
     runs-on: ubuntu-latest
     steps:
@@ -481,7 +491,7 @@ jobs:
 
   upload-release:
     permissions: write-all
-    if: ${{ inputs.upload-artifact && inputs.tag-name != 'draft' }}
+    if: ${{ inputs.publish && inputs.upload-artifact && inputs.tag-name != 'draft' }}
     needs: [build]
     runs-on: ubuntu-latest
     steps:

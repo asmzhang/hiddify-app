@@ -45,6 +45,10 @@ on:
         description: 'Upload artifacts (runs signing steps - needs repo secrets)'
         type: boolean
         default: false
+      publish:
+        description: 'Publish to GitHub Release (needs write workflow permissions)'
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -57,6 +61,7 @@ jobs:
     permissions: write-all
     with:
       upload-artifact: ${{ inputs.upload-artifact }}
+      publish: ${{ inputs.publish }}
       # `none` tells build.yml's plan job to fail with a clear message instead of
       # silently falling back to building every platform when nothing was ticked.
       platforms: ${{ (inputs.android || inputs.windows || inputs.linux || inputs.macos)
