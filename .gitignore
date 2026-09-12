@@ -47,6 +47,12 @@ migrate_working_dir/
 /dist/
 /dist_docker/
 
+# 构建中间缓存（如核心库下载缓存），不入库
+.cache/
+
+# 助手/项目工作数据（记忆、日志等），不入库
+.workbuddy/
+
 /assets/core/*
 !/assets/core/.gitkeep
 

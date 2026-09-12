@@ -1,6 +1,41 @@
 # .ONESHELL:
 include dependencies.properties
 
+# ---------------------------------------------------------------------------
+# Windows：自动切换到 Git 自带的 POSIX shell
+#
+# 本 Makefile 的 recipe 是 POSIX shell 脚本（$(...) / rm -rf / unzip ...），
+# 而 Windows 上 make 默认会用 cmd.exe 解释它们，必然失败。
+# 这里自动从 PATH 推导出 Git for Windows 的 sh.exe 并设成 SHELL，
+# 同时把它配套的 usr\bin（tr / head / ls / unzip / rm ...）挂到 PATH 上。
+#
+# 结果：在 PowerShell 或 cmd 里直接 `make windows-release` 就能正常工作，
+# 不需要用户自己去开 Git Bash。前提是装过 Git for Windows（Flutter 开发者基本都有）。
+# ---------------------------------------------------------------------------
+ifeq ($(OS),Windows_NT)
+    ifeq ($(IS_GITHUB_ACTIONS),)
+        _PATH_DIRS := $(subst ;, ,$(PATH))
+        GIT_SH := $(abspath $(firstword $(foreach d,$(_PATH_DIRS),\
+            $(wildcard $(d)/../usr/bin/sh.exe) \
+            $(wildcard $(d)/../bin/sh.exe) \
+            $(wildcard $(d)/sh.exe))))
+        ifneq ($(GIT_SH),)
+            SHELL := $(GIT_SH)
+            # 只把一个 POSIX 格式的前缀加进 PATH。
+            # /usr/bin 和 /bin 在 sh 眼里就是 Git 自带的 usr/bin（tr/head/unzip 等），
+            # 而后面仍保留原始的 Windows 格式 PATH —— 由 MSYS 在启动 sh 时
+            # 自行转换成 POSIX 格式。
+            #
+            # 不要在这里拼接 D:/... 这类 Windows 正斜杠路径：一旦 PATH 变成
+            # 「Windows 项 + POSIX 项」的混合体，MSYS 会放弃转换，
+            # bash 就把整条 PATH 当成一项，PATH 里的 dart / flutter 全部失效。
+            export PATH := /usr/bin:/bin:$(PATH)
+        else ifeq ($(shell uname),)
+            $(error No POSIX shell found. Install Git for Windows, or run make from Git Bash / WSL. See docs/BUILD.md)
+        endif
+    endif
+endif
+
 # --- Log Colors ---
 blue   := \033[1;34m
 green  := \033[1;92m
@@ -8,22 +43,63 @@ yellow := \033[1;33m
 reset  := \033[0m
 # --- Log helpers ---
 # Usage: $(BLUE) <text> $(DONE)
-BLUE   := echo -e "$(blue)
-GREEN  := echo -e "$(green)
-YELLOW := echo -e "$(yellow)
-DONE := $(reset)"
+#
+# 用 printf 而不是 `echo -e`：POSIX 的 echo 不保证支持 -e，
+# Ubuntu 的 /bin/sh（dash）会把它当普通字符输出，日志里就会冒出
+# `-e \033[1;34m` 这种东西。printf 是 POSIX 标准且本身就解释 \033。
+BLUE   := printf "$(blue)
+GREEN  := printf "$(green)
+YELLOW := printf "$(yellow)
+DONE   := $(reset)\n"
+
+# ---------------------------------------------------------------------------
+# SHELL_FORCE: 强制让这一行经过 POSIX shell
+#
+# 坑（仅 Windows 版 make 有）：make 判断是否走 shell 只看两件事 ——
+#   ① 整行里有没有 shell 元字符（&& ; | > " 等）
+#   ② 第一个词是不是它已知的 sh 内建命令（cd / command / export / exec …）
+# 两条都不满足时，make **不调 shell**，改用 Windows 的 PATH + PATHEXT 直接执行。
+# 于是 mkdir / rm / ls / echo / pwd 这些 POSIX 工具就找不到了，报：
+#     process_begin: CreateProcess(NULL, mkdir -p xxx, ...) failed.
+#     make (e=2): 系统找不到指定的文件。
+# 此时 SHELL 变量设得再对也没用 —— make 根本不打算调它。
+#
+# 为什么根因是 PATH 而不是"用了 PowerShell"：
+#   标准 Git for Windows 安装只往 PATH 里加 `Git\cmd`（git.exe 在那儿），
+#   而 mkdir.exe / ls.exe / rm.exe 在 `Git\usr\bin` —— 不在 PATH 上。
+#   所以**在 cmd 里跑一样会挂**，与用哪个终端无关。
+#   从 bash 里跑之所以没事，是因为 bash 本身是 MSYS 的，
+#   会把 PATH 里的 `/usr/bin` 解析成 Git 的 `usr\bin` 再交给 make。
+# 实测（PATH 里无 Git\usr\bin 时）：
+#   mkdir -p x            -> 失败      mkdir -p x && true -> 成功
+#   ls build / pwd / true / 裸 echo   -> 全都失败
+#   cd build / command -v mkdir       -> 成功（走了 shell，属于 ② 那类）
+#
+# 解法：给这类命令行尾补一个恒真的 `&& true`（属于 ①），
+# 同时不改变失败语义（前一条命令失败则整行仍然失败）。
+#
+# 注意：只能加在**整行末尾**，不能塞进 MKDIR/RM 这类"命令前缀"里 ——
+# 那会变成 `mkdir -p && true dir`，目录反而建不出来。
+#
+# 适用范围 —— 只给"用 POSIX 工具"的命令加：
+#   mkdir / rm / ls / echo 这类，Windows 上没有能直接执行的文件。
+# **不要**给 flutter / dart / make 这些命令加：它们有 .bat/.exe，
+# make 直接 exec 本来就能跑通；强行改走 shell 反而会去依赖 sh 眼中的 PATH，
+# 把本来好的搞坏（实测：给 `flutter pub get` 加了之后变成
+# `/usr/bin/sh: line 1: flutter: command not found`）。
+# ---------------------------------------------------------------------------
+_empty :=
+_space := $(_empty) $(_empty)
+SHELL_FORCE := $(_space)&& true
 
 MKDIR := mkdir -p
 RM  := rm -rf
 SEP :=/
 
-ifeq ($(OS),Windows_NT)
-    ifeq ($(IS_GITHUB_ACTIONS),)
-		# MKDIR := -mkdir
-		RM := rmdir /s /q
-		# SEP:=\\
-	endif
-endif
+# 本 Makefile 的所有 recipe 都使用 POSIX 命令（$(...) / rm -rf / unzip / tar …），
+# 因此必须在 POSIX shell 中执行：Linux、macOS、Git Bash、WSL 都可以，
+# PowerShell / cmd.exe 不行。不要在这里添加 cmd 专用写法（例如 rmdir /s /q），
+# 那会与上面这个前提自相矛盾。
 
 
 # Define sed command based on the OS
@@ -64,6 +140,132 @@ endif
 BUILD_ARGS=--dart-define sentry_dsn=$(SENTRY_DSN)
 DISTRIBUTOR_ARGS=--skip-clean --build-target $(TARGET) --build-dart-define sentry_dsn=$(SENTRY_DSN)
 
+# ---------------------------------------------------------------------------
+# 下载核心库
+#
+# 原实现是 `curl -L ... | tar xz`：没有重试，且 curl 失败时 tar 会跟着报错，
+# 真正的错误（网络 / HTTP 状态）反而被淹没。这里改为：
+#   -f         HTTP 错误直接返回非零退出码
+#   --retry    网络抖动自动重试
+#   先落盘再解压，任一步失败即中止
+#
+# 另外上游还有个浪费：每次都无条件重新下载（Windows 包 26MB），下完立刻把
+# tarball 删掉，连缓存都不留 —— 所以每跑一次 prepare 就白下一次。这里把
+# tarball 存到 .cache/core-libs/（.cache/ 已在 .gitignore 中，不会污染仓库）。
+# 刻意不用 build/ 下的位置：`flutter clean` 会连 build/ 一起删掉，
+# 缓存放那儿就白建了。
+# 并在旁边记一份来源 URL 当"这个文件是从哪来的"指纹：
+#   指纹一致                          -> 直接复用，跳过下载
+#   指纹变了（换 CHANNEL / 换核心库版本）-> 自动重新下载
+# 需要无条件刷新时：make <platform>-libs FORCE=1
+#
+# tarball 刻意不放在各平台的产物目录（如 android/app/libs）里 ——
+# 那些目录会被后续打包步骤读取，不该混入缓存文件。
+#
+# 用法: $(call CORE_FETCH,<目标目录>,<包文件名>)
+# ---------------------------------------------------------------------------
+CURL := curl -fL --retry 3 --retry-delay 2 --connect-timeout 30
+CORE_CACHE := .cache/core-libs
+CORE_FETCH = $(MKDIR) "$(CORE_CACHE)" && \
+  if [ -z "$(FORCE)" ] && [ -f "$(CORE_CACHE)/$(2)" ] && [ "$$(cat "$(CORE_CACHE)/$(2).url" 2>/dev/null)" = "$(CORE_URL)/$(2)" ]; then \
+    printf "    cached: %s  (FORCE=1 to re-download)\n" "$(2)"; \
+  else \
+    printf "    downloading: %s\n" "$(2)"; \
+    $(CURL) -o "$(CORE_CACHE)/$(2)" "$(CORE_URL)/$(2)" && printf "%s" "$(CORE_URL)/$(2)" > "$(CORE_CACHE)/$(2).url"; \
+  fi && \
+  tar xzf "$(CORE_CACHE)/$(2)" -C "$(1)"
+
+# ---------------------------------------------------------------------------
+# 生成 zip 包
+#
+# bsdtar（Windows 自带、macOS 自带）支持 `tar -a -cf x.zip` 写出真正的 zip；
+# GNU tar（Linux、Git Bash）不支持写 zip —— 它会生成一个 tar 格式的文件，
+# 却仍然命名为 .zip，而且不报任何错。所以必须先探测能力，再选择工具：
+#   bsdtar  -> tar -a
+#   其它    -> zip 命令
+#   都没有  -> 明确失败（而不是静默产出一个坏掉的包）
+#
+# 用法: $(call MAKE_ZIP,<输出 zip>,<要打包的目录名>)
+# ---------------------------------------------------------------------------
+# 定位 bsdtar：Windows 自带的那份在 System32，即使 PATH 里 GNU tar 排在它前面
+# 也要显式指向它 —— 否则 `tar -a` 会静默产出 tar 格式的假 zip。
+# 非 Windows 平台直接交给 PATH（macOS 自带的就是 bsdtar）。
+#
+# 注意：这里刻意只用 make 内置的 $(wildcard)，不调用任何外部命令。
+# $(shell ...) 依赖 shell 与 PATH，在从 PowerShell 启动 make 的场景下
+# 可能连 ls/tr 都找不到，导致变量静默变空。
+ifeq ($(OS),Windows_NT)
+  BSDTAR ?= $(firstword \
+      $(wildcard $(SystemRoot)/System32/tar.exe) \
+      $(wildcard $(windir)/System32/tar.exe) \
+      $(wildcard C:/Windows/System32/tar.exe) \
+      tar)
+else
+  BSDTAR ?= tar
+endif
+
+MAKE_ZIP = if "$(BSDTAR)" --version 2>/dev/null | grep -qi bsdtar; then "$(BSDTAR)" -a -cf "$(1)" "$(2)"; elif command -v zip >/dev/null 2>&1; then zip -qr "$(1)" "$(2)"; else echo "ERROR: creating $(1) needs bsdtar or the zip command" >&2; exit 1; fi
+
+# ---------------------------------------------------------------------------
+# fastforge（打包器，由 `dart pub global activate fastforge` 安装）
+#
+# Windows 上 pub 只生成 fastforge.bat，其所在目录默认不在 PATH，
+# 而且 sh 的 PATH 搜索不认 .bat 扩展名。这里直接解析出可执行文件的
+# 完整路径交给 make 调用，无需改 PATH，也无需额外造 shim。
+# 解析不到时回退为裸 `fastforge`，交由 PATH 决定。
+# ---------------------------------------------------------------------------
+# 同样只用 $(wildcard)，不依赖外部命令。
+ifeq ($(OS),Windows_NT)
+  FASTFORGE ?= $(firstword $(wildcard \
+      $(LOCALAPPDATA)/Pub/Cache/bin/fastforge.bat \
+      $(APPDATA)/Pub/Cache/bin/fastforge.bat \
+      $(HOME)/AppData/Local/Pub/Cache/bin/fastforge.bat) fastforge)
+else
+  FASTFORGE ?= fastforge
+endif
+
+# ---------------------------------------------------------------------------
+# Windows 打包 exe 安装程序 需要 Inno Setup（fastforge 的 exe target 会调用它）。
+# 同样用 $(wildcard) 探测，不依赖外部命令。
+# ---------------------------------------------------------------------------
+ifeq ($(OS),Windows_NT)
+  ISCC := $(firstword $(wildcard \
+      $(ProgramFiles)/Inno Setup 6/ISCC.exe \
+      $(ProgramFiles)/Inno Setup 5/ISCC.exe \
+      $(ProgramFilesX86)/Inno Setup 6/ISCC.exe \
+      C:/Program Files (x86)/Inno Setup 6/ISCC.exe \
+      C:/Program Files/Inno Setup 6/ISCC.exe))
+endif
+
+# ---------------------------------------------------------------------------
+# 打包目标的"早失败"前置检查。
+#
+# windows-release 是 zip + exe + msix 三合一，任一前置缺失就会整条失败 ——
+# 而前面的产物其实已经成功产出了。不检查的话，失败发生在 fastforge 内部，
+# 报的是一段 Dart 栈，和真实原因（没装 Inno Setup / 没有签名证书）隔了一层，
+# 还白跑一遍 flutter build。所以在这里先检查、先停下、把原因说清楚。
+# ---------------------------------------------------------------------------
+ifeq ($(OS),Windows_NT)
+    ifeq ($(ISCC),)
+        EXE_PREREQ := echo "ERROR: Inno Setup 6 is required by windows-exe-release."; echo "       winget install JRSoftware.InnoSetup  (then re-open the terminal)"; echo "       Only the .exe installer needs it - 'make windows-zip-release' does not."; echo "       See docs/BUILD.md [Packaging]."; exit 1
+    else
+        EXE_PREREQ := true
+    endif
+    # msix 需要微软商店签名证书 windows/sign.pfx。它不在仓库里，也不该进仓库：
+    # CI 在打包前从机密 WINDOWS_SIGNING_KEY 解出 base64 写到这个路径
+    # （.github/workflows/build.yml），密码同理来自 WINDOWS_SIGNING_PASSWORD。
+    # 且 make_config.yaml 里的 publisher 是商店身份，自签证书签不出来。
+    # => msix 是 CI 专属目标，本地请用 windows-zip-release。
+    ifeq ($(wildcard windows/sign.pfx),)
+        MSIX_PREREQ := echo "ERROR: windows/sign.pfx not found - msix is a CI-only artifact."; echo "       CI writes it from the WINDOWS_SIGNING_KEY secret."; echo "       For a local build use:  make windows-zip-release"; echo "       See docs/BUILD.md [Packaging]."; exit 1
+    else
+        MSIX_PREREQ := true
+    endif
+else
+    EXE_PREREQ := true
+    MSIX_PREREQ := true
+endif
+
 
 
 get:	
@@ -77,13 +279,56 @@ translate:
 
 
 
+# ---------------------------------------------------------------------------
+# doctor: 构建环境自检
+#
+# 上游原本没有任何检查目标，缺东西时会一路跑到最后一步才失败，而且报错
+# 往往与真实原因无关（典型例子：缺核心库，却在 CMake 的 INSTALL 阶段报错）。
+# 先跑这个，把问题提前暴露出来。
+# ---------------------------------------------------------------------------
+# doctor 的输出刻意使用 ASCII：中文在 Windows 控制台（GBK 代码页）会乱码，
+# 在 CI 日志里也不友好。所有 recipe 一律避开多行 if/fi，改成单行形式 ——
+# 多行写法容易因为续行与引号嵌套出错。
+ifeq ($(OS),Windows_NT)
+    ifeq ($(ISCC),)
+        DOCTOR_ISCC := echo "    WARN Inno Setup       - needed only by windows-exe-release: winget install JRSoftware.InnoSetup"
+    else
+        DOCTOR_ISCC := echo "    OK   Inno Setup"
+    endif
+    ifeq ($(wildcard windows/sign.pfx),)
+        DOCTOR_MSIX := echo "    WARN msix cert        - windows/sign.pfx absent: msix is CI-only (CI injects the signing secret)"
+    else
+        DOCTOR_MSIX := echo "    OK   msix cert"
+    endif
+    DOCTOR_PLATFORM_EXTRA := $(DOCTOR_ISCC) && $(DOCTOR_MSIX)
+else
+    DOCTOR_PLATFORM_EXTRA := true
+endif
+
+.PHONY: doctor
+doctor:
+	@echo "==> Required"
+	@command -v make >/dev/null 2>&1 && echo "    OK   make" || echo "    FAIL make            - see docs/BUILD.md"
+	@command -v git >/dev/null 2>&1 && echo "    OK   git" || echo "    FAIL git             - install Git for Windows (recipes need its sh)"
+	@command -v curl >/dev/null 2>&1 && echo "    OK   curl" || echo "    FAIL curl            - needed to download core libs"
+	@command -v tar >/dev/null 2>&1 && echo "    OK   tar" || echo "    FAIL tar             - needed to extract core libs"
+	@command -v unzip >/dev/null 2>&1 && echo "    OK   unzip" || echo "    WARN unzip           - needed by windows-zip-release"
+	@V=$$(dart --version 2>&1 | head -n 1); case "$$V" in *"Dart SDK"*) echo "    OK   $$V";; *) echo "    FAIL dart            - cannot run: $${V:-not found in PATH}"; echo "         resolved to: $$(command -v dart 2>/dev/null || echo '<nothing>')";; esac
+	@V=$$(flutter --version 2>&1 | head -n 1); case "$$V" in *Flutter*) echo "    OK   $$V";; *) echo "    FAIL flutter         - cannot run: $${V:-not found in PATH}"; echo "         resolved to: $$(command -v flutter 2>/dev/null || echo '<nothing>')";; esac
+	@echo "==> Packaging (only needed for make <platform>-release)"
+	@if "$(FASTFORGE)" --version >/dev/null 2>&1; then echo "    OK   fastforge"; else echo "    WARN fastforge       - run: make windows-install-deps"; fi
+	@if "$(BSDTAR)" --version 2>/dev/null | grep -qi bsdtar; then echo "    OK   zip tool: bsdtar"; elif command -v zip >/dev/null 2>&1; then echo "    OK   zip tool: zip command"; else echo "    WARN zip tool missing - packaging will fail"; fi
+	@$(DOCTOR_PLATFORM_EXTRA)
+	@echo "==> Core libs"
+	@if [ -n "$$(ls -A $(DESKTOP_OUT) 2>/dev/null | grep -v '^\.gitkeep$$')" ]; then echo "    OK   present ($(DESKTOP_OUT))"; else echo "    WARN missing         - run: make <platform>-prepare"; fi
+
 prepare:
-	@echo use the following commands to prepare the library for each platform:
-	@echo    make android-prepare
-	@echo    make windows-prepare
-	@echo    make linux-prepare 
-	@echo    make macos-prepare
-	@echo    make ios-prepare
+	@echo use the following commands to prepare the library for each platform:$(SHELL_FORCE)
+	@echo    make android-prepare$(SHELL_FORCE)
+	@echo    make windows-prepare$(SHELL_FORCE)
+	@echo    make linux-prepare $(SHELL_FORCE)
+	@echo    make macos-prepare$(SHELL_FORCE)
+	@echo    make ios-prepare$(SHELL_FORCE)
 
 common-prepare:  get gen translate
 windows-prepare: common-prepare windows-libs
@@ -133,7 +378,7 @@ generate_go_protoc:
 	make -C hiddify-core -f Makefile protos
 	echo "SED: $(SED)"
 generate_dart_protoc:
-	mkdir -p lib/hiddifycore/generated
+	mkdir -p lib/hiddifycore/generated$(SHELL_FORCE)
 	protoc --dart_out=grpc:lib/hiddifycore/generated --proto_path=hiddify-core/  $(shell find hiddify-core/v2 hiddify-core/extension -name "*.proto") 	google/protobuf/timestamp.proto ; \
 
 .PHONY: protos
@@ -257,7 +502,14 @@ linux-flutter-sync:
 
 windows-install-deps:
 	dart pub global activate fastforge
-# 	choco install innosetup -y
+	@echo ""
+	@echo "fastforge installed. Its bin directory does NOT need to be added to PATH:"
+	@echo "this Makefile resolves the executable path automatically (see FASTFORGE)."
+	@echo ""
+	@echo "Note: packaging the .exe installer additionally requires Inno Setup:"
+	@echo "  choco install innosetup    (or: winget install JRSoftware.InnoSetup)"
+	@echo ""
+	@$(MAKE) --no-print-directory doctor
 	
 gen_translations: #generating missing translations using google translate
 	cd .github && bash sync_translate.sh
@@ -266,17 +518,17 @@ gen_translations: #generating missing translations using google translate
 android-release: android-apk-release android-aab-release
 
 android-apk-release:
-	fastforge package \
+	"$(FASTFORGE)" package \
 	  --platform android \
 	  --targets apk \
 	  --skip-clean \
 	  --build-target=$(TARGET) \
 	  --build-target-platform=android-arm,android-arm64,android-x64 \
 	  --build-dart-define=sentry_dsn=$(SENTRY_DSN)
-	ls -R build/app/outputs
+	ls -R build/app/outputs$(SHELL_FORCE)
 
 android-aab-release:
-	fastforge package \
+	"$(FASTFORGE)" package \
 	  --platform android \
 	  --targets aab \
 	  --skip-clean \
@@ -287,7 +539,7 @@ android-aab-release:
 windows-release: windows-zip-release windows-exe-release windows-msix-release
 
 windows-zip-release:
-	fastforge package \
+	"$(FASTFORGE)" package \
 	  --platform windows \
 	  --targets zip \
 	  --skip-clean \
@@ -304,12 +556,13 @@ windows-zip-release:
 	mkdir -p Hiddify; \
 	unzip -q "$$ZIP_FILE" -d Hiddify/; \
 	rm "$$ZIP_FILE"; \
-	tar -a -cf "$$FILE_NAME.zip" Hiddify; \
+	$(call MAKE_ZIP,$$FILE_NAME.zip,Hiddify); \
 	rm -rf Hiddify; \
 	$(GREEN)Successful$(DONE)
 
 windows-exe-release:
-	fastforge package \
+	@$(EXE_PREREQ)
+	"$(FASTFORGE)" package \
 	  --platform windows \
 	  --targets exe \
 	  --skip-clean \
@@ -317,7 +570,8 @@ windows-exe-release:
 	  --build-dart-define=sentry_dsn=$(SENTRY_DSN)
 
 windows-msix-release:
-	fastforge package \
+	@$(MSIX_PREREQ)
+	"$(FASTFORGE)" package \
 	  --platform windows \
 	  --targets msix \
 	  --skip-clean \
@@ -333,7 +587,7 @@ linux-arm64-musl-release: linux-release
 
 
 linux-deb-release:
-	fastforge package \
+	"$(FASTFORGE)" package \
 	--platform linux \
 	--targets deb \
 	--skip-clean \
@@ -371,7 +625,7 @@ linux-deb-release:
 # runtime instability. Use only for specific edge cases where standard linking fails.
 # ==============================================================================
 linux-appimage-release:
-	fastforge package \
+	"$(FASTFORGE)" package \
 	--platform linux \
 	--targets appimage \
 	--skip-clean \
@@ -459,49 +713,50 @@ linux-docker-release:
 	@$(GREEN)Successful. Output is in 'dist_docker' folder.$(DONE)
 
 macos-release:
-	fastforge package --platform macos --targets dmg,pkg $(DISTRIBUTOR_ARGS)
+	"$(FASTFORGE)" package --platform macos --targets dmg,pkg $(DISTRIBUTOR_ARGS)
 
 ios-release: #not tested
-	fastforge package --platform ios --targets ipa --build-export-options-plist  ios/exportOptions.plist $(DISTRIBUTOR_ARGS)
+	"$(FASTFORGE)" package --platform ios --targets ipa --build-export-options-plist  ios/exportOptions.plist $(DISTRIBUTOR_ARGS)
 
 android-libs:
-	$(MKDIR) $(ANDROID_OUT) || echo Folder already exists. Skipping...
-	curl -L $(CORE_URL)/$(CORE_NAME)-android.tar.gz | tar xz -C $(ANDROID_OUT)/
+	$(MKDIR) $(ANDROID_OUT)$(SHELL_FORCE)
+	$(call CORE_FETCH,$(ANDROID_OUT),$(CORE_NAME)-android.tar.gz)
+	@ls -la $(ANDROID_OUT)
 
 android-apk-libs: android-libs
 android-aab-libs: android-libs
 
 windows-libs:
-	$(MKDIR) $(DESKTOP_OUT) || echo Folder already exists. Skipping...
-	curl -L $(CORE_URL)/$(CORE_NAME)-windows-amd64.tar.gz | tar xz -C $(DESKTOP_OUT)/
-	ls $(DESKTOP_OUT) || dir $(DESKTOP_OUT)/
+	$(MKDIR) $(DESKTOP_OUT)$(SHELL_FORCE)
+	$(call CORE_FETCH,$(DESKTOP_OUT),$(CORE_NAME)-windows-amd64.tar.gz)
+	@ls -la $(DESKTOP_OUT)$(SHELL_FORCE)
 	
 
 linux-amd64-libs:
-	mkdir -p $(DESKTOP_OUT)
-	curl -L $(CORE_URL)/$(CORE_NAME)-linux-amd64.tar.gz | tar xz -C $(DESKTOP_OUT)/
+	$(MKDIR) $(DESKTOP_OUT)$(SHELL_FORCE)
+	$(call CORE_FETCH,$(DESKTOP_OUT),$(CORE_NAME)-linux-amd64.tar.gz)
 
 linux-arm64-libs:
-	mkdir -p $(DESKTOP_OUT)
-	curl -L $(CORE_URL)/$(CORE_NAME)-linux-arm64.tar.gz | tar xz -C $(DESKTOP_OUT)/
+	$(MKDIR) $(DESKTOP_OUT)$(SHELL_FORCE)
+	$(call CORE_FETCH,$(DESKTOP_OUT),$(CORE_NAME)-linux-arm64.tar.gz)
 
 linux-amd64-musl-libs:
-	mkdir -p $(DESKTOP_OUT)
-	curl -L $(CORE_URL)/$(CORE_NAME)-linux-amd64-musl.tar.gz | tar xz -C $(DESKTOP_OUT)/
+	$(MKDIR) $(DESKTOP_OUT)$(SHELL_FORCE)
+	$(call CORE_FETCH,$(DESKTOP_OUT),$(CORE_NAME)-linux-amd64-musl.tar.gz)
 
 linux-arm64-musl-libs:
-	mkdir -p $(DESKTOP_OUT)
-	curl -L $(CORE_URL)/$(CORE_NAME)-linux-arm64-musl.tar.gz | tar xz -C $(DESKTOP_OUT)/
+	$(MKDIR) $(DESKTOP_OUT)$(SHELL_FORCE)
+	$(call CORE_FETCH,$(DESKTOP_OUT),$(CORE_NAME)-linux-arm64-musl.tar.gz)
 
 
 macos-libs:
-	mkdir -p  $(DESKTOP_OUT) 
-	curl -L $(CORE_URL)/$(CORE_NAME)-macos.tar.gz | tar xz -C $(DESKTOP_OUT)
+	$(MKDIR) $(DESKTOP_OUT)$(SHELL_FORCE)
+	$(call CORE_FETCH,$(DESKTOP_OUT),$(CORE_NAME)-macos.tar.gz)
 
 ios-libs: #not tested
-	mkdir -p $(IOS_OUT)
-	rm -rf $(IOS_OUT)/HiddifyCore.xcframework
-	curl -L $(CORE_URL)/$(CORE_NAME)-ios.tar.gz | tar xz -C "$(IOS_OUT)"
+	$(MKDIR) $(IOS_OUT)$(SHELL_FORCE)
+	$(RM) $(IOS_OUT)/HiddifyCore.xcframework$(SHELL_FORCE)
+	$(call CORE_FETCH,$(IOS_OUT),$(CORE_NAME)-ios.tar.gz)
 
 get-geo-assets:
 	echo ""
