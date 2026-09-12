@@ -151,19 +151,26 @@ jobs:
       matrix:
         include: ${{ fromJson(needs.plan.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
+    # 签名步骤不应当由 upload-artifact 推断 —— "有没有证书"和"要不要上传产物"
+    # 是两件事。fork 里没有签名 secrets，但依然可以上传产物；此时签名步骤
+    # 应当自动跳过，而不是拿着空证书去调用签名动作然后失败。
+    env:
+      HAS_WINDOWS_CERT: ${{ secrets.WINDOWS_SIGNING_KEY != '' }}
+      HAS_ANDROID_KEY: ${{ secrets.ANDROID_SIGNING_KEY != '' }}
+      HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE_P12 != '' }}
     steps:
       - name: checkout
         uses: actions/checkout@v6
 
       - name: Import Apple Codesign Certificates
-        if: ${{ inputs.upload-artifact && startsWith(matrix.os,'macos') }}
+        if: ${{ env.HAS_APPLE_CERT == 'true' && startsWith(matrix.os,'macos') }}
         uses: apple-actions/import-codesign-certs@v6
         with: 
             p12-file-base64: "${{ secrets.APPLE_CERTIFICATE_P12 }}"
             p12-password: "${{ secrets.APPLE_CERTIFICATE_P12_PASSWORD }}"
 
       - name: Import Apple Mobile Provisioning Profile
-        if: ${{ inputs.upload-artifact && startsWith(matrix.os,'macos') }}
+        if: ${{ env.HAS_APPLE_CERT == 'true' && startsWith(matrix.os,'macos') }}
         run: |
            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
            echo "${{secrets.APPLE_MOBILE_PROVISIONING_PROFILES_TARGZ_BASE64}}"|base64 --decode | tar xz -C ~/Library/MobileDevice/Provisioning\ Profiles
@@ -254,7 +261,7 @@ jobs:
           echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
 
       - name: Setup Android Signing Properties
-        if: ${{ inputs.upload-artifact && startsWith(matrix.platform,'android') }}
+        if: ${{ env.HAS_ANDROID_KEY == 'true' && startsWith(matrix.platform,'android') }}
         run: |
           echo "${{ secrets.ANDROID_SIGNING_KEY }}" | base64 --decode > android/key.jks
           echo "storeFile=$(pwd)/android/key.jks" > android/key.properties
@@ -263,7 +270,7 @@ jobs:
           echo "keyAlias=${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}" >> android/key.properties
 
       - name: Setup Windows Signing Properties
-        if: ${{ inputs.upload-artifact && startsWith(matrix.platform,'windows') }}
+        if: ${{ env.HAS_WINDOWS_CERT == 'true' && startsWith(matrix.platform,'windows') }}
         run: |
             [IO.File]::WriteAllBytes("windows\sign.pfx", [Convert]::FromBase64String("${{ secrets.WINDOWS_SIGNING_KEY }}"))
             (Get-Content "windows\packaging\msix\make_config.yaml") -replace '^certificate_password:.*$', 'certificate_password: ${{ secrets.WINDOWS_SIGNING_PASSWORD }}' | Set-Content "windows\packaging\msix\make_config.yaml"
@@ -279,6 +286,13 @@ jobs:
 
 
 
+      # Inno Setup 是 windows-exe-release 的前置。CI 原先依赖 runner 镜像**预装**它，
+      # 而 GitHub 的 windows 镜像现在已经不再包含（Server 2025 移除了 InnoSetup）。
+      # 显式装，别把这个前置偷偷挂在镜像上。
+      - name: Install Inno Setup (windows)
+        if: startsWith(matrix.platform,'windows')
+        run: choco install innosetup -y --no-progress
+
       - name: Prepare for ${{ matrix.platform }}
         run: |
           make ${{ matrix.platform }}-prepare
@@ -291,7 +305,7 @@ jobs:
           make ${{ matrix.platform }}-release
 
       - name: Code Sign
-        if: ${{ inputs.upload-artifact && startsWith(matrix.platform,'windows') }}
+        if: ${{ env.HAS_WINDOWS_CERT == 'true' && startsWith(matrix.platform,'windows') }}
         uses: hiddify/signtool-code-sign-sha256@main
         with:
           certificate: '${{ secrets.WINDOWS_SIGNING_KEY }}'
