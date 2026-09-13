@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
+import 'package:hiddify/core/widget/nekobox/ping_badge.dart';
 import 'package:hiddify/core/widget/nekobox/protocol_chip.dart';
 import 'package:hiddify/features/proxy/active/ip_widget.dart';
 import 'package:hiddify/gen/fonts.gen.dart';
@@ -26,8 +27,6 @@ class ProxyTile extends HookConsumerWidget with PresLogger {
     // 未测速显示 — 而不是把这一格留空：留空等于"没有信息"，
     // 也让「按延迟排序」看起来像没生效
     final delay = proxy.urlTestDelay;
-    final delayText = delay == 0 ? "—" : (delay > 65000 ? "×" : delay.toString());
-    final delayTint = delay == 0 ? theme.disabledColor : delayColor(context, delay);
 
     return ListTile(
       // shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -78,7 +77,7 @@ class ProxyTile extends HookConsumerWidget with PresLogger {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Text(delayText, style: TextStyle(color: delayTint)),
+          PingBadge(delay),
           // 用量：延迟之外第二个"跑起来才知道"的量（nekoray 的表格也是同一行给）
           if (proxy.download + proxy.upload > 0)
             Text((proxy.download + proxy.upload).toInt().size(), style: Theme.of(context).textTheme.bodySmall),
@@ -91,20 +90,5 @@ class ProxyTile extends HookConsumerWidget with PresLogger {
       onLongPress: () async => await ref.read(dialogNotifierProvider.notifier).showProxyInfo(outboundInfo: proxy),
       horizontalTitleGap: 4,
     );
-  }
-
-  Color delayColor(BuildContext context, int delay) {
-    if (Theme.of(context).brightness == Brightness.dark) {
-      return switch (delay) {
-        < 800 => Colors.lightGreen,
-        < 1500 => Colors.orange,
-        _ => Colors.redAccent,
-      };
-    }
-    return switch (delay) {
-      < 800 => Colors.green,
-      < 1500 => Colors.deepOrangeAccent,
-      _ => Colors.red,
-    };
   }
 }

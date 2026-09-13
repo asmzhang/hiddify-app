@@ -12,6 +12,7 @@ import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/core/widget/nekobox/connection_dashboard.dart';
 import 'package:hiddify/core/utils/preferences_utils.dart';
+import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/connection/notifier/system_proxy_notifier.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
@@ -52,6 +53,19 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
     // 列表 / 网格（落盘，见 proxiesListViewProvider）
     final listView = ref.watch(proxiesListViewProvider);
     final stats = ref.watch(statsNotifierProvider).asData?.value ?? SystemInfo.create();
+
+    // 连接状态（给仪表盘用）：区分 已连接 / 连接中 / 错误 / 未连接
+    final connectionStatus = ref.watch(connectionNotifierProvider).valueOrNull;
+    final NkConnectionState nkState;
+    if (connectionStatus is Connected) {
+      nkState = NkConnectionState.connected;
+    } else if (connectionStatus is Connecting || connectionStatus is Disconnecting) {
+      nkState = NkConnectionState.connecting;
+    } else if (connectionStatus is Disconnected && connectionStatus.connectionFailure != null) {
+      nkState = NkConnectionState.error;
+    } else {
+      nkState = NkConnectionState.disconnected;
+    }
 
     // final selectActiveProxyMutation = useMutation(
     //   initialOnFailure: (error) => CustomToast.error(t.presentShortError(error)).show(context),
@@ -210,9 +224,13 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
                 child: ConnectionDashboard(
-                  state: capturing ? NkConnectionState.connected : NkConnectionState.disconnected,
+                  state: nkState,
                   name: selectedName ?? '—',
-                  statusText: capturing ? t.connection.connected : t.connection.tapToConnect,
+                  statusText: switch (nkState) {
+                    NkConnectionState.connected => t.connection.connected,
+                    NkConnectionState.connecting => t.connection.connecting,
+                    _ => t.connection.tapToConnect,
+                  },
                   up: stats.uplink.toInt().speed(),
                   down: stats.downlink.toInt().speed(),
                   onTap: () => ref.read(connectionNotifierProvider.notifier).toggleConnection(),
