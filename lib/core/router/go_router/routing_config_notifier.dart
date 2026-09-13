@@ -9,7 +9,6 @@ import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.
 import 'package:hiddify/core/router/go_router/helper/custom_transition.dart';
 import 'package:hiddify/core/router/go_router/refresh_listenable.dart';
 import 'package:hiddify/features/about/widget/about_page.dart';
-import 'package:hiddify/features/home/widget/home_page.dart';
 import 'package:hiddify/features/intro/widget/intro_page.dart';
 import 'package:hiddify/features/log/overview/logs_page.dart';
 import 'package:hiddify/features/per_app_proxy/overview/per_app_proxy_page.dart';
@@ -46,6 +45,9 @@ final loadingConfig = RoutingConfig(
   routes: <RouteBase>[GoRoute(path: '/home', builder: (context, state) => const Material())],
 );
 
+// 下面两个列表的顺序必须和 routes 里 branches 的顺序严格一致：
+// 导航栏用 currentIndex 索引 branches，而 FocusScope 靠这张表映射回分支名。
+// （首页和代理页合并后已经不再有独立的 'proxies' 分支。）
 String getNameOfBranch(bool isMobileBreakpoint, bool showProfilesAction, int index) => isMobileBreakpoint
     ? ['home', 'settings'][index]
     : ['home', if (showProfilesAction) 'profiles', 'settings', 'logs', 'about'][index];
@@ -125,14 +127,8 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
                 GoRoute(
                   name: 'home',
                   path: '/home',
-                  builder: (_, _) => FocusScope(node: branchesScope['home'], child: const HomePage()),
+                  builder: (_, _) => FocusScope(node: branchesScope['home'], child: const ProxiesOverviewPage()),
                   routes: <GoRoute>[
-                    GoRoute(
-                      name: 'proxies',
-                      path: 'proxies',
-                      pageBuilder: (_, state) =>
-                          customTransition(TransitionType.fade, state.pageKey, const ProxiesOverviewPage()),
-                    ),
                     if (isMobileBreakpoint)
                       GoRoute(
                         name: 'profileDetails',
@@ -147,6 +143,8 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
                 ),
               ],
             ),
+            // 首页和代理页**已合并**：原来的 proxies 分支取消，那一页由 home 分支承担。
+            // （它同时是"开关 + 现状 + 挑选"，所以不需要两个页面。）
             if (showProfilesAction)
               StatefulShellBranch(
                 routes: <GoRoute>[

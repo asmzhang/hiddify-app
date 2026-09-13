@@ -106,6 +106,10 @@
       "title": "Proxys",
       "sort": "Trier les proxys",
       "testDelay": "Tester le délai",
+      "search": "Rechercher",
+      "testAll": "Tester toutes les latences",
+      "testAfterConnect": "Connectez-vous d'abord",
+      "preselect": "Non connecté · sélectionné",
       "empty": "Aucun proxy disponible",
       "activeProxy": "Proxy actif",
       "unknownIp": "IP inconnue",
@@ -417,6 +421,9 @@
       "inbound": {
         "title": "Entrant",
         "serviceMode": "Mode de service",
+        "coreRunning": "Noyau",
+        "captureEnabled": "Capturer le trafic",
+        "captureEnabledSubtitle": "Désactivé, le noyau tourne mais ne capture pas le trafic système (mode proxy système uniquement)",
         "serviceModes": {
           "proxy": "Service proxy uniquement",
           "systemProxy": "Définir le proxy système",
@@ -555,7 +562,9 @@
       "uplink": "Envoi",
       "downlink": "Réception",
       "speed": "Vitesse",
-      "totalTransferred": "Total transféré"
+      "totalTransferred": "Total transféré",
+      "trafficProxied": "Via le proxy",
+      "trafficDirect": "Direct"
     },
     "subscriptionInfo": {
       "upload": "Envoi",

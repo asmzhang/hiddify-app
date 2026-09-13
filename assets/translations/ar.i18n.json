@@ -112,6 +112,10 @@
       "title": "البروكسيات",
       "sort": "فرز البروكسيات",
       "testDelay": "اختبار التأخير",
+      "search": "بحث",
+      "testAll": "اختبار كل التأخيرات",
+      "testAfterConnect": "اتصل أولاً",
+      "preselect": "غير متصل · محدد",
       "empty": "لا توجد بروكسيات متاحة",
       "activeProxy": "البروكسي النشط",
       "unknownIp": "IP غير معروف",
@@ -423,6 +427,9 @@
       "inbound": {
         "title": "الوارد",
         "serviceMode": "وضع الخدمة",
+        "coreRunning": "النواة",
+        "captureEnabled": "اعتراض الحركة",
+        "captureEnabledSubtitle": "عند الإيقاف تستمر النواة بالعمل دون اعتراض حركة النظام (وضع وكيل النظام فقط)",
         "serviceModes": {
           "proxy": "خدمة البروكسي فقط",
           "systemProxy": "تعيين بروكسي النظام",
@@ -561,7 +568,9 @@
       "uplink": "الإرسال",
       "downlink": "الاستقبال",
       "speed": "السرعة",
-      "totalTransferred": "إجمالي النقل"
+      "totalTransferred": "إجمالي النقل",
+      "trafficProxied": "عبر البروكسي",
+      "trafficDirect": "مباشر"
     },
     "subscriptionInfo": {
       "upload": "الرفع",

@@ -330,6 +330,12 @@ doctor:
 	@$(DOCTOR_PLATFORM_EXTRA)
 	@echo "==> Core libs"
 	@if [ -n "$$(ls -A $(DESKTOP_OUT) 2>/dev/null | grep -v '^\.gitkeep$$')" ]; then echo "    OK   present ($(DESKTOP_OUT))"; else echo "    WARN missing         - run: make <platform>-prepare"; fi
+	@echo "==> Core from source (only needed for: make windows-prepare LOCAL_CORE=1)"
+	@if command -v go >/dev/null 2>&1; then echo "    OK   $$(go version)"; else echo "    WARN go              - not in PATH: LOCAL_CORE=1 will fail"; fi
+ifeq ($(OS),Windows_NT)
+	@if command -v $(CC_MINGW) >/dev/null 2>&1; then echo "    OK   $(CC_MINGW) (cgo compiler)"; elif [ -x "$(MINGW_BIN)/$(CC_MINGW).exe" ]; then echo "    OK   $(CC_MINGW) (cgo compiler) - $(MINGW_BIN)"; else echo "    WARN $(CC_MINGW)   - cgo compiler not found: pass MINGW_BIN=<dir>"; fi
+endif
+	@sh scripts/doctor_go_cache.sh hiddify-core || true
 
 prepare:
 	@echo use the following commands to prepare the library for each platform:$(SHELL_FORCE)
@@ -585,6 +591,9 @@ windows-zip-release:
 	$(BLUE)Extracting and Repacking...$(DONE); \
 	mkdir -p Hiddify; \
 	unzip -oq "$$ZIP_FILE" -d Hiddify/; \
+	$(BLUE)Removing runtime leftovers...$(DONE); \
+	rm -f Hiddify/cache.db Hiddify/CrashReport-*.log; \
+	rm -rf Hiddify/hiddify_portable_data; \
 	rm "$$ZIP_FILE"; \
 	$(call MAKE_ZIP,$$FILE_NAME.zip,Hiddify); \
 	rm -rf Hiddify; \
@@ -751,12 +760,85 @@ ios-release: #not tested
 android-libs:
 	$(MKDIR) $(ANDROID_OUT)$(SHELL_FORCE)
 	$(call CORE_FETCH,$(ANDROID_OUT),$(CORE_NAME)-android.tar.gz)
-	@ls -la $(ANDROID_OUT)
+	@ls -la $(ANDROID_OUT)$(SHELL_FORCE)
 
 android-apk-libs: android-libs
 android-aab-libs: android-libs
 
-windows-libs:
+# ---------------------------------------------------------------------------
+# 本地从源码编译核心库（Windows 上也能用，不依赖 PowerShell）。
+#
+# 为什么要单独做：
+#   hiddify-core/Makefile 在 Windows 上被**故意**挡住（第 10~12 行写了非法语法 +
+#   "use bash in WSL"），它自己的 make 在 Windows 上必然失败。但被挡的只是 make，
+#   go 本身能编 —— 这里把那个 Makefile 第 71/78 行的命令搬过来，并处理四个坑：
+#     · CC：cgo 要 gcc/clang —— 用 MINGW_BIN（默认 llvm-mingw 的位置）
+#     · 代理：go 会读 HTTP(S)_PROXY，环境里那个本地代理会拖慢且不走你自己的线路
+#       —— 这里 unset 掉
+#     · 依赖：用 go mod tidy（正是上游 make 的 prepare 那一步），**不要**用
+#       -mod=mod —— 后者遇到没在 go.mod 里的 import 会去挑 @latest，实测把
+#       gvisor.dev/gvisor 拉到当天主干（要求 go >= 1.26.3，本机 1.25.6）→ 直接失败
+#     · 别改坏 go.mod/go.sum：tidy 和 build 全部写进替身文件（-modfile=go.verify.mod，
+#       go 会自动配同名的 go.verify.sum），原文件全程不动
+#
+# 编完会打成 $(CORE_NAME)-windows-amd64.tar.gz 放进 core-libs 缓存，且**不改 .url
+# 指纹** —— 于是之后 make windows-prepare / flutter build 会命中缓存、直接用你
+# 编的核心，不再下载上游的。
+#
+#   make windows-libs-local              # 编核心 + CLI + 打包
+#   make windows-prepare-local           # 上面 + common-prepare
+#   make windows-prepare LOCAL_CORE=1    # 同上（走 windows-libs 的开关）
+#
+# 可覆盖的变量：
+#   MINGW_BIN=/c/msys64/mingw64/bin        # C 工具链位置
+#   CORE_GOPROXY=https://goproxy.cn,direct # 模块源（默认官方；国内可换）
+# ---------------------------------------------------------------------------
+MINGW_BIN    ?= /d/Platform/llvm-mingw-20260908-ucrt-x86_64/bin
+CORE_GOPROXY ?= https://proxy.golang.org,direct
+CORE_TAGS    := with_gvisor,with_quic,with_wireguard,with_utls,with_clash_api,with_grpc,with_awg,tfogo_checklinkname0,with_naive_outbound,with_conntrack
+CORE_PKG     := $(CORE_NAME)-windows-amd64.tar.gz
+CC_MINGW     := x86_64-w64-mingw32-gcc
+
+windows-libs-local:
+	@rm -f hiddify-core/go.verify.mod hiddify-core/go.verify.sum$(SHELL_FORCE)
+	@echo "== [1/3] building hiddify-core from source (bypassing hiddify-core's own make) =="
+	@cd hiddify-core && \
+	  { command -v $(CC_MINGW) >/dev/null 2>&1 || export PATH="$(MINGW_BIN):$$PATH"; } && \
+	  command -v $(CC_MINGW) >/dev/null 2>&1 || { echo "ERROR: $(CC_MINGW) not found - pass MINGW_BIN=<dir>"; exit 1; } && \
+	  unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY && \
+	  cp -f go.mod go.verify.mod && cp -f go.sum go.verify.sum && \
+	  echo "  [1a] go mod tidy (upstream's 'prepare' step; respects the pinned versions)..." && \
+	  GOPROXY=$(CORE_GOPROXY) GOSUMDB=off GOTOOLCHAIN=local go mod tidy -modfile=go.verify.mod && \
+	  echo "  [1b] building hiddify-core.dll ..." && \
+	  GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=$(CC_MINGW) \
+	    GOPROXY=$(CORE_GOPROXY) GOSUMDB=off GOTOOLCHAIN=local \
+	    go build -mod=readonly -modfile=go.verify.mod -trimpath \
+	      -ldflags="-w -s -checklinkname=0 -buildid=" -buildmode=c-shared \
+	      -tags "$(CORE_TAGS),with_purego" -o bin/hiddify-core.dll ./platform/desktop && \
+	  echo "  [1c] building HiddifyCli.exe ..." && \
+	  cp -f bin/hiddify-core.dll ./hiddify-core.dll && \
+	  CGO_LDFLAGS="hiddify-core.dll" GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=$(CC_MINGW) \
+	    GOPROXY=$(CORE_GOPROXY) GOSUMDB=off GOTOOLCHAIN=local \
+	    go build -mod=readonly -modfile=go.verify.mod -trimpath \
+	      -ldflags="-w -s -checklinkname=0 -buildid=" -tags "$(CORE_TAGS)" \
+	      -o bin/HiddifyCli.exe ./cmd/bydll ; \
+	  _rc=$$? ; rm -f ./hiddify-core.dll go.verify.mod go.verify.sum ; \
+	  [ $$_rc -eq 0 ] || { echo "ERROR: core build failed (rc=$$_rc)"; exit $$_rc; }
+	@cd hiddify-core && echo "  [1d] go.mod/go.sum must be untouched (empty output = good):" && git status --short -- go.mod go.sum
+	@echo "== [2/3] packing the core-libs package (same layout as upstream: 3 files at root) =="
+	@cd hiddify-core && STAGE="$$(mktemp -d)" && \
+	  { tar xzf "../$(CORE_CACHE)/$(CORE_PKG)" -C "$$STAGE" 2>/dev/null || true; } && \
+	  cp -f bin/hiddify-core.dll bin/HiddifyCli.exe "$$STAGE/" && \
+	  { [ -f "$$STAGE/libcronet.dll" ] || cp -f bin/libcronet.dll "$$STAGE/"; } && \
+	  { tar czf "../$(CORE_CACHE)/$(CORE_PKG)" -C "$$STAGE" .; } && \
+	  rm -rf "$$STAGE" && \
+	  ls -la "../$(CORE_CACHE)/$(CORE_PKG)"
+	@echo "== [3/3] done - the .url fingerprint is untouched, so windows-prepare keeps hitting the cache =="
+
+windows-prepare-local: common-prepare windows-libs-local
+
+
+windows-libs: $(if $(LOCAL_CORE),windows-libs-local,)
 	$(MKDIR) $(DESKTOP_OUT)$(SHELL_FORCE)
 	$(call CORE_FETCH,$(DESKTOP_OUT),$(CORE_NAME)-windows-amd64.tar.gz)
 	@ls -la $(DESKTOP_OUT)$(SHELL_FORCE)

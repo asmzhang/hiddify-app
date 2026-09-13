@@ -6,6 +6,7 @@ import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_notifier.dart';
 import 'package:hiddify/features/proxy/active/ip_widget.dart';
+import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hiddify/utils/custom_loggers.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -18,14 +19,26 @@ class ActiveProxyFooter extends ConsumerWidget with InfraLogger {
     final connectionState = ref.watch(
       connectionNotifierProvider.select((value) => value.valueOrNull ?? const Disconnected()),
     );
+    final t = ref.watch(translationsProvider).requireValue;
+    final isConnected = connectionState == const Connected();
 
     final activeProxy = ref.watch(activeProxyNotifierProvider.select((value) => value.valueOrNull));
-    final t = ref.watch(translationsProvider).requireValue;
-
-    // Early return if required data is not available
-    if (connectionState != const Connected() || activeProxy == null) {
-      return const SizedBox.shrink();
+    // 未连接时运行时没有数据，但这条**不能整条藏起来** —— 藏起来不光让人以为"没有代理"，
+    // 还会把进代理页的入口一起藏掉（它原本是唯一入口）。
+    // 于是退回显示"预选"：清单里当前选中的那个节点（用户点过的，或分组的默认值）。
+    final group = ref.watch(proxiesOverviewNotifierProvider).valueOrNull;
+    OutboundInfo? preselect;
+    if (!isConnected && group != null) {
+      for (final item in group.items) {
+        if (item.isSelected) {
+          preselect = item;
+          break;
+        }
+      }
     }
+
+    final proxy = isConnected ? activeProxy : preselect;
+    if (proxy == null) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
 
@@ -52,22 +65,21 @@ class ActiveProxyFooter extends ConsumerWidget with InfraLogger {
       ),
       child: InkWell(
         onTap: () {
-          context.goNamed('proxies');
+          // 首页和代理页已合并：这里的"去代理页"就是回主页面
+          context.goNamed('home');
         },
         child: Row(
           children: [
             InkWell(
               onTap: () async {
-                await handleUrlTest();
-                await ref.read(dialogNotifierProvider.notifier).showProxyInfo(outboundInfo: activeProxy);
+                // 未连接时核心没在跑，测速没有意义，只弹节点信息
+                if (isConnected) await handleUrlTest();
+                if (!context.mounted) return;
+                await ref.read(dialogNotifierProvider.notifier).showProxyInfo(outboundInfo: proxy);
               },
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: IPCountryFlag(
-                  countryCode: activeProxy.ipinfo.countryCode,
-                  organization: activeProxy.ipinfo.org,
-                  size: 48,
-                ),
+                child: IPCountryFlag(countryCode: proxy.ipinfo.countryCode, organization: proxy.ipinfo.org, size: 48),
               ),
             ),
             Expanded(
@@ -78,8 +90,7 @@ class ActiveProxyFooter extends ConsumerWidget with InfraLogger {
                   Semantics(
                     label: t.pages.proxies.activeProxy,
                     child: Text(
-                      // getRealOutboundTag(activeProxy),
-                      activeProxy.tagDisplay,
+                      proxy.tagDisplay,
                       style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -88,14 +99,19 @@ class ActiveProxyFooter extends ConsumerWidget with InfraLogger {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      if (activeProxy.ipinfo.ip.isNotEmpty)
-                        IPText(ip: activeProxy.ipinfo.ip, onLongPress: handleUrlTest, constrained: true)
+                      // 未连接时没有 IP 可显示 —— 用一句话说明"这是预选、连上才生效"
+                      if (!isConnected)
+                        Text(
+                          t.pages.proxies.preselect,
+                          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.primary),
+                        )
+                      else if (proxy.ipinfo.ip.isNotEmpty)
+                        IPText(ip: proxy.ipinfo.ip, onLongPress: handleUrlTest, constrained: true)
                       else
                         UnknownIPText(text: t.pages.proxies.unknownIp, onTap: handleUrlTest),
                       const Spacer(),
                       Text(
-                        // getRealOutboundTag(activeProxy),
-                        activeProxy.type,
+                        proxy.type,
                         style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

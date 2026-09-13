@@ -224,6 +224,39 @@ class HiddifyCoreService with InfraLogger {
     });
   }
 
+  /// 系统代理的当前状态（`available` = 这个平台支不支持设系统代理）。
+  ///
+  /// 「内核常驻」模式靠它判断"到底有没有接管流量"—— 因为**内核在跑 ≠ 流量被接管**：
+  /// 那个模式下「连接」是系统代理开关，不是启停内核。
+  TaskEither<String, SystemProxyStatus> getSystemProxyStatus() {
+    return TaskEither(() async {
+      try {
+        return right(await core.bgClient.getSystemProxyStatus(Empty()));
+      } catch (e) {
+        loggy.error("failed to get system proxy status: $e");
+        return left("failed to get system proxy status: $e");
+      }
+    });
+  }
+
+  /// 运行时开关系统代理 —— **不用重启内核**。这是「内核常驻」模式的基础。
+  TaskEither<String, Unit> setSystemProxyEnabled(bool enabled) {
+    return TaskEither(() async {
+      loggy.debug("setting system proxy enabled: $enabled");
+      try {
+        final res = await core.bgClient.setSystemProxyEnabled(
+          SetSystemProxyEnabledRequest(isEnabled: enabled),
+          options: CallOptions(timeout: const Duration(seconds: 10)),
+        );
+        if (res.code != ResponseCode.OK) return left("${res.code} ${res.message}");
+        return right(unit);
+      } catch (e) {
+        loggy.error("failed to set system proxy: $e");
+        rethrow;
+      }
+    });
+  }
+
   TaskEither<String, Unit> restart(String path, String name, bool disableMemoryLimit) {
     return TaskEither(() async {
       loggy.debug("restarting");

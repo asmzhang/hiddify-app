@@ -106,6 +106,10 @@
       "title": "Proxy'ler",
       "sort": "Proxy'leri sırala",
       "testDelay": "Gecikmeyi test et",
+      "search": "Ara",
+      "testAll": "Tüm gecikmeleri test et",
+      "testAfterConnect": "Test için önce bağlanın",
+      "preselect": "Bağlı değil · seçildi",
       "empty": "Kullanılabilir proxy yok",
       "activeProxy": "Aktif proxy",
       "unknownIp": "Bilinmeyen IP",
@@ -417,6 +421,9 @@
       "inbound": {
         "title": "Gelen",
         "serviceMode": "Servis modu",
+        "coreRunning": "Çekirdek",
+        "captureEnabled": "Trafiği yakala",
+        "captureEnabledSubtitle": "Kapalıyken çekirdek çalışır ama sistem trafiğini yakalamaz (yalnızca sistem proxy modu)",
         "serviceModes": {
           "proxy": "Yalnızca proxy servisi",
           "systemProxy": "Sistem proxy'sini ayarla",
@@ -555,7 +562,9 @@
       "uplink": "Yükleme",
       "downlink": "İndirme",
       "speed": "Hız",
-      "totalTransferred": "Toplam aktarılan"
+      "totalTransferred": "Toplam aktarılan",
+      "trafficProxied": "Proxy üzerinden",
+      "trafficDirect": "Doğrudan"
     },
     "subscriptionInfo": {
       "upload": "Yükleme",

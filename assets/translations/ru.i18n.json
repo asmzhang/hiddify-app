@@ -110,6 +110,10 @@
       "title": "Прокси",
       "sort": "Сортировать прокси",
       "testDelay": "Проверить задержку",
+      "search": "Поиск",
+      "testAll": "Проверить все задержки",
+      "testAfterConnect": "Сначала подключитесь",
+      "preselect": "Не подключено · выбрано",
       "empty": "Нет доступных прокси",
       "activeProxy": "Активный прокси",
       "unknownIp": "Неизвестный IP",
@@ -421,6 +425,9 @@
       "inbound": {
         "title": "Входящие",
         "serviceMode": "Режим службы",
+        "coreRunning": "Ядро",
+        "captureEnabled": "Перехват трафика",
+        "captureEnabledSubtitle": "Выключено: ядро работает, но не перехватывает трафик (только режим системного прокси)",
         "serviceModes": {
           "proxy": "Только прокси-служба",
           "systemProxy": "Установить системный прокси",
@@ -559,7 +566,9 @@
       "uplink": "Отправка",
       "downlink": "Прием",
       "speed": "Скорость",
-      "totalTransferred": "Всего передано"
+      "totalTransferred": "Всего передано",
+      "trafficProxied": "Через прокси",
+      "trafficDirect": "Напрямую"
     },
     "subscriptionInfo": {
       "upload": "Отправлено",

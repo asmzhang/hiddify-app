@@ -106,6 +106,10 @@
       "title": "پروکسی‌ها",
       "sort": "مرتب‌سازی پروکسی‌ها",
       "testDelay": "تست تأخیر",
+      "search": "جستجو",
+      "testAll": "آزمایش همه تأخیرها",
+      "testAfterConnect": "برای آزمایش ابتدا متصل شوید",
+      "preselect": "متصل نیست · انتخاب‌شده",
       "empty": "هیچ پروکسی موجود نیست",
       "activeProxy": "پروکسی فعال",
       "unknownIp": "IP ناشناخته",
@@ -417,6 +421,9 @@
       "inbound": {
         "title": "ورودی",
         "serviceMode": "حالت سرویس",
+        "coreRunning": "هسته",
+        "captureEnabled": "ضبط ترافیک",
+        "captureEnabledSubtitle": "هسته حتی در حالت خاموش برنامه را اجرا می‌کند ولی ترافیک سیستم را نمی‌گیرد (فقط حالت پروکسی سیستم)",
         "serviceModes": {
           "proxy": "فقط سرویس پروکسی",
           "systemProxy": "تنظیم پروکسی سیستم",
@@ -555,7 +562,9 @@
       "uplink": "ارسال",
       "downlink": "دریافت",
       "speed": "سرعت",
-      "totalTransferred": "کل منتقل شده"
+      "totalTransferred": "کل منتقل شده",
+      "trafficProxied": "از طریق پروکسی",
+      "trafficDirect": "مستقیم"
     },
     "subscriptionInfo": {
       "upload": "آپلود",

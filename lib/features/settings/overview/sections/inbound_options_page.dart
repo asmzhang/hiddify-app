@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hiddify/core/localization/translations.dart';
+import 'package:hiddify/core/preferences/general_preferences.dart';
+import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/features/settings/widget/lan_sharing_tile.dart';
 import 'package:hiddify/features/settings/widget/preference_tile.dart';
@@ -24,6 +26,19 @@ class InboundOptionsPage extends HookConsumerWidget with AppLogger {
             title: t.pages.settings.inbound.serviceMode,
             icon: Icons.tune_rounded,
             presentChoice: (value) => value.present(t),
+          ),
+          // 「接管流量」：和"启停内核"**独立**的一个量（照 nekoray 的 spmode 开关）。
+          // 关掉再启动 ⇒ 内核跑起来但不接管系统流量，可以安心挑节点、测延迟。
+          // 由于它只在启动时生效，内核在跑时改它会重启内核（nekoray 切 TUN 也这么干）。
+          SwitchListTile.adaptive(
+            title: Text(t.pages.settings.inbound.captureEnabled),
+            subtitle: Text(
+              t.pages.settings.inbound.captureEnabledSubtitle,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            secondary: const Icon(Icons.swap_horiz_rounded),
+            value: ref.watch(Preferences.captureEnabled),
+            onChanged: (value) => ref.read(connectionNotifierProvider.notifier).setCapture(value),
           ),
           SwitchListTile.adaptive(
             title: Text(t.pages.settings.inbound.strictRoute),

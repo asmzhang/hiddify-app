@@ -83,7 +83,9 @@ class MyAdaptiveLayout extends HookConsumerWidget {
             ? FocusScope(
                 node: navScopeNode,
                 child: NavigationBar(
-                  selectedIndex: navigationShell.currentIndex <= 1 ? navigationShell.currentIndex : 0,
+                  // 移动端的分支与导航项现在完全一一对应（home / proxies / settings），
+                  // 不再需要把越界索引压回 0
+                  selectedIndex: navigationShell.currentIndex,
                   destinations: _navDests(_actions(t, showProfilesAction, isMobileBreakpoint)),
                   onDestinationSelected: (index) => _onTap(context, index),
                 ),
@@ -98,8 +100,10 @@ class MyAdaptiveLayout extends HookConsumerWidget {
     navigationShell.goBranch(index, initialLocation: index == navigationShell.currentIndex);
   }
 
+  // 顺序必须和 routing_config_notifier 里 branches 的顺序一致（导航用 currentIndex 索引分支）。
+  // 首页和代理页**已合并**成一页，所以这里只有一个「代理」入口（它兼当首页）。
   List<ShellRouteAction> _actions(Translations t, bool showProfilesAction, bool isMobileBreakpoint) => [
-    ShellRouteAction(Icons.power_settings_new_rounded, t.pages.home.title),
+    ShellRouteAction(Icons.public_rounded, t.pages.proxies.title),
     if (showProfilesAction && !isMobileBreakpoint) ShellRouteAction(Icons.view_list_rounded, t.pages.profiles.title),
     ShellRouteAction(Icons.settings_rounded, t.pages.settings.title),
     if (!isMobileBreakpoint) ShellRouteAction(Icons.description_rounded, t.pages.logs.title),

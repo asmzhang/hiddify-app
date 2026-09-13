@@ -128,6 +128,7 @@ class ConnectionButton extends HookConsumerWidget {
             ref.read(bottomSheetsNotifierProvider.notifier).showAddProfile();
           }
           if (await ref.read(dialogNotifierProvider.notifier).showExperimentalFeatureNotice()) {
+            // 大按钮就是「接管」开关：内核默认已经常驻，所以这里只需要切换接管。
             return await ref.read(connectionNotifierProvider.notifier).toggleConnection();
           }
         },
