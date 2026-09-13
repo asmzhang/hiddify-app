@@ -196,6 +196,9 @@
       "title": "Subscriptions"
     },
     "about": {
+      "coreVersion": "Core version",
+      "donate": "Donate",
+      "license": "License",
       "title": "About",
       "notAvailableMsg": "Already using the latest version",
       "checkForUpdate": "Check for update",

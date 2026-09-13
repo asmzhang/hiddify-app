@@ -196,6 +196,9 @@
       "title": "اشتراک‌ها"
     },
     "about": {
+      "coreVersion": "نسخه هسته",
+      "donate": "حمایت مالی",
+      "license": "مجوز",
       "title": "درباره",
       "notAvailableMsg": "شما در حال استفاده از آخرین نسخه هستید",
       "checkForUpdate": "بررسی برای به‌روزرسانی",

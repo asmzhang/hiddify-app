@@ -196,6 +196,9 @@
       "title": "Abonelikler"
     },
     "about": {
+      "coreVersion": "Çekirdek sürümü",
+      "donate": "Bağış yap",
+      "license": "Lisans",
       "title": "Hakkında",
       "notAvailableMsg": "Zaten en son sürümü kullanıyorsunuz",
       "checkForUpdate": "Güncellemeleri kontrol et",

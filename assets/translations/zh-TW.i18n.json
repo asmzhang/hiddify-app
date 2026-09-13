@@ -196,6 +196,9 @@
       "title": "訂閱"
     },
     "about": {
+      "coreVersion": "內核版本",
+      "donate": "捐贈",
+      "license": "授權條款",
       "title": "關於",
       "notAvailableMsg": "已是最新版本",
       "checkForUpdate": "檢查更新",

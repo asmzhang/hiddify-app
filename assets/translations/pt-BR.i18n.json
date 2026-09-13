@@ -196,6 +196,9 @@
       "title": "Assinaturas"
     },
     "about": {
+      "coreVersion": "Versão do núcleo",
+      "donate": "Doar",
+      "license": "Licença",
       "title": "Sobre",
       "notAvailableMsg": "Você já está usando a versão mais recente",
       "checkForUpdate": "Verificar atualizações",
