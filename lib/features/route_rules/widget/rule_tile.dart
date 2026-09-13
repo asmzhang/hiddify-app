@@ -3,6 +3,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
+import 'package:hiddify/core/widget/nekobox/nk_theme.dart';
 import 'package:hiddify/features/route_rules/notifier/rules_notifier.dart';
 import 'package:hiddify/features/route_rules/widget/setting_detail_chips.dart';
 import 'package:hiddify/hiddifycore/generated/v2/config/route_rule.pb.dart';
@@ -55,7 +56,10 @@ class RuleTile extends HookConsumerWidget {
     ref.listen(rulesNotifierProvider, (_, _) {
       if (scrollController.offset > 0) scrollController.jumpTo(0);
     });
-    return Material(
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NkMetrics.radius)),
       child: InkWell(
         onTap: () {
           context.goNamed('rule', pathParameters: {'orderId': rule.listOrder.toString()});
@@ -82,7 +86,11 @@ class RuleTile extends HookConsumerWidget {
             ListTile(
               title: Text(
                 t.pages.settings.routing.routeRule.rule.outbound[rule.outbound.name] ?? rule.outbound.name,
-                style: Theme.of(context).textTheme.labelMedium,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  // 出站配色：direct 灰 / block 红 / 其余（代理）主色
+                  color:
+                      NkColors.protocol[rule.outbound.name.toLowerCase()] ?? Theme.of(context).colorScheme.primary,
+                ),
               ),
               subtitle: Text(rule.name, style: Theme.of(context).textTheme.bodyLarge),
               leading: ReorderableDragStartListener(index: index, child: const Icon(Icons.drag_handle_rounded)),
