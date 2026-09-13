@@ -109,12 +109,20 @@ class RoutingOptionsPage extends HookConsumerWidget {
                   )
                 else
                   Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(
-                        t.pages.settings.routing.routeRule.empty,
-                        style: theme.textTheme.bodyLarge!.copyWith(color: theme.colorScheme.onSurface),
-                      ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.rule_rounded, size: 48, color: theme.disabledColor),
+                        const Gap(12),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Text(
+                            t.pages.settings.routing.routeRule.empty,
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodyLarge!.copyWith(color: theme.colorScheme.onSurface),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 _ExpandableFab(
