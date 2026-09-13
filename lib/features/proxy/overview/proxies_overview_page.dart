@@ -7,7 +7,9 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/failures.dart';
+import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
 import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
+import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/core/utils/preferences_utils.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/connection/notifier/system_proxy_notifier.dart';
@@ -55,6 +57,8 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
 
     return Scaffold(
       appBar: AppBar(
+        // 手机端：汉堡键打开左侧导航抽屉；PC 端无（左侧是常驻 rail）
+        leading: Breakpoint(context).isMobile() ? const ShellDrawerButton() : null,
         title: Text(t.pages.proxies.title),
         actions: [
           // 添加订阅（原来在首页的 AppBar 上）—— 合并后这里不能丢

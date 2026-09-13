@@ -4,6 +4,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/constants.dart';
+import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
 import 'package:hiddify/core/router/adaptive_layout/shell_route_action.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/core/router/go_router/routing_config_notifier.dart';
@@ -53,8 +54,39 @@ class MyAdaptiveLayout extends HookConsumerWidget {
         HardwareKeyboard.instance.removeHandler(handler);
       };
     }, [isMobileBreakpoint, showProfilesAction, navigationShell.currentIndex]);
+
+    final actions = _actions(t, showProfilesAction, isMobileBreakpoint);
+
     return Material(
       child: Scaffold(
+        // 手机端：抽屉由顶级页面的汉堡键（ShellDrawerButton）打开。
+        // PC 端：不使用抽屉，左侧是常驻 NavigationRail。
+        key: rootDrawerScaffoldKey,
+        drawer: isMobileBreakpoint
+            ? FocusScope(
+                node: navScopeNode,
+                child: NavigationDrawer(
+                  selectedIndex: navigationShell.currentIndex,
+                  onDestinationSelected: (index) {
+                    _onTap(context, index);
+                    rootDrawerScaffoldKey.currentState?.closeDrawer();
+                  },
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(28, 20, 16, 12),
+                      child: Text(
+                        'Hiddify',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    ...actions.map(
+                      (e) => NavigationDrawerDestination(icon: Icon(e.icon), label: Text(e.title)),
+                    ),
+                    const Divider(indent: 28, endIndent: 28),
+                  ],
+                ),
+              )
+            : null,
         body: isMobileBreakpoint
             ? navigationShell
             : Row(
@@ -63,7 +95,7 @@ class MyAdaptiveLayout extends HookConsumerWidget {
                     node: navScopeNode,
                     child: NavigationRail(
                       extended: Breakpoint(context).isDesktop(),
-                      destinations: _navRailDests(_actions(t, showProfilesAction, isMobileBreakpoint)),
+                      destinations: _navRailDests(actions),
                       selectedIndex: navigationShell.currentIndex,
                       onDestinationSelected: (index) => _onTap(context, index),
                       trailing: Breakpoint(context).isDesktop()
@@ -79,18 +111,6 @@ class MyAdaptiveLayout extends HookConsumerWidget {
                   Expanded(child: navigationShell),
                 ],
               ),
-        bottomNavigationBar: isMobileBreakpoint
-            ? FocusScope(
-                node: navScopeNode,
-                child: NavigationBar(
-                  // 移动端的分支与导航项现在完全一一对应（home / proxies / settings），
-                  // 不再需要把越界索引压回 0
-                  selectedIndex: navigationShell.currentIndex,
-                  destinations: _navDests(_actions(t, showProfilesAction, isMobileBreakpoint)),
-                  onDestinationSelected: (index) => _onTap(context, index),
-                ),
-              )
-            : null,
       ),
     );
   }
@@ -110,8 +130,6 @@ class MyAdaptiveLayout extends HookConsumerWidget {
     if (!isMobileBreakpoint) ShellRouteAction(Icons.info_rounded, t.pages.about.title),
   ];
 
-  List<NavigationDestination> _navDests(List<ShellRouteAction> actions) =>
-      actions.map((e) => NavigationDestination(icon: Icon(e.icon), label: e.title)).toList();
   List<NavigationRailDestination> _navRailDests(List<ShellRouteAction> actions) =>
       actions.map((e) => NavigationRailDestination(icon: Icon(e.icon), label: Text(e.title))).toList();
 }

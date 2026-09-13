@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
+import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
@@ -57,6 +58,8 @@ class SettingsPage extends HookConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        // 手机端：汉堡键打开左侧导航抽屉；PC 端无（左侧是常驻 rail）
+        leading: Breakpoint(context).isMobile() ? const ShellDrawerButton() : null,
         title: Text(t.pages.settings.title),
         actions: [
           MenuAnchor(
