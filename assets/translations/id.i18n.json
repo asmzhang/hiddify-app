@@ -184,7 +184,13 @@
       "shareAppLogs": "Bagikan log aplikasi"
     },
     "tools": {
-      "title": "Alat"
+      "title": "Alat",
+      "network": "Jaringan",
+      "backup": "Cadangan",
+      "stunTest": "Uji STUN / NAT",
+      "publicAddress": "Alamat publik",
+      "natType": "Tipe NAT",
+      "testFailed": "Uji gagal"
     },
     "about": {
       "title": "Tentang",

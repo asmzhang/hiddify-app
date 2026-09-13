@@ -184,7 +184,13 @@
       "shareAppLogs": "Share app logs"
     },
     "tools": {
-      "title": "Tools"
+      "title": "Tools",
+      "network": "Network",
+      "backup": "Backup",
+      "stunTest": "STUN / NAT test",
+      "publicAddress": "Public address",
+      "natType": "NAT type",
+      "testFailed": "Test failed"
     },
     "about": {
       "title": "About",

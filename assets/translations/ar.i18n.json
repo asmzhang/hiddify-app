@@ -190,7 +190,13 @@
       "shareAppLogs": "مشاركة سجلات التطبيق"
     },
     "tools": {
-      "title": "أدوات"
+      "title": "أدوات",
+      "network": "الشبكة",
+      "backup": "نسخة احتياطية",
+      "stunTest": "اختبار STUN / NAT",
+      "publicAddress": "العنوان العام",
+      "natType": "نوع NAT",
+      "testFailed": "فشل الاختبار"
     },
     "about": {
       "title": "حول التطبيق",

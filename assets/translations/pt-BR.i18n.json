@@ -184,7 +184,13 @@
       "shareAppLogs": "Compartilhar registros do aplicativo"
     },
     "tools": {
-      "title": "Ferramentas"
+      "title": "Ferramentas",
+      "network": "Rede",
+      "backup": "Backup",
+      "stunTest": "Teste STUN / NAT",
+      "publicAddress": "Endereço público",
+      "natType": "Tipo de NAT",
+      "testFailed": "Falha no teste"
     },
     "about": {
       "title": "Sobre",

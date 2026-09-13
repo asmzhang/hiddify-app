@@ -188,7 +188,13 @@
       "shareAppLogs": "Поделиться логами приложения"
     },
     "tools": {
-      "title": "Инструменты"
+      "title": "Инструменты",
+      "network": "Сеть",
+      "backup": "Резервная копия",
+      "stunTest": "Тест STUN / NAT",
+      "publicAddress": "Публичный адрес",
+      "natType": "Тип NAT",
+      "testFailed": "Ошибка теста"
     },
     "about": {
       "title": "О программе",
