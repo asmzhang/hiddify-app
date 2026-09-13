@@ -10,6 +10,7 @@ import 'package:hiddify/core/model/failures.dart';
 import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
 import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
+import 'package:hiddify/core/widget/nekobox/connection_dashboard.dart';
 import 'package:hiddify/core/utils/preferences_utils.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/connection/notifier/system_proxy_notifier.dart';
@@ -50,6 +51,7 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
     final searchController = useTextEditingController();
     // 列表 / 网格（落盘，见 proxiesListViewProvider）
     final listView = ref.watch(proxiesListViewProvider);
+    final stats = ref.watch(statsNotifierProvider).asData?.value ?? SystemInfo.create();
 
     // final selectActiveProxyMutation = useMutation(
     //   initialOnFailure: (error) => CustomToast.error(t.presentShortError(error)).show(context),
@@ -203,6 +205,19 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
 
           return Column(
             children: [
+              // 连接仪表盘（NekoBox 风格）：大圆钮 + 当前节点 + 状态 + 实时速率。
+              // **叠加**在原有工具条开关 / 底部速率条之上，不覆盖任何原有功能。
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+                child: ConnectionDashboard(
+                  state: capturing ? NkConnectionState.connected : NkConnectionState.disconnected,
+                  name: selectedName ?? '—',
+                  statusText: capturing ? t.connection.connected : t.connection.tapToConnect,
+                  up: stats.uplink.toInt().speed(),
+                  down: stats.downlink.toInt().speed(),
+                  onTap: () => ref.read(connectionNotifierProvider.notifier).toggleConnection(),
+                ),
+              ),
               // 「订阅」摘要 —— 原来在首页，合并后不能丢；点它进订阅页
               switch (ref.watch(activeProfileProvider)) {
                 AsyncData(value: final profile?) => ProfileTile(
