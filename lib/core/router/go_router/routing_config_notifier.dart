@@ -26,6 +26,7 @@ import 'package:hiddify/features/settings/overview/sections/inbound_options_page
 import 'package:hiddify/features/settings/overview/sections/routing_options_page.dart';
 import 'package:hiddify/features/settings/overview/sections/tls_tricks_page.dart';
 import 'package:hiddify/features/settings/overview/settings_page.dart';
+import 'package:hiddify/features/stats/overview/stats_overview_page.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -37,6 +38,7 @@ final branchesScope = <String, FocusScopeNode>{
   'profiles': FocusScopeNode(),
   'route': FocusScopeNode(),
   'settings': FocusScopeNode(),
+  'traffic': FocusScopeNode(),
   'logs': FocusScopeNode(),
   'about': FocusScopeNode(),
 };
@@ -51,7 +53,7 @@ final loadingConfig = RoutingConfig(
 // 手机端和 PC 端现在使用**同一套**导航项（NekoBox 的做法）。
 // （首页和代理页合并后已经不再有独立的 'proxies' 分支。）
 List<String> navBranchNames(bool showProfilesAction) =>
-    ['home', if (showProfilesAction) 'profiles', 'route', 'settings', 'logs', 'about'];
+    ['home', if (showProfilesAction) 'profiles', 'route', 'settings', 'traffic', 'logs', 'about'];
 
 String getNameOfBranch(bool showProfilesAction, int index) {
   final names = navBranchNames(showProfilesAction);
@@ -262,6 +264,16 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
                     ),
                     // logs / about 现在是顶层导航分支（见下方 branches），不再嵌在设置里。
                   ],
+                ),
+              ],
+            ),
+            // 「流量面板」：用现有 stats 组件融合出的整页仪表盘（非 NekoBox 的 Clash 网页）。
+            StatefulShellBranch(
+              routes: <GoRoute>[
+                GoRoute(
+                  name: 'traffic',
+                  path: '/traffic',
+                  builder: (_, _) => FocusScope(node: branchesScope['traffic'], child: const StatsOverviewPage()),
                 ),
               ],
             ),
