@@ -27,6 +27,7 @@ import 'package:hiddify/features/settings/overview/sections/routing_options_page
 import 'package:hiddify/features/settings/overview/sections/tls_tricks_page.dart';
 import 'package:hiddify/features/settings/overview/settings_page.dart';
 import 'package:hiddify/features/stats/overview/stats_overview_page.dart';
+import 'package:hiddify/features/tools/overview/tools_page.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -39,6 +40,7 @@ final branchesScope = <String, FocusScopeNode>{
   'route': FocusScopeNode(),
   'settings': FocusScopeNode(),
   'traffic': FocusScopeNode(),
+  'tools': FocusScopeNode(),
   'logs': FocusScopeNode(),
   'about': FocusScopeNode(),
 };
@@ -53,7 +55,7 @@ final loadingConfig = RoutingConfig(
 // 手机端和 PC 端现在使用**同一套**导航项（NekoBox 的做法）。
 // （首页和代理页合并后已经不再有独立的 'proxies' 分支。）
 List<String> navBranchNames(bool showProfilesAction) =>
-    ['home', if (showProfilesAction) 'profiles', 'route', 'settings', 'traffic', 'logs', 'about'];
+    ['home', if (showProfilesAction) 'profiles', 'route', 'settings', 'traffic', 'tools', 'logs', 'about'];
 
 String getNameOfBranch(bool showProfilesAction, int index) {
   final names = navBranchNames(showProfilesAction);
@@ -274,6 +276,16 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
                   name: 'traffic',
                   path: '/traffic',
                   builder: (_, _) => FocusScope(node: branchesScope['traffic'], child: const StatsOverviewPage()),
+                ),
+              ],
+            ),
+            // 「工具」：融合现有备份/恢复/重置能力（NekoBox 工具=网络+备份）。
+            StatefulShellBranch(
+              routes: <GoRoute>[
+                GoRoute(
+                  name: 'tools',
+                  path: '/tools',
+                  builder: (_, _) => FocusScope(node: branchesScope['tools'], child: const ToolsPage()),
                 ),
               ],
             ),

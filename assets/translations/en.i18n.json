@@ -183,6 +183,9 @@
       "shareCoreLogs": "Share core logs",
       "shareAppLogs": "Share app logs"
     },
+    "tools": {
+      "title": "Tools"
+    },
     "about": {
       "title": "About",
       "notAvailableMsg": "Already using the latest version",

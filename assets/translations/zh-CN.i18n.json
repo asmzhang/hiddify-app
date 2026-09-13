@@ -183,6 +183,9 @@
       "shareCoreLogs": "分享核心日志",
       "shareAppLogs": "分享应用日志"
     },
+    "tools": {
+      "title": "工具"
+    },
     "about": {
       "title": "关于",
       "notAvailableMsg": "已是最新版本",

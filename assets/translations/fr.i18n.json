@@ -183,6 +183,9 @@
       "shareCoreLogs": "Partager les journaux du noyau",
       "shareAppLogs": "Partager les journaux de l'application"
     },
+    "tools": {
+      "title": "Outils"
+    },
     "about": {
       "title": "À propos",
       "notAvailableMsg": "Vous utilisez déjà la dernière version",

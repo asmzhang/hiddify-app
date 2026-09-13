@@ -183,6 +183,9 @@
       "shareCoreLogs": "Bagikan log inti",
       "shareAppLogs": "Bagikan log aplikasi"
     },
+    "tools": {
+      "title": "Alat"
+    },
     "about": {
       "title": "Tentang",
       "notAvailableMsg": "Anda sudah menggunakan versi terbaru",
