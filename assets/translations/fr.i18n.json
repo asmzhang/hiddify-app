@@ -192,6 +192,9 @@
       "natType": "Type de NAT",
       "testFailed": "Échec du test"
     },
+    "subscriptions": {
+      "title": "Abonnements"
+    },
     "about": {
       "title": "À propos",
       "notAvailableMsg": "Vous utilisez déjà la dernière version",

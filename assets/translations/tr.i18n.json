@@ -192,6 +192,9 @@
       "natType": "NAT türü",
       "testFailed": "Test başarısız"
     },
+    "subscriptions": {
+      "title": "Abonelikler"
+    },
     "about": {
       "title": "Hakkında",
       "notAvailableMsg": "Zaten en son sürümü kullanıyorsunuz",

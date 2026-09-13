@@ -192,6 +192,9 @@
       "natType": "نوع NAT",
       "testFailed": "تست ناموفق"
     },
+    "subscriptions": {
+      "title": "اشتراک‌ها"
+    },
     "about": {
       "title": "درباره",
       "notAvailableMsg": "شما در حال استفاده از آخرین نسخه هستید",

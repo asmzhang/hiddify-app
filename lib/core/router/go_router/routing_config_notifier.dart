@@ -16,6 +16,7 @@ import 'package:hiddify/features/per_app_proxy/overview/per_app_proxy_page.dart'
 import 'package:hiddify/features/profile/details/profile_details_page.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/overview/profiles_page.dart';
+import 'package:hiddify/features/profile/overview/subscriptions_page.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_page.dart';
 import 'package:hiddify/features/route_rules/notifier/rule_notifier.dart';
 import 'package:hiddify/features/route_rules/overview/generic_list_page.dart';
@@ -156,6 +157,16 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
                   ),
                 ),
               ],
+            ),
+          ],
+        );
+      case 'subscriptions':
+        return StatefulShellBranch(
+          routes: <GoRoute>[
+            GoRoute(
+              name: 'subscriptions',
+              path: '/subscriptions',
+              builder: (_, _) => FocusScope(node: branchesScope['subscriptions'], child: const SubscriptionsPage()),
             ),
           ],
         );

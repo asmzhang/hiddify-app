@@ -196,6 +196,9 @@
       "natType": "Тип NAT",
       "testFailed": "Ошибка теста"
     },
+    "subscriptions": {
+      "title": "Подписки"
+    },
     "about": {
       "title": "О программе",
       "notAvailableMsg": "Вы уже используете последнюю версию",
