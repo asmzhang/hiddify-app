@@ -189,6 +189,9 @@
       "shareCoreLogs": "مشاركة سجلات النواة",
       "shareAppLogs": "مشاركة سجلات التطبيق"
     },
+    "tools": {
+      "title": "أدوات"
+    },
     "about": {
       "title": "حول التطبيق",
       "notAvailableMsg": "أنت تستخدم أحدث إصدار بالفعل",

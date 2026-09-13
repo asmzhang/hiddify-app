@@ -183,6 +183,9 @@
       "shareCoreLogs": "Compartir registros del núcleo",
       "shareAppLogs": "Compartir registros de la aplicación"
     },
+    "tools": {
+      "title": "Herramientas"
+    },
     "about": {
       "title": "Acerca de",
       "notAvailableMsg": "Ya estás usando la última versión",

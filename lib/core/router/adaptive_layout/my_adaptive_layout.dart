@@ -128,6 +128,7 @@ class MyAdaptiveLayout extends HookConsumerWidget {
     ShellRouteAction(Icons.alt_route_rounded, t.pages.settings.routing.title),
     ShellRouteAction(Icons.settings_rounded, t.pages.settings.title),
     ShellRouteAction(Icons.monitor_heart_rounded, t.components.stats.traffic),
+    ShellRouteAction(Icons.build_rounded, t.pages.tools.title),
     ShellRouteAction(Icons.description_rounded, t.pages.logs.title),
     ShellRouteAction(Icons.info_rounded, t.pages.about.title),
   ];

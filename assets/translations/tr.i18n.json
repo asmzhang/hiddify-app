@@ -183,6 +183,9 @@
       "shareCoreLogs": "Çekirdek loglarını paylaş",
       "shareAppLogs": "Uygulama loglarını paylaş"
     },
+    "tools": {
+      "title": "Araçlar"
+    },
     "about": {
       "title": "Hakkında",
       "notAvailableMsg": "Zaten en son sürümü kullanıyorsunuz",
