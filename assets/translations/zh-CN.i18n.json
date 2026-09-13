@@ -184,7 +184,13 @@
       "shareAppLogs": "分享应用日志"
     },
     "tools": {
-      "title": "工具"
+      "title": "工具",
+      "network": "网络",
+      "backup": "备份",
+      "stunTest": "STUN / NAT 测试",
+      "publicAddress": "公网地址",
+      "natType": "NAT 类型",
+      "testFailed": "测试失败"
     },
     "about": {
       "title": "关于",

@@ -184,7 +184,13 @@
       "shareAppLogs": "分享應用程式日誌"
     },
     "tools": {
-      "title": "工具"
+      "title": "工具",
+      "network": "網路",
+      "backup": "備份",
+      "stunTest": "STUN / NAT 測試",
+      "publicAddress": "公網位址",
+      "natType": "NAT 類型",
+      "testFailed": "測試失敗"
     },
     "about": {
       "title": "關於",

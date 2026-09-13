@@ -184,7 +184,13 @@
       "shareAppLogs": "Uygulama loglarını paylaş"
     },
     "tools": {
-      "title": "Araçlar"
+      "title": "Araçlar",
+      "network": "Ağ",
+      "backup": "Yedekleme",
+      "stunTest": "STUN / NAT testi",
+      "publicAddress": "Genel adres",
+      "natType": "NAT türü",
+      "testFailed": "Test başarısız"
     },
     "about": {
       "title": "Hakkında",

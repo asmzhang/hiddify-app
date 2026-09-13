@@ -184,7 +184,13 @@
       "shareAppLogs": "اشتراک‌گذاری گزارش‌های برنامه"
     },
     "tools": {
-      "title": "ابزارها"
+      "title": "ابزارها",
+      "network": "شبکه",
+      "backup": "پشتیبان‌گیری",
+      "stunTest": "تست STUN / NAT",
+      "publicAddress": "آدرس عمومی",
+      "natType": "نوع NAT",
+      "testFailed": "تست ناموفق"
     },
     "about": {
       "title": "درباره",
