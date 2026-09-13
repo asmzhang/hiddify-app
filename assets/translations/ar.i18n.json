@@ -198,6 +198,9 @@
       "natType": "نوع NAT",
       "testFailed": "فشل الاختبار"
     },
+    "subscriptions": {
+      "title": "الاشتراكات"
+    },
     "about": {
       "title": "حول التطبيق",
       "notAvailableMsg": "أنت تستخدم أحدث إصدار بالفعل",

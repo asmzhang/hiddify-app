@@ -192,6 +192,9 @@
       "natType": "NAT 類型",
       "testFailed": "測試失敗"
     },
+    "subscriptions": {
+      "title": "訂閱"
+    },
     "about": {
       "title": "關於",
       "notAvailableMsg": "已是最新版本",

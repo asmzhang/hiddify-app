@@ -47,6 +47,13 @@ List<NavMeta> navMetas(bool showProfilesAction) => [
       label: _profilesLabel,
     ),
   const NavMeta(
+    key: 'subscriptions',
+    routeName: 'subscriptions',
+    path: '/subscriptions',
+    icon: Icons.rss_feed_rounded,
+    label: _subscriptionsLabel,
+  ),
+  const NavMeta(
     key: 'route',
     routeName: 'routingOptions',
     path: '/route',
@@ -80,6 +87,7 @@ List<NavMeta> navMetas(bool showProfilesAction) => [
 
 String _homeLabel(Translations t) => t.pages.proxies.title;
 String _profilesLabel(Translations t) => t.pages.profiles.title;
+String _subscriptionsLabel(Translations t) => t.pages.subscriptions.title;
 String _routeLabel(Translations t) => t.pages.settings.routing.title;
 String _settingsLabel(Translations t) => t.pages.settings.title;
 String _trafficLabel(Translations t) => t.components.stats.traffic;

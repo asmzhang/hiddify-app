@@ -192,6 +192,9 @@
       "natType": "Tipe NAT",
       "testFailed": "Uji gagal"
     },
+    "subscriptions": {
+      "title": "Langganan"
+    },
     "about": {
       "title": "Tentang",
       "notAvailableMsg": "Anda sudah menggunakan versi terbaru",
