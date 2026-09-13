@@ -106,6 +106,10 @@
       "title": "代理",
       "sort": "排序代理",
       "testDelay": "测试延迟",
+      "search": "搜索",
+      "testAll": "全部测速",
+      "testAfterConnect": "连接后才能测速",
+      "preselect": "未连接 · 已选",
       "empty": "无可用代理",
       "activeProxy": "当前代理",
       "unknownIp": "未知 IP",
@@ -417,6 +421,9 @@
       "inbound": {
         "title": "入站",
         "serviceMode": "服务模式",
+        "coreRunning": "内核",
+        "captureEnabled": "接管流量",
+        "captureEnabledSubtitle": "关掉后内核照常运行，但不接管系统流量 —— 依然可以挑节点、测延迟（仅「系统代理」模式生效）",
         "serviceModes": {
           "proxy": "仅代理服务",
           "systemProxy": "设置系统代理",
@@ -555,7 +562,9 @@
       "uplink": "上传",
       "downlink": "下载",
       "speed": "速度",
-      "totalTransferred": "总传输量"
+      "totalTransferred": "总传输量",
+      "trafficProxied": "代理",
+      "trafficDirect": "直连"
     },
     "subscriptionInfo": {
       "upload": "上传",

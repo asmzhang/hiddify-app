@@ -106,6 +106,10 @@
       "title": "Proxy",
       "sort": "Urutkan proksi",
       "testDelay": "Uji latensi",
+      "search": "Cari",
+      "testAll": "Uji semua latensi",
+      "testAfterConnect": "Sambungkan dulu",
+      "preselect": "Tidak tersambung · dipilih",
       "empty": "Tidak ada proksi yang tersedia",
       "activeProxy": "Proksi aktif",
       "unknownIp": "IP tidak dikenal",
@@ -417,6 +421,9 @@
       "inbound": {
         "title": "Masuk",
         "serviceMode": "Mode layanan",
+        "coreRunning": "Inti",
+        "captureEnabled": "Tangkap lalu lintas",
+        "captureEnabledSubtitle": "Saat nonaktif, inti tetap berjalan tetapi tidak menangkap lalu lintas sistem (hanya mode proxy sistem)",
         "serviceModes": {
           "proxy": "Hanya layanan proksi",
           "systemProxy": "Atur proksi sistem",
@@ -555,7 +562,9 @@
       "uplink": "Unggah",
       "downlink": "Unduh",
       "speed": "Kecepatan",
-      "totalTransferred": "Total ditransfer"
+      "totalTransferred": "Total ditransfer",
+      "trafficProxied": "Lewat proxy",
+      "trafficDirect": "Langsung"
     },
     "subscriptionInfo": {
       "upload": "Unggah",

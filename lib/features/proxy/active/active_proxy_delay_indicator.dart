@@ -2,7 +2,6 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:hiddify/core/localization/translations.dart';
-import 'package:hiddify/core/widget/shimmer_skeleton.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_notifier.dart';
 import 'package:hiddify/utils/custom_loggers.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -66,7 +65,15 @@ class ActiveProxyDelayIndicator extends HookConsumerWidget with InfraLogger {
                   ),
                 )
               else
-                Semantics(label: t.pages.proxies.delay.testing, child: const ShimmerSkeleton(width: 48, height: 18)),
+                // 没测过就显示 —。原来这里是个永远转的"测试中"骨架，
+                // 看起来像"它在自动测速"，而实际上要自己点一下才测。
+                Text(
+                  "—",
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.disabledColor,
+                  ),
+                ),
             ],
           ),
         ),

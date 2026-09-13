@@ -1,4 +1,4 @@
-﻿{
+{
   "common": {
     "appTitle": "Hiddify",
     "start": "Start",
@@ -106,6 +106,10 @@
       "title": "Proxies",
       "sort": "Sort proxies",
       "testDelay": "Test delay",
+      "search": "Search",
+      "testAll": "Test all delays",
+      "testAfterConnect": "Connect first to test delays",
+      "preselect": "Not connected · selected",
       "empty": "No proxies available",
       "activeProxy": "Active proxy",
       "unknownIp": "Unknown IP",
@@ -417,6 +421,9 @@
       "inbound": {
         "title": "Inbound",
         "serviceMode": "Service mode",
+        "coreRunning": "Core",
+        "captureEnabled": "Capture traffic",
+        "captureEnabledSubtitle": "When off, the core keeps running but does not capture system traffic — you can still pick nodes and test delays (system proxy mode only)",
         "serviceModes": {
           "proxy": "Proxy service only",
           "systemProxy": "Set system proxy",
@@ -555,7 +562,9 @@
       "uplink": "Uplink",
       "downlink": "Downlink",
       "speed": "Speed",
-      "totalTransferred": "Total transferred"
+      "totalTransferred": "Total transferred",
+      "trafficProxied": "Proxied",
+      "trafficDirect": "Direct"
     },
     "subscriptionInfo": {
       "upload": "Upload",

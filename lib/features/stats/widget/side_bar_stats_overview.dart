@@ -5,8 +5,11 @@ import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/constants.dart';
 import 'package:hiddify/core/utils/preferences_utils.dart';
 import 'package:hiddify/core/widget/animated_text.dart';
+import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
+import 'package:hiddify/features/stats/model/traffic_split.dart';
 import 'package:hiddify/features/stats/notifier/stats_notifier.dart';
 import 'package:hiddify/features/stats/widget/stats_card.dart';
+import 'package:hiddify/features/stats/widget/traffic_split_card.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hiddify/utils/number_formatters.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -22,6 +25,11 @@ class SideBarStatsOverview extends HookConsumerWidget {
 
     final stats = ref.watch(statsNotifierProvider).asData?.value ?? SystemInfo.create();
     final showAll = ref.watch(showAllSidebarStatsProvider);
+
+    // 光看 trafficAvailable 不够：内核常驻时它因为"内核在跑"就是 true，
+    // 但没接管流量时代理/直连全是 0 —— 那张卡就是噪声。必须再要求"确实在接管流量"。
+    final showSplit = stats.trafficAvailable && ref.watch(serviceRunningProvider);
+    final split = ref.watch(trafficSplitProvider);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
@@ -51,19 +59,35 @@ class SideBarStatsOverview extends HookConsumerWidget {
           AnimatedCrossFade(
             crossFadeState: showAll ? CrossFadeState.showSecond : CrossFadeState.showFirst,
             duration: kAnimationDuration,
-            firstChild: StatsCard(
-              title: t.components.stats.traffic,
-              stats: [
-                (
-                  label: const Icon(FluentIcons.arrow_download_16_regular),
-                  data: Text(stats.downlink.toInt().speed()),
-                  semanticLabel: t.components.stats.speed,
+            firstChild: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                StatsCard(
+                  title: t.components.stats.traffic,
+                  stats: [
+                    (
+                      label: const Icon(FluentIcons.arrow_download_16_regular),
+                      data: Text(stats.downlink.toInt().speed()),
+                      semanticLabel: t.components.stats.speed,
+                    ),
+                    (
+                      label: const Icon(FluentIcons.arrow_bidirectional_up_down_16_regular),
+                      data: Text(stats.downlinkTotal.toInt().size()),
+                      semanticLabel: t.components.stats.totalTransferred,
+                    ),
+                  ],
                 ),
-                (
-                  label: const Icon(FluentIcons.arrow_bidirectional_up_down_16_regular),
-                  data: Text(stats.downlinkTotal.toInt().size()),
-                  semanticLabel: t.components.stats.totalTransferred,
-                ),
+                // 折叠态也留一条细条 + 一行实时速率：一眼能看出流量到底走没走代理
+                if (showSplit) ...[
+                  const Gap(8),
+                  TrafficShareBar(split: split),
+                  const Gap(6),
+                  TrafficSplitLiveLine(
+                    split: split,
+                    proxiedLabel: t.components.stats.trafficProxied,
+                    directLabel: t.components.stats.trafficDirect,
+                  ),
+                ],
               ],
             ),
             secondChild: Column(
@@ -100,6 +124,15 @@ class SideBarStatsOverview extends HookConsumerWidget {
                     ),
                   ],
                 ),
+                if (showSplit) ...[
+                  const Gap(8),
+                  TrafficSplitCard(
+                    title: t.components.stats.traffic,
+                    proxiedLabel: t.components.stats.trafficProxied,
+                    directLabel: t.components.stats.trafficDirect,
+                    split: split,
+                  ),
+                ],
               ],
             ),
           ),

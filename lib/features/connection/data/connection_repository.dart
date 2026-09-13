@@ -88,13 +88,43 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
   @override
   TaskEither<ConnectionFailure, Unit> disconnect() => singbox.stop().mapLeft(UnexpectedConnectionFailure.new);
 
+  /// 换配置 = **下发设置 → 等（核心会自己重启）→ 再起一次**。
+  ///
+  /// 实测日志（02:21:48）说明了一切：
+  /// ```
+  /// capture enabled - restarting core to apply it
+  /// connection status: CONNECTED            ← 核心自己重启了一次
+  /// connection status: DISCONNECTED
+  /// [E] error watching proxies: HTTP/2 ... Connection is being forcefully terminated
+  /// [W] error applying capture change       ← 15 毫秒后就报错
+  /// ```
+  /// 也就是说：**`changeHiddifySettings` 本身就会重启核心**，重启期间 gRPC 通道被切断，
+  /// 于是 `applyConfigOption` 报 "forcefully terminated" —— 那是**预期行为**，不是失败。
+  /// 所以这里：① 忽略这一步的错（只记日志）② 等核心重启完 ③ 按新设置再 start 一次（失败重试一次）。
+  /// 之前用核心的 `restart`、以及 `stop` + 立刻 `start`，都是因为卡在这一步之前而失败。
   @override
   TaskEither<ConnectionFailure, Unit> reconnect(ProfileEntity activeProfile, bool disableMemoryLimit) =>
-      applyConfigOption(activeProfile).flatMap(
-        (_) => singbox
-            .restart(profilePathResolver.file(activeProfile.id).path, activeProfile.name, disableMemoryLimit)
-            .mapLeft(UnexpectedConnectionFailure.new),
-      );
+      TaskEither(() async {
+        final path = profilePathResolver.file(activeProfile.id).path;
+
+        final applied = await applyConfigOption(activeProfile).run();
+        applied.match(
+          (err) => loggy.info("applyConfigOption reported an error (expected while the core restarts): $err"),
+          (_) => unit,
+        );
+
+        // 尽力停一下（可能已经在重启中，失败无所谓）
+        await singbox.stop().run();
+
+        await Future.delayed(const Duration(milliseconds: 1500));
+        var result = await singbox.start(path, activeProfile.name, disableMemoryLimit).run();
+        if (result.isLeft()) {
+          loggy.warning("start after applying options failed, waiting longer and retrying once: $result");
+          await Future.delayed(const Duration(milliseconds: 2000));
+          result = await singbox.start(path, activeProfile.name, disableMemoryLimit).run();
+        }
+        return result.mapLeft(UnexpectedConnectionFailure.new);
+      });
 
   @visibleForTesting
   TaskEither<ConnectionFailure, Unit> applyConfigOption(ProfileEntity prof) =>

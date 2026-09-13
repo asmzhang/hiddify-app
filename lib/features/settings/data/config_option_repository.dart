@@ -5,6 +5,7 @@ import 'package:hiddify/core/model/region.dart';
 import 'package:hiddify/core/utils/exception_handler.dart';
 import 'package:hiddify/core/utils/json_converters.dart';
 import 'package:hiddify/core/utils/preferences_utils.dart';
+import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/features/log/model/log_level.dart';
 import 'package:hiddify/features/profile/data/profile_parser.dart';
 import 'package:hiddify/features/route_rules/notifier/rules_notifier.dart';
@@ -496,7 +497,10 @@ abstract class ConfigOptions {
       clashApiPort: ref.watch(clashApiPort),
       enableTun: mode == ServiceMode.tun,
       // enableTunService: mode == false, //ServiceMode.tunService,
-      setSystemProxy: mode == ServiceMode.systemProxy,
+      // 接管与否是**独立的量**（照 nekoray：neko_start 只装载配置，接管靠 spmode 开关）。
+      // 关掉它再启动 = 内核跑起来但不接管流量 ⇒ 能选节点、看延迟、测速。
+      // 注意 TUN 只能在启动时决定，所以它不受这个开关约束。
+      setSystemProxy: mode == ServiceMode.systemProxy && ref.watch(Preferences.captureEnabled),
       // bypassLan: ref.watch(bypassLan),
       allowConnectionFromLan: ref.watch(allowConnectionFromLan),
       lanSharingPassword: ref.watch(lanSharingPassword),

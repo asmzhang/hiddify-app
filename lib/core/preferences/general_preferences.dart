@@ -87,6 +87,17 @@ abstract class Preferences {
     PlatformUtils.isDesktop,
   );
 
+  /// **是否接管流量**（系统代理 / TUN）。
+  ///
+  /// 这是「内核」之外**独立的一个量** —— 照 nekoray 的模型：
+  /// `neko_start` 只把配置装进内核，接管靠 `spmode_system_proxy` / `spmode_vpn` 两个独立开关。
+  /// 分开之后：**内核起来但没接管时，节点/延迟/测速全都可用**（这才是我们要的体验）。
+  ///
+  /// **默认 `false`**：和"内核"彻底分开 —— 点「内核」只把内核拉起来（能测速、能挑节点，
+  /// 但流量照旧直连），点「接管」才真的接管流量。两个开关只有这样才是"两个"。
+  /// （首页的大按钮「连接」对普通用户仍是一步到位：它会先把这里置 true 再启动内核。）
+  static final captureEnabled = PreferencesNotifier.create<bool, bool>("capture_enabled", false);
+
   static final perAppProxyMode = PreferencesNotifier.create<PerAppProxyMode, String>(
     "per_app_proxy_mode",
     PerAppProxyMode.off,
