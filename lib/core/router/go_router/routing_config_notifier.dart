@@ -4,6 +4,7 @@ import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/notification/in_app_notification_controller.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/core/router/adaptive_layout/my_adaptive_layout.dart';
+import 'package:hiddify/core/router/adaptive_layout/nav_items.dart';
 import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/custom_transition.dart';
@@ -33,16 +34,9 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'routing_config_notifier.g.dart';
 
-// each branch in go router has its own focus scope
+// 每个 shell 分支各有一个 FocusScope。键直接由 navMetas 推导，避免手写漏项/错位。
 final branchesScope = <String, FocusScopeNode>{
-  'home': FocusScopeNode(),
-  'profiles': FocusScopeNode(),
-  'route': FocusScopeNode(),
-  'settings': FocusScopeNode(),
-  'traffic': FocusScopeNode(),
-  'tools': FocusScopeNode(),
-  'logs': FocusScopeNode(),
-  'about': FocusScopeNode(),
+  for (final meta in navMetas(true)) meta.key: FocusScopeNode(),
 };
 
 // when the routing config is not yet initialized, this config is used
@@ -50,19 +44,14 @@ final loadingConfig = RoutingConfig(
   routes: <RouteBase>[GoRoute(path: '/home', builder: (context, state) => const Material())],
 );
 
-// 导航项顺序必须和 routes 里 branches 的顺序严格一致：
-// 导航栏/抽屉用 currentIndex 索引 branches，而 FocusScope 靠这张表映射回分支名。
-// 手机端和 PC 端现在使用**同一套**导航项（NekoBox 的做法）。
-// （首页和代理页合并后已经不再有独立的 'proxies' 分支。）
-List<String> navBranchNames(bool showProfilesAction) =>
-    ['home', if (showProfilesAction) 'profiles', 'route', 'settings', 'traffic', 'tools', 'logs', 'about'];
+// 导航项顺序 = navMetas 的顺序（唯一数据源）。导航栏/抽屉用 currentIndex 索引分支，
+// FocusScope 靠这张表映射回分支名。
+List<String> navBranchNames(bool showProfilesAction) => navMetas(showProfilesAction).map((m) => m.key).toList();
 
 String getNameOfBranch(bool showProfilesAction, int index) {
   final names = navBranchNames(showProfilesAction);
   return (index >= 0 && index < names.length) ? names[index] : 'home';
 }
-
-int getIndexOfBranch(bool showProfilesAction, String name) => navBranchNames(showProfilesAction).indexOf(name);
 
 @Riverpod(keepAlive: true)
 class RoutingConfigNotifier extends _$RoutingConfigNotifier {
@@ -125,192 +114,200 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
             isMobileBreakpoint: isMobileBreakpoint,
             showProfilesAction: showProfilesAction,
           ),
+          // 分支**顺序完全由 navMetas 决定**；每个分支的内容按 key 在 _branchFor 里定义。
           branches: <StatefulShellBranch>[
-            StatefulShellBranch(
-              routes: <GoRoute>[
-                GoRoute(
-                  name: 'home',
-                  path: '/home',
-                  builder: (_, _) => FocusScope(node: branchesScope['home'], child: const ProxiesOverviewPage()),
-                ),
-              ],
-            ),
-            // 首页和代理页**已合并**：原来的 proxies 分支取消，那一页由 home 分支承担。
-            // （它同时是"开关 + 现状 + 挑选"，所以不需要两个页面。）
-            if (showProfilesAction)
-              StatefulShellBranch(
-                routes: <GoRoute>[
-                  GoRoute(
-                    name: 'profiles',
-                    path: '/profiles',
-                    builder: (_, _) => FocusScope(node: branchesScope['profiles'], child: const ProfilesPage()),
-                    routes: <GoRoute>[
-                      GoRoute(
-                        name: 'profileDetails',
-                        path: 'profile-details/:id',
-                        pageBuilder: (_, state) => customTransition(
-                          TransitionType.fade,
-                          state.pageKey,
-                          ProfileDetailsPage(id: state.pathParameters['id']!),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            // 「路由规则」提为顶层导航分支（NekoBox 里就是顶层入口）。
-            // 路由名保持 'routingOptions' 不变，只把父路径从 settings 下提到 /route，调用方无需改。
-            StatefulShellBranch(
-              routes: <GoRoute>[
-                GoRoute(
-                  name: 'routingOptions',
-                  path: '/route',
-                  builder: (context, state) => FocusScope(
-                    node: branchesScope['route'],
-                    child: RoutingOptionsPage(routeRule: state.uri.queryParameters['routeRule']),
-                  ),
-                  routes: <GoRoute>[
-                    GoRoute(
-                      name: 'rule',
-                      path: 'rule/:orderId',
-                      pageBuilder: (_, state) {
-                        final orderIdString = state.pathParameters['orderId']!;
-                        return customTransition(
-                          TransitionType.slide,
-                          state.pageKey,
-                          RulePage(ruleListOrder: orderIdString != 'new' ? int.tryParse(orderIdString) : null),
-                        );
-                      },
-                      onExit: (context, state) async {
-                        final t = ref.read(translationsProvider).requireValue;
-                        final orderId = int.tryParse(state.pathParameters['orderId']!);
-                        final isRuleEdited = ref.read(IsRuleEditedProvider(orderId));
-                        if (orderId != null && isRuleEdited) {
-                          await ref.read(ruleNotifierProvider(orderId).notifier).save();
-                          ref
-                              .read(inAppNotificationControllerProvider)
-                              .showSuccessToast(t.common.msg.autoSave.success);
-                        }
-                        return true;
-                      },
-                      routes: <GoRoute>[
-                        GoRoute(
-                          name: 'genericList',
-                          path: 'generic-list/:ruleEnum',
-                          pageBuilder: (_, state) {
-                            final orderId = int.tryParse(state.pathParameters['orderId']!);
-                            final ruleEnum = RuleEnum.values.byName(state.pathParameters['ruleEnum']!);
-                            return customTransition(
-                              TransitionType.slide,
-                              state.pageKey,
-                              GenericListPage(ruleListOrder: orderId, ruleEnum: ruleEnum),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                    GoRoute(
-                      name: 'perAppProxy',
-                      path: 'per-app-proxy',
-                      pageBuilder: (_, state) =>
-                          customTransition(TransitionType.slide, state.pageKey, const PerAppProxyPage()),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            StatefulShellBranch(
-              routes: <GoRoute>[
-                GoRoute(
-                  name: 'settings',
-                  path: '/settings',
-                  builder: (context, _) => FocusScope(
-                    node: branchesScope['settings'],
-                    child: PopScope(
-                      canPop: false,
-                      onPopInvokedWithResult: (_, _) => context.goNamed('home'),
-                      child: SettingsPage(),
-                    ),
-                  ),
-                  routes: <GoRoute>[
-                    GoRoute(
-                      name: 'general',
-                      path: 'general',
-                      pageBuilder: (_, state) =>
-                          customTransition(TransitionType.slide, state.pageKey, const GeneralPage()),
-                    ),
-                    // 「路由规则」已提为顶层分支 'routingOptions'（见上方 branches）。
-                    GoRoute(
-                      name: 'dnsOptions',
-                      path: 'dns-options',
-                      pageBuilder: (_, state) =>
-                          customTransition(TransitionType.slide, state.pageKey, const DnsOptionsPage()),
-                    ),
-                    GoRoute(
-                      name: 'inboundOptions',
-                      path: 'inbound-options',
-                      pageBuilder: (_, state) =>
-                          customTransition(TransitionType.slide, state.pageKey, const InboundOptionsPage()),
-                    ),
-                    GoRoute(
-                      name: 'tlsTricks',
-                      path: 'tls-tricks',
-                      pageBuilder: (_, state) =>
-                          customTransition(TransitionType.slide, state.pageKey, const TlsTricksPage()),
-                    ),
-                    GoRoute(
-                      name: 'chainOptions',
-                      path: 'chain-options',
-                      pageBuilder: (_, state) =>
-                          customTransition(TransitionType.slide, state.pageKey, const ChainOptionsPage()),
-                    ),
-                    // logs / about 现在是顶层导航分支（见下方 branches），不再嵌在设置里。
-                  ],
-                ),
-              ],
-            ),
-            // 「流量面板」：用现有 stats 组件融合出的整页仪表盘（非 NekoBox 的 Clash 网页）。
-            StatefulShellBranch(
-              routes: <GoRoute>[
-                GoRoute(
-                  name: 'traffic',
-                  path: '/traffic',
-                  builder: (_, _) => FocusScope(node: branchesScope['traffic'], child: const StatsOverviewPage()),
-                ),
-              ],
-            ),
-            // 「工具」：融合现有备份/恢复/重置能力（NekoBox 工具=网络+备份）。
-            StatefulShellBranch(
-              routes: <GoRoute>[
-                GoRoute(
-                  name: 'tools',
-                  path: '/tools',
-                  builder: (_, _) => FocusScope(node: branchesScope['tools'], child: const ToolsPage()),
-                ),
-              ],
-            ),
-            StatefulShellBranch(
-              routes: <GoRoute>[
-                GoRoute(
-                  name: 'logs',
-                  path: '/logs',
-                  builder: (_, _) => FocusScope(node: branchesScope['logs'], child: const LogsPage()),
-                ),
-              ],
-            ),
-            StatefulShellBranch(
-              routes: <GoRoute>[
-                GoRoute(
-                  name: 'about',
-                  path: '/about',
-                  builder: (_, _) => FocusScope(node: branchesScope['about'], child: const AboutPage()),
-                ),
-              ],
-            ),
+            for (final meta in navMetas(showProfilesAction)) _branchFor(meta.key),
           ],
         ),
         GoRoute(name: 'intro', path: '/intro', builder: (_, _) => const IntroPage()),
       ],
     );
+  }
+
+  /// 按 key 返回分支内容。key 来自 [navMetas]；**顺序由调用方（navMetas）决定**，与这里无关。
+  /// 新增导航项：在 nav_items.dart 的 navMetas 里加一条，然后在这里加一个 case。
+  StatefulShellBranch _branchFor(String key) {
+    switch (key) {
+      case 'home':
+        return StatefulShellBranch(
+          routes: <GoRoute>[
+            GoRoute(
+              name: 'home',
+              path: '/home',
+              builder: (_, _) => FocusScope(node: branchesScope['home'], child: const ProxiesOverviewPage()),
+            ),
+          ],
+        );
+      case 'profiles':
+        return StatefulShellBranch(
+          routes: <GoRoute>[
+            GoRoute(
+              name: 'profiles',
+              path: '/profiles',
+              builder: (_, _) => FocusScope(node: branchesScope['profiles'], child: const ProfilesPage()),
+              routes: <GoRoute>[
+                GoRoute(
+                  name: 'profileDetails',
+                  path: 'profile-details/:id',
+                  pageBuilder: (_, state) => customTransition(
+                    TransitionType.fade,
+                    state.pageKey,
+                    ProfileDetailsPage(id: state.pathParameters['id']!),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      case 'route':
+        return StatefulShellBranch(
+          routes: <GoRoute>[
+            GoRoute(
+              name: 'routingOptions',
+              path: '/route',
+              builder: (context, state) => FocusScope(
+                node: branchesScope['route'],
+                child: RoutingOptionsPage(routeRule: state.uri.queryParameters['routeRule']),
+              ),
+              routes: <GoRoute>[
+                GoRoute(
+                  name: 'rule',
+                  path: 'rule/:orderId',
+                  pageBuilder: (_, state) {
+                    final orderIdString = state.pathParameters['orderId']!;
+                    return customTransition(
+                      TransitionType.slide,
+                      state.pageKey,
+                      RulePage(ruleListOrder: orderIdString != 'new' ? int.tryParse(orderIdString) : null),
+                    );
+                  },
+                  onExit: (context, state) async {
+                    final t = ref.read(translationsProvider).requireValue;
+                    final orderId = int.tryParse(state.pathParameters['orderId']!);
+                    final isRuleEdited = ref.read(IsRuleEditedProvider(orderId));
+                    if (orderId != null && isRuleEdited) {
+                      await ref.read(ruleNotifierProvider(orderId).notifier).save();
+                      ref.read(inAppNotificationControllerProvider).showSuccessToast(t.common.msg.autoSave.success);
+                    }
+                    return true;
+                  },
+                  routes: <GoRoute>[
+                    GoRoute(
+                      name: 'genericList',
+                      path: 'generic-list/:ruleEnum',
+                      pageBuilder: (_, state) {
+                        final orderId = int.tryParse(state.pathParameters['orderId']!);
+                        final ruleEnum = RuleEnum.values.byName(state.pathParameters['ruleEnum']!);
+                        return customTransition(
+                          TransitionType.slide,
+                          state.pageKey,
+                          GenericListPage(ruleListOrder: orderId, ruleEnum: ruleEnum),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                GoRoute(
+                  name: 'perAppProxy',
+                  path: 'per-app-proxy',
+                  pageBuilder: (_, state) =>
+                      customTransition(TransitionType.slide, state.pageKey, const PerAppProxyPage()),
+                ),
+              ],
+            ),
+          ],
+        );
+      case 'settings':
+        return StatefulShellBranch(
+          routes: <GoRoute>[
+            GoRoute(
+              name: 'settings',
+              path: '/settings',
+              builder: (context, _) => FocusScope(
+                node: branchesScope['settings'],
+                child: PopScope(
+                  canPop: false,
+                  onPopInvokedWithResult: (_, _) => context.goNamed('home'),
+                  child: SettingsPage(),
+                ),
+              ),
+              routes: <GoRoute>[
+                GoRoute(
+                  name: 'general',
+                  path: 'general',
+                  pageBuilder: (_, state) =>
+                      customTransition(TransitionType.slide, state.pageKey, const GeneralPage()),
+                ),
+                GoRoute(
+                  name: 'dnsOptions',
+                  path: 'dns-options',
+                  pageBuilder: (_, state) =>
+                      customTransition(TransitionType.slide, state.pageKey, const DnsOptionsPage()),
+                ),
+                GoRoute(
+                  name: 'inboundOptions',
+                  path: 'inbound-options',
+                  pageBuilder: (_, state) =>
+                      customTransition(TransitionType.slide, state.pageKey, const InboundOptionsPage()),
+                ),
+                GoRoute(
+                  name: 'tlsTricks',
+                  path: 'tls-tricks',
+                  pageBuilder: (_, state) =>
+                      customTransition(TransitionType.slide, state.pageKey, const TlsTricksPage()),
+                ),
+                GoRoute(
+                  name: 'chainOptions',
+                  path: 'chain-options',
+                  pageBuilder: (_, state) =>
+                      customTransition(TransitionType.slide, state.pageKey, const ChainOptionsPage()),
+                ),
+              ],
+            ),
+          ],
+        );
+      case 'traffic':
+        return StatefulShellBranch(
+          routes: <GoRoute>[
+            GoRoute(
+              name: 'traffic',
+              path: '/traffic',
+              builder: (_, _) => FocusScope(node: branchesScope['traffic'], child: const StatsOverviewPage()),
+            ),
+          ],
+        );
+      case 'tools':
+        return StatefulShellBranch(
+          routes: <GoRoute>[
+            GoRoute(
+              name: 'tools',
+              path: '/tools',
+              builder: (_, _) => FocusScope(node: branchesScope['tools'], child: const ToolsPage()),
+            ),
+          ],
+        );
+      case 'logs':
+        return StatefulShellBranch(
+          routes: <GoRoute>[
+            GoRoute(
+              name: 'logs',
+              path: '/logs',
+              builder: (_, _) => FocusScope(node: branchesScope['logs'], child: const LogsPage()),
+            ),
+          ],
+        );
+      case 'about':
+        return StatefulShellBranch(
+          routes: <GoRoute>[
+            GoRoute(
+              name: 'about',
+              path: '/about',
+              builder: (_, _) => FocusScope(node: branchesScope['about'], child: const AboutPage()),
+            ),
+          ],
+        );
+      default:
+        throw ArgumentError('unknown nav key: $key');
+    }
   }
 }
