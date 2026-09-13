@@ -4,6 +4,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/constants.dart';
+import 'package:hiddify/core/router/adaptive_layout/nav_items.dart';
 import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
 import 'package:hiddify/core/router/adaptive_layout/shell_route_action.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
@@ -120,18 +121,10 @@ class MyAdaptiveLayout extends HookConsumerWidget {
     navigationShell.goBranch(index, initialLocation: index == navigationShell.currentIndex);
   }
 
-  // 顺序必须和 routing_config_notifier 里 branches 的顺序严格一致（导航用 currentIndex 索引分支）。
-  // 手机端与 PC 端使用同一套导航项。首页和代理页**已合并**成一页，所以只有一个「代理」入口（它兼当首页）。
-  List<ShellRouteAction> _actions(Translations t, bool showProfilesAction) => [
-    ShellRouteAction(Icons.public_rounded, t.pages.proxies.title),
-    if (showProfilesAction) ShellRouteAction(Icons.view_list_rounded, t.pages.profiles.title),
-    ShellRouteAction(Icons.alt_route_rounded, t.pages.settings.routing.title),
-    ShellRouteAction(Icons.settings_rounded, t.pages.settings.title),
-    ShellRouteAction(Icons.monitor_heart_rounded, t.components.stats.traffic),
-    ShellRouteAction(Icons.build_rounded, t.pages.tools.title),
-    ShellRouteAction(Icons.description_rounded, t.pages.logs.title),
-    ShellRouteAction(Icons.info_rounded, t.pages.about.title),
-  ];
+  // 导航项完全由 navMetas 推导（唯一数据源），这里只做 ShellRouteAction 适配。
+  // 顺序/显隐/图标/标签都在 nav_items.dart 一处定义。
+  List<ShellRouteAction> _actions(Translations t, bool showProfilesAction) =>
+      navMetas(showProfilesAction).map((m) => ShellRouteAction(m.icon, m.label(t))).toList();
 
   List<NavigationRailDestination> _navRailDests(List<ShellRouteAction> actions) =>
       actions.map((e) => NavigationRailDestination(icon: Icon(e.icon), label: Text(e.title))).toList();
