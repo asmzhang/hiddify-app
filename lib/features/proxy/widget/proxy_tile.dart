@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:gap/gap.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/features/proxy/active/ip_widget.dart';
+import 'package:hiddify/features/proxy/widget/protocol_chip.dart';
 import 'package:hiddify/gen/fonts.gen.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hiddify/utils/custom_loggers.dart';
@@ -55,19 +57,22 @@ class ProxyTile extends HookConsumerWidget with PresLogger {
           ),
         ],
       ),
-      subtitle: Text.rich(
-        TextSpan(
-          text: proxy.type,
-          children: [
-            if (proxy.isGroup)
-              TextSpan(
-                text: ' (${proxy.groupSelectedTagDisplay.trim()})',
+      subtitle: Row(
+        children: [
+          // NekoBox 风格的协议色标签（vmess 紫 / vless 青 / trojan 橙 / ss 蓝 …）
+          ProtocolChip(proxy.type, compact: true),
+          if (proxy.isGroup) ...[
+            const Gap(6),
+            Flexible(
+              child: Text(
+                proxy.groupSelectedTagDisplay.trim(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
+            ),
           ],
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+        ],
       ),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,
