@@ -35,6 +35,7 @@ part 'routing_config_notifier.g.dart';
 final branchesScope = <String, FocusScopeNode>{
   'home': FocusScopeNode(),
   'profiles': FocusScopeNode(),
+  'route': FocusScopeNode(),
   'settings': FocusScopeNode(),
   'logs': FocusScopeNode(),
   'about': FocusScopeNode(),
@@ -50,7 +51,7 @@ final loadingConfig = RoutingConfig(
 // 手机端和 PC 端现在使用**同一套**导航项（NekoBox 的做法）。
 // （首页和代理页合并后已经不再有独立的 'proxies' 分支。）
 List<String> navBranchNames(bool showProfilesAction) =>
-    ['home', if (showProfilesAction) 'profiles', 'settings', 'logs', 'about'];
+    ['home', if (showProfilesAction) 'profiles', 'route', 'settings', 'logs', 'about'];
 
 String getNameOfBranch(bool showProfilesAction, int index) {
   final names = navBranchNames(showProfilesAction);
@@ -127,18 +128,6 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
                   name: 'home',
                   path: '/home',
                   builder: (_, _) => FocusScope(node: branchesScope['home'], child: const ProxiesOverviewPage()),
-                  routes: <GoRoute>[
-                    if (isMobileBreakpoint)
-                      GoRoute(
-                        name: 'profileDetails',
-                        path: 'profile-details/:id',
-                        pageBuilder: (_, state) => customTransition(
-                          TransitionType.fade,
-                          state.pageKey,
-                          ProfileDetailsPage(id: state.pathParameters['id']!),
-                        ),
-                      ),
-                  ],
                 ),
               ],
             ),
@@ -165,6 +154,67 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
                   ),
                 ],
               ),
+            // 「路由规则」提为顶层导航分支（NekoBox 里就是顶层入口）。
+            // 路由名保持 'routingOptions' 不变，只把父路径从 settings 下提到 /route，调用方无需改。
+            StatefulShellBranch(
+              routes: <GoRoute>[
+                GoRoute(
+                  name: 'routingOptions',
+                  path: '/route',
+                  builder: (context, state) => FocusScope(
+                    node: branchesScope['route'],
+                    child: RoutingOptionsPage(routeRule: state.uri.queryParameters['routeRule']),
+                  ),
+                  routes: <GoRoute>[
+                    GoRoute(
+                      name: 'rule',
+                      path: 'rule/:orderId',
+                      pageBuilder: (_, state) {
+                        final orderIdString = state.pathParameters['orderId']!;
+                        return customTransition(
+                          TransitionType.slide,
+                          state.pageKey,
+                          RulePage(ruleListOrder: orderIdString != 'new' ? int.tryParse(orderIdString) : null),
+                        );
+                      },
+                      onExit: (context, state) async {
+                        final t = ref.read(translationsProvider).requireValue;
+                        final orderId = int.tryParse(state.pathParameters['orderId']!);
+                        final isRuleEdited = ref.read(IsRuleEditedProvider(orderId));
+                        if (orderId != null && isRuleEdited) {
+                          await ref.read(ruleNotifierProvider(orderId).notifier).save();
+                          ref
+                              .read(inAppNotificationControllerProvider)
+                              .showSuccessToast(t.common.msg.autoSave.success);
+                        }
+                        return true;
+                      },
+                      routes: <GoRoute>[
+                        GoRoute(
+                          name: 'genericList',
+                          path: 'generic-list/:ruleEnum',
+                          pageBuilder: (_, state) {
+                            final orderId = int.tryParse(state.pathParameters['orderId']!);
+                            final ruleEnum = RuleEnum.values.byName(state.pathParameters['ruleEnum']!);
+                            return customTransition(
+                              TransitionType.slide,
+                              state.pageKey,
+                              GenericListPage(ruleListOrder: orderId, ruleEnum: ruleEnum),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                    GoRoute(
+                      name: 'perAppProxy',
+                      path: 'per-app-proxy',
+                      pageBuilder: (_, state) =>
+                          customTransition(TransitionType.slide, state.pageKey, const PerAppProxyPage()),
+                    ),
+                  ],
+                ),
+              ],
+            ),
             StatefulShellBranch(
               routes: <GoRoute>[
                 GoRoute(
@@ -185,62 +235,7 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
                       pageBuilder: (_, state) =>
                           customTransition(TransitionType.slide, state.pageKey, const GeneralPage()),
                     ),
-                    GoRoute(
-                      name: 'routingOptions',
-                      path: 'routing-options',
-                      pageBuilder: (_, state) => customTransition(
-                        TransitionType.slide,
-                        state.pageKey,
-                        RoutingOptionsPage(routeRule: state.uri.queryParameters['routeRule']),
-                      ),
-                      routes: <GoRoute>[
-                        GoRoute(
-                          name: 'rule',
-                          path: 'rule/:orderId',
-                          pageBuilder: (_, state) {
-                            final orderIdString = state.pathParameters['orderId']!;
-                            return customTransition(
-                              TransitionType.slide,
-                              state.pageKey,
-                              RulePage(ruleListOrder: orderIdString != 'new' ? int.tryParse(orderIdString) : null),
-                            );
-                          },
-                          onExit: (context, state) async {
-                            final t = ref.read(translationsProvider).requireValue;
-                            final orderId = int.tryParse(state.pathParameters['orderId']!);
-                            final isRuleEdited = ref.read(IsRuleEditedProvider(orderId));
-                            if (orderId != null && isRuleEdited) {
-                              await ref.read(ruleNotifierProvider(orderId).notifier).save();
-                              ref
-                                  .read(inAppNotificationControllerProvider)
-                                  .showSuccessToast(t.common.msg.autoSave.success);
-                            }
-                            return true;
-                          },
-                          routes: <GoRoute>[
-                            GoRoute(
-                              name: 'genericList',
-                              path: 'generic-list/:ruleEnum',
-                              pageBuilder: (_, state) {
-                                final orderId = int.tryParse(state.pathParameters['orderId']!);
-                                final ruleEnum = RuleEnum.values.byName(state.pathParameters['ruleEnum']!);
-                                return customTransition(
-                                  TransitionType.slide,
-                                  state.pageKey,
-                                  GenericListPage(ruleListOrder: orderId, ruleEnum: ruleEnum),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                        GoRoute(
-                          name: 'perAppProxy',
-                          path: 'per-app-proxy',
-                          pageBuilder: (_, state) =>
-                              customTransition(TransitionType.slide, state.pageKey, const PerAppProxyPage()),
-                        ),
-                      ],
-                    ),
+                    // 「路由规则」已提为顶层分支 'routingOptions'（见上方 branches）。
                     GoRoute(
                       name: 'dnsOptions',
                       path: 'dns-options',
