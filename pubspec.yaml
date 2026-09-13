@@ -143,6 +143,8 @@ flutter:
   assets:
     # - assets/core/geoip.db
     # - assets/core/geosite.db
+    # 内核版本来源（构建期单一来源）：core.version=...
+    - dependencies.properties
     - assets/images/logo.svg
     - assets/images/tray_icon.ico
     - assets/images/tray_icon.png

@@ -196,6 +196,9 @@
       "title": "Abonnements"
     },
     "about": {
+      "coreVersion": "Version du noyau",
+      "donate": "Faire un don",
+      "license": "Licence",
       "title": "À propos",
       "notAvailableMsg": "Vous utilisez déjà la dernière version",
       "checkForUpdate": "Vérifier les mises à jour",

@@ -202,6 +202,9 @@
       "title": "الاشتراكات"
     },
     "about": {
+      "coreVersion": "إصدار النواة",
+      "donate": "تبرع",
+      "license": "الترخيص",
       "title": "حول التطبيق",
       "notAvailableMsg": "أنت تستخدم أحدث إصدار بالفعل",
       "checkForUpdate": "التحقق من وجود تحديثات",

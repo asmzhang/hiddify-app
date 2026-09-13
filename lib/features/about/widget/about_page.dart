@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:gap/gap.dart';
 import 'package:hiddify/core/app_info/app_info_provider.dart';
 import 'package:hiddify/core/directories/directories_provider.dart';
@@ -25,6 +28,7 @@ class AboutPage extends HookConsumerWidget {
     final t = ref.watch(translationsProvider).requireValue;
     final appInfo = ref.watch(appInfoProvider).requireValue;
     final appUpdate = ref.watch(appUpdateNotifierProvider);
+    final coreVersion = useFuture(useMemoized(_readCoreVersion));
 
     ref.listen(appUpdateNotifierProvider, (_, next) async {
       if (!context.mounted) return;
@@ -112,6 +116,10 @@ class AboutPage extends HookConsumerWidget {
               ...conditionalTiles,
               if (conditionalTiles.isNotEmpty) const Divider(),
               ListTile(
+                title: Text(t.pages.about.coreVersion),
+                trailing: Text(coreVersion.data ?? '—'),
+              ),
+              ListTile(
                 title: Text(t.pages.about.sourceCode),
                 trailing: const Icon(FluentIcons.open_24_regular),
                 onTap: () async {
@@ -139,10 +147,42 @@ class AboutPage extends HookConsumerWidget {
                   await UriUtils.tryLaunch(Uri.parse(Constants.privacyPolicyUrl));
                 },
               ),
+              ListTile(
+                title: Text(t.pages.about.donate),
+                trailing: const Icon(FluentIcons.open_24_regular),
+                onTap: () async {
+                  await UriUtils.tryLaunch(Uri.parse(Constants.donationUrl));
+                },
+              ),
+              ListTile(
+                title: Text(t.pages.about.license),
+                trailing: const Icon(FluentIcons.open_24_regular),
+                onTap: () async {
+                  await UriUtils.tryLaunch(Uri.parse(Constants.licenseUrl));
+                },
+              ),
             ]),
           ),
         ],
       ),
     );
   }
+}
+
+/// 读取内核版本：`dependencies.properties` 里的 `core.version`。
+/// 该文件是构建期的单一版本来源，已作为 asset 打进包（见 pubspec.yaml）。
+Future<String> _readCoreVersion() async {
+  try {
+    final content = await rootBundle.loadString('dependencies.properties');
+    for (final line in const LineSplitter().convert(content)) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('core.version')) {
+        final parts = trimmed.split('=');
+        if (parts.length >= 2) return parts.sublist(1).join('=').trim();
+      }
+    }
+  } catch (_) {
+    // ignore
+  }
+  return '—';
 }

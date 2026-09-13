@@ -196,6 +196,9 @@
       "title": "Langganan"
     },
     "about": {
+      "coreVersion": "Versi inti",
+      "donate": "Donasi",
+      "license": "Lisensi",
       "title": "Tentang",
       "notAvailableMsg": "Anda sudah menggunakan versi terbaru",
       "checkForUpdate": "Periksa pembaruan",
