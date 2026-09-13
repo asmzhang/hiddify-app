@@ -57,6 +57,8 @@ class MyAdaptiveLayout extends HookConsumerWidget {
     }, [isMobileBreakpoint, showProfilesAction, navigationShell.currentIndex]);
 
     final actions = _actions(t, showProfilesAction);
+    // 当前分支在"可见导航项"里的下标（隐藏分支如 profiles 会返回 -1 → 无高亮）。
+    final navSel = navIndexForBranch(showProfilesAction, navigationShell.currentIndex);
 
     return Material(
       child: Scaffold(
@@ -67,9 +69,10 @@ class MyAdaptiveLayout extends HookConsumerWidget {
             ? FocusScope(
                 node: navScopeNode,
                 child: NavigationDrawer(
-                  selectedIndex: navigationShell.currentIndex,
+                  selectedIndex: navSel < 0 ? null : navSel,
                   onDestinationSelected: (index) {
-                    _onTap(context, index);
+                    final branch = branchIndexForNav(showProfilesAction, index);
+                    if (branch >= 0) _onTap(context, branch);
                     rootDrawerScaffoldKey.currentState?.closeDrawer();
                   },
                   children: [
@@ -97,8 +100,11 @@ class MyAdaptiveLayout extends HookConsumerWidget {
                     child: NavigationRail(
                       extended: Breakpoint(context).isDesktop(),
                       destinations: _navRailDests(actions),
-                      selectedIndex: navigationShell.currentIndex,
-                      onDestinationSelected: (index) => _onTap(context, index),
+                      selectedIndex: navSel < 0 ? null : navSel,
+                      onDestinationSelected: (index) {
+                        final branch = branchIndexForNav(showProfilesAction, index);
+                        if (branch >= 0) _onTap(context, branch);
+                      },
                       trailing: Breakpoint(context).isDesktop()
                           ? const Expanded(
                               child: Align(
@@ -121,10 +127,10 @@ class MyAdaptiveLayout extends HookConsumerWidget {
     navigationShell.goBranch(index, initialLocation: index == navigationShell.currentIndex);
   }
 
-  // 导航项完全由 navMetas 推导（唯一数据源），这里只做 ShellRouteAction 适配。
+  // 导航项完全由 navMetas 推导（唯一数据源）；这里只取**可见**项（navVisible）。
   // 顺序/显隐/图标/标签都在 nav_items.dart 一处定义。
   List<ShellRouteAction> _actions(Translations t, bool showProfilesAction) =>
-      navMetas(showProfilesAction).map((m) => ShellRouteAction(m.icon, m.label(t))).toList();
+      navVisibleMetas(showProfilesAction).map((m) => ShellRouteAction(m.icon, m.label(t))).toList();
 
   List<NavigationRailDestination> _navRailDests(List<ShellRouteAction> actions) =>
       actions.map((e) => NavigationRailDestination(icon: Icon(e.icon), label: Text(e.title))).toList();
