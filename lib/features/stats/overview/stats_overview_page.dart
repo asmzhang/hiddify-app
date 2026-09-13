@@ -4,6 +4,7 @@ import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
+import 'package:hiddify/features/stats/model/traffic_split.dart';
 import 'package:hiddify/features/stats/notifier/stats_notifier.dart';
 import 'package:hiddify/features/stats/widget/connection_stats_card.dart';
 import 'package:hiddify/features/stats/widget/stats_card.dart';
