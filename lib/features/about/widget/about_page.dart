@@ -7,7 +7,9 @@ import 'package:hiddify/core/directories/directories_provider.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/constants.dart';
 import 'package:hiddify/core/model/failures.dart';
+import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
+import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/core/widget/adaptive_icon.dart';
 import 'package:hiddify/features/app_update/notifier/app_update_notifier.dart';
 import 'package:hiddify/features/app_update/notifier/app_update_state.dart';
@@ -63,6 +65,8 @@ class AboutPage extends HookConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        // 手机端：汉堡键打开左侧导航抽屉；PC 端无（左侧是常驻 rail）
+        leading: Breakpoint(context).isMobile() ? const ShellDrawerButton() : null,
         title: Text(t.pages.about.title),
         actions: [
           PopupMenuButton(

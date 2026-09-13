@@ -6,6 +6,8 @@ import 'package:gap/gap.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/failures.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
+import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
+import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/core/widget/adaptive_icon.dart';
 import 'package:hiddify/features/log/data/log_data_providers.dart';
 import 'package:hiddify/features/log/model/log_level.dart';
@@ -53,6 +55,8 @@ class LogsPage extends HookConsumerWidget with PresLogger {
 
     return Scaffold(
       appBar: AppBar(
+        // 手机端：汉堡键打开左侧导航抽屉；PC 端无（左侧是常驻 rail）
+        leading: Breakpoint(context).isMobile() ? const ShellDrawerButton() : null,
         title: Text(t.pages.logs.title),
         actions: [
           if (state.paused)

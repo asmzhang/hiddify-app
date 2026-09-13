@@ -45,28 +45,27 @@ final loadingConfig = RoutingConfig(
   routes: <RouteBase>[GoRoute(path: '/home', builder: (context, state) => const Material())],
 );
 
-// 下面两个列表的顺序必须和 routes 里 branches 的顺序严格一致：
-// 导航栏用 currentIndex 索引 branches，而 FocusScope 靠这张表映射回分支名。
+// 导航项顺序必须和 routes 里 branches 的顺序严格一致：
+// 导航栏/抽屉用 currentIndex 索引 branches，而 FocusScope 靠这张表映射回分支名。
+// 手机端和 PC 端现在使用**同一套**导航项（NekoBox 的做法）。
 // （首页和代理页合并后已经不再有独立的 'proxies' 分支。）
-String getNameOfBranch(bool isMobileBreakpoint, bool showProfilesAction, int index) => isMobileBreakpoint
-    ? ['home', 'settings'][index]
-    : ['home', if (showProfilesAction) 'profiles', 'settings', 'logs', 'about'][index];
+List<String> navBranchNames(bool showProfilesAction) =>
+    ['home', if (showProfilesAction) 'profiles', 'settings', 'logs', 'about'];
 
-int getIndexOfBranch(bool isMobileBreakpoint, bool showProfilesAction, String name) => isMobileBreakpoint
-    ? ['home', 'settings'].indexOf(name)
-    : ['home', if (showProfilesAction) 'profiles', 'settings', 'logs', 'about'].indexOf(name);
+String getNameOfBranch(bool showProfilesAction, int index) {
+  final names = navBranchNames(showProfilesAction);
+  return (index >= 0 && index < names.length) ? names[index] : 'home';
+}
+
+int getIndexOfBranch(bool showProfilesAction, String name) => navBranchNames(showProfilesAction).indexOf(name);
 
 @Riverpod(keepAlive: true)
 class RoutingConfigNotifier extends _$RoutingConfigNotifier {
   @override
   RoutingConfig build() {
     final isMobileBreakpoint = ref.watch(isMobileBreakpointProvider);
-    final bool showProfilesAction;
-    if (isMobileBreakpoint == true) {
-      showProfilesAction = false;
-    } else {
-      showProfilesAction = ref.watch(hasAnyProfileProvider).value ?? false;
-    }
+    // 手机端与 PC 端使用同一套导航项：都按是否存在 profile 决定是否显示「节点列表」。
+    final showProfilesAction = ref.watch(hasAnyProfileProvider).value ?? false;
     if (isMobileBreakpoint == null) return loadingConfig;
     return RoutingConfig(
       redirect: (context, state) {
@@ -266,44 +265,29 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
                       pageBuilder: (_, state) =>
                           customTransition(TransitionType.slide, state.pageKey, const ChainOptionsPage()),
                     ),
-                    if (isMobileBreakpoint) ...[
-                      GoRoute(
-                        name: 'logs',
-                        path: 'logs',
-                        pageBuilder: (_, state) =>
-                            customTransition(TransitionType.slide, state.pageKey, const LogsPage()),
-                      ),
-                      GoRoute(
-                        name: 'about',
-                        path: 'about',
-                        pageBuilder: (_, state) =>
-                            customTransition(TransitionType.slide, state.pageKey, const AboutPage()),
-                      ),
-                    ],
+                    // logs / about 现在是顶层导航分支（见下方 branches），不再嵌在设置里。
                   ],
                 ),
               ],
             ),
-            if (!isMobileBreakpoint) ...[
-              StatefulShellBranch(
-                routes: <GoRoute>[
-                  GoRoute(
-                    name: 'logs',
-                    path: '/logs',
-                    builder: (_, _) => FocusScope(node: branchesScope['logs'], child: const LogsPage()),
-                  ),
-                ],
-              ),
-              StatefulShellBranch(
-                routes: <GoRoute>[
-                  GoRoute(
-                    name: 'about',
-                    path: '/about',
-                    builder: (_, _) => FocusScope(node: branchesScope['about'], child: const AboutPage()),
-                  ),
-                ],
-              ),
-            ],
+            StatefulShellBranch(
+              routes: <GoRoute>[
+                GoRoute(
+                  name: 'logs',
+                  path: '/logs',
+                  builder: (_, _) => FocusScope(node: branchesScope['logs'], child: const LogsPage()),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: <GoRoute>[
+                GoRoute(
+                  name: 'about',
+                  path: '/about',
+                  builder: (_, _) => FocusScope(node: branchesScope['about'], child: const AboutPage()),
+                ),
+              ],
+            ),
           ],
         ),
         GoRoute(name: 'intro', path: '/intro', builder: (_, _) => const IntroPage()),
