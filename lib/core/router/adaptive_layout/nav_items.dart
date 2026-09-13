@@ -16,6 +16,7 @@ class NavMeta {
     required this.path,
     required this.icon,
     required this.label,
+    this.navVisible = true,
   });
 
   /// shell 分支 key（同时用作 branchesScope / navBranchNames 的键）。
@@ -31,6 +32,9 @@ class NavMeta {
 
   /// 导航标签。
   final String Function(Translations t) label;
+
+  /// 是否出现在导航栏/抽屉里。`false` = 仅路由可达（导航中隐藏），但仍是一个 shell 分支。
+  final bool navVisible;
 }
 
 /// 导航项（唯一数据源）。`profiles` 只在存在 profile 时出现。
@@ -45,6 +49,8 @@ List<NavMeta> navMetas(bool showProfilesAction) => [
       path: '/profiles',
       icon: Icons.view_list_rounded,
       label: _profilesLabel,
+      // 「订阅」页已覆盖配置管理，节点列表不再进导航；页面/路由保留（从首页订阅摘要等进入）。
+      navVisible: false,
     ),
   const NavMeta(
     key: 'subscriptions',
@@ -94,3 +100,22 @@ String _trafficLabel(Translations t) => t.components.stats.traffic;
 String _toolsLabel(Translations t) => t.pages.tools.title;
 String _logsLabel(Translations t) => t.pages.logs.title;
 String _aboutLabel(Translations t) => t.pages.about.title;
+
+/// 导航栏/抽屉**可见**的项（过滤掉 `navVisible == false`）。
+List<NavMeta> navVisibleMetas(bool showProfilesAction) =>
+    navMetas(showProfilesAction).where((m) => m.navVisible).toList();
+
+/// 分支索引 → 可见导航索引（该分支被隐藏时返回 -1）。
+int navIndexForBranch(bool showProfilesAction, int branchIndex) {
+  final all = navMetas(showProfilesAction);
+  if (branchIndex < 0 || branchIndex >= all.length) return -1;
+  return navVisibleMetas(showProfilesAction).indexWhere((m) => m.key == all[branchIndex].key);
+}
+
+/// 可见导航索引 → 分支索引（越界返回 -1）。
+int branchIndexForNav(bool showProfilesAction, int navIndex) {
+  final visible = navVisibleMetas(showProfilesAction);
+  if (navIndex < 0 || navIndex >= visible.length) return -1;
+  final key = visible[navIndex].key;
+  return navMetas(showProfilesAction).indexWhere((m) => m.key == key);
+}
