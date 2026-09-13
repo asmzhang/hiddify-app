@@ -21,19 +21,32 @@ class Skeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return FractionallySizedBox(
-      widthFactor: widthFactor,
-      heightFactor: heightFactor,
-      alignment: alignment,
-      child: Container(
-        width: width,
-        height: height,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          shape: shape,
-          color: theme.hintColor.withOpacity(.16),
-        ),
+    final box = Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        shape: shape,
+        color: theme.hintColor.withOpacity(.16),
       ),
+    );
+
+    if (widthFactor == null && heightFactor == null) return box;
+
+    // FractionallySizedBox 需要父约束**有界**；放进 Row / 无界列表项时父宽是无限的
+    // （BoxConstraints forces an infinite width）会直接崩。这种场景下退回固定尺寸。
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final canWidth = widthFactor == null || constraints.hasBoundedWidth;
+        final canHeight = heightFactor == null || constraints.hasBoundedHeight;
+        if (!canWidth || !canHeight) return box;
+        return FractionallySizedBox(
+          widthFactor: widthFactor,
+          heightFactor: heightFactor,
+          alignment: alignment,
+          child: box,
+        );
+      },
     );
   }
 }
