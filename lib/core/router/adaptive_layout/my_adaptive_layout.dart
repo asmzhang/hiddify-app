@@ -125,6 +125,7 @@ class MyAdaptiveLayout extends HookConsumerWidget {
   List<ShellRouteAction> _actions(Translations t, bool showProfilesAction) => [
     ShellRouteAction(Icons.public_rounded, t.pages.proxies.title),
     if (showProfilesAction) ShellRouteAction(Icons.view_list_rounded, t.pages.profiles.title),
+    ShellRouteAction(Icons.alt_route_rounded, t.pages.settings.routing.title),
     ShellRouteAction(Icons.settings_rounded, t.pages.settings.title),
     ShellRouteAction(Icons.description_rounded, t.pages.logs.title),
     ShellRouteAction(Icons.info_rounded, t.pages.about.title),
