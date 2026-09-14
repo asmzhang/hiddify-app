@@ -35,7 +35,7 @@ class StatsOverviewPage extends HookConsumerWidget {
       appBar: AppBar(
         // 手机端：汉堡键打开左侧导航抽屉；PC 端无（左侧是常驻 rail）
         leading: Breakpoint(context).isMobile() ? const ShellDrawerButton() : null,
-        title: Text(t.components.stats.traffic),
+        title: Text(t.pages.traffic.title),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
