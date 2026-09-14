@@ -334,7 +334,7 @@ doctor:
 	@echo "==> Core libs"
 	@if [ -n "$$(ls -A $(DESKTOP_OUT) 2>/dev/null | grep -v '^\.gitkeep$$')" ]; then echo "    OK   present ($(DESKTOP_OUT))"; else echo "    WARN missing         - run: make <platform>-prepare"; fi
 	@echo "==> Core from source (only needed for: make windows-prepare LOCAL_CORE=1)"
-	@if command -v go >/dev/null 2>&1; then echo "    OK   $$(go version)"; else echo "    WARN go              - not in PATH: LOCAL_CORE=1 will fail"; fi
+	@if command -v go >/dev/null 2>&1; then GV=$$(go version | cut -d' ' -f3); case "$$GV" in go1.25*) echo "    OK   $$(go version)";; *) echo "    WARN go              - $${GV}: psiphon-tls 的布局断言要求 go1.25.x（重编核心会 panic），mise use -g go@1.25.6";; esac; else echo "    WARN go              - not in PATH: LOCAL_CORE=1 will fail"; fi
 ifeq ($(OS),Windows_NT)
 	@if command -v $(CC_MINGW) >/dev/null 2>&1; then echo "    OK   $(CC_MINGW) (cgo compiler)"; elif [ -x "$(MINGW_BIN)/$(CC_MINGW).exe" ]; then echo "    OK   $(CC_MINGW) (cgo compiler) - $(MINGW_BIN)"; else echo "    WARN $(CC_MINGW)   - cgo compiler not found: pass MINGW_BIN=<dir>"; fi
 endif
