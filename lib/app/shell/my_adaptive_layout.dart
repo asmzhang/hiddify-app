@@ -9,6 +9,9 @@ import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/constants.dart';
 import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
+import 'package:hiddify/core/theme/nk_palette_preferences.dart';
+import 'package:hiddify/features/connection/model/connection_status.dart';
+import 'package:hiddify/features/connection/notifier/connection_summary.dart';
 import 'package:hiddify/features/stats/widget/side_bar_stats_overview.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -75,13 +78,10 @@ class MyAdaptiveLayout extends HookConsumerWidget {
                     rootDrawerScaffoldKey.currentState?.closeDrawer();
                   },
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(28, 20, 16, 12),
-                      child: Text(
-                        'Hiddify',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                    ),
+                    // NekoBox 复刻 · 抽屉头（main_drawer_menu.xml 的 dhead）：
+                    // 深主色底 + 应用名 + 一行连接状态（"已连接 · 香港-01 · 200ms"）。
+                    // 数据走 connectionSummaryProvider —— 与配置页底部状态栏同一份口径。
+                    _NkDrawerHeader(t: t),
                     // NekoBox 复刻 · 抽屉按三组分段（配置组/工具组/关于），组间画分隔线。
                     ..._drawerChildren(t, showProfilesAction),
                   ],
@@ -148,4 +148,58 @@ class MyAdaptiveLayout extends HookConsumerWidget {
 
   List<NavigationRailDestination> _navRailDests(List<ShellRouteAction> actions) =>
       actions.map((e) => NavigationRailDestination(icon: Icon(e.icon), label: Text(e.title))).toList();
+}
+
+/// 抽屉头（对标 NekoBox `main_drawer_menu.xml` 的 `dhead`）：深主色底、白字，
+/// 上行应用名，下行连接状态。
+///
+/// 放在 app 层而不是 core：它要读 feature 的连接状态（[connectionSummaryProvider]）。
+/// 深主色用 `NkPalette.primaryDark`（即 NekoBox 的 `colorPrimaryDark`），
+/// 与工具栏的 `colorPrimary` 拉开层次。
+class _NkDrawerHeader extends ConsumerWidget {
+  const _NkDrawerHeader({required this.t});
+
+  final Translations t;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(nkPalettePreferencesProvider);
+    final summary = ref.watch(connectionSummaryProvider);
+
+    final stateText = switch (summary.state) {
+      NkConnectionState.connected => t.connection.connected,
+      NkConnectionState.connecting => t.connection.connecting,
+      NkConnectionState.error => t.connection.disconnected,
+      NkConnectionState.disconnected => t.connection.disconnected,
+    };
+    final line = [
+      stateText,
+      if (summary.nodeName != null) summary.nodeName!,
+      // 延迟只在真连上时才有意义（未连接时清单里没有实测值）。
+      if (summary.connected && summary.delayMs > 0) '${summary.delayMs}ms',
+    ].join(' · ');
+
+    return Container(
+      width: double.infinity,
+      color: palette.primaryDark,
+      padding: const EdgeInsets.fromLTRB(28, 20, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Hiddify',
+            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            line,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: Colors.white.withValues(alpha: .85), fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -713,6 +713,7 @@
     "connect": "Connect",
     "connecting": "Connecting...",
     "connected": "Connected",
+    "disconnected": "Not connected",
     "disconnect": "Disconnect",
     "disconnecting": "Disconnecting...",
     "reconnect": "Reconnect",
