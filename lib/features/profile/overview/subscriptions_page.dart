@@ -13,6 +13,11 @@ import 'package:hiddify/features/profile/notifier/profiles_update_notifier.dart'
 import 'package:hiddify/features/profile/overview/profiles_notifier.dart';
 import 'package:hiddify/features/profile/widget/profile_tile.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:hiddify/core/utils/preferences_utils.dart' show PreferencesNotifier;
+
+/// NekoBox 复刻 · 分组排序持久化（对标 userOrder）。
+/// 存 profile id 的显示顺序；未上榜的（新导入）排在末尾，按导入时间自然追加。
+final groupOrderProvider = PreferencesNotifier.create<List<String>, List<String>>("profile_group_order", <String>[]);
 
 /// 订阅 / 分组页（融合版）。
 ///
@@ -65,13 +70,27 @@ class SubscriptionsPage extends HookConsumerWidget {
               ),
             );
           }
-          return ListView.separated(
+          // NekoBox 复刻 · 按持久化的 userOrder 排序（未上榜的按导入顺序排末尾）。
+          final order = ref.watch(groupOrderProvider);
+          final ordered = [...subs]
+            ..sort((a, b) {
+              final ia = order.indexOf(a.id), ib = order.indexOf(b.id);
+              return (ia < 0 ? order.length + subs.indexOf(a) : ia) - (ib < 0 ? order.length + subs.indexOf(b) : ib);
+            });
+          return ReorderableListView.builder(
             padding: const EdgeInsets.all(12),
-            separatorBuilder: (_, _) => const Gap(12),
-            itemCount: subs.length,
-            // NekoBox 复刻 · 滑动删除 + Snackbar 撤销（撤销 = 按订阅 URL 重新拉取恢复）。
-            itemBuilder: (_, index) {
-              final profile = subs[index];
+            buildDefaultDragHandles: true,
+            itemCount: ordered.length,
+            onReorder: (oldIndex, newIndex) {
+              // 标准 Reorderable 语义修正：newIndex 在向下移动时要 -1。
+              final ids = ordered.map((e) => e.id).toList();
+              if (oldIndex < newIndex) newIndex -= 1;
+              final id = ids.removeAt(oldIndex);
+              ids.insert(newIndex, id);
+              ref.read(groupOrderProvider.notifier).update(ids);
+            },
+            itemBuilder: (context, index) {
+              final profile = ordered[index];
               return Dismissible(
                 key: ValueKey(profile.id),
                 direction: DismissDirection.endToStart,
