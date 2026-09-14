@@ -16,11 +16,11 @@
 |---|---|---|
 | 构建 | Git for Windows | 官网安装（recipe 靠它自带的 sh 解释） |
 | 构建 | GNU Make | `winget install ezwinports.make` |
-| 构建 | Flutter 3.38.5 | 解压后把 `<sdk>\bin` 加进 PATH |
+| 构建 | Flutter 3.38.5 | `mise use -g flutter@3.38.5`；或解压后把 `<sdk>\bin` 加进 PATH |
 | 构建 | `curl` `tar` | Windows 10 1803+ 自带 |
 | 构建 | `unzip` | Git for Windows 自带（系统不带） |
 | 编译 | Visual Studio 2022 + C++ 工作负载 | 官网安装 |
-| 编核心 | Go 1.25.6（全平台）+ 各平台工具链 | 见「从源码编译核心库」 |
+| 编核心 | Go **1.25.x**（全平台）+ 各平台工具链 | `mise use -g go@1.25.6`。**不要用 1.26+**：psiphon-tls 的布局断言会让核心在加载时 panic（App 启动即退 code 2），`make doctor` 会检查。见「从源码编译核心库」 |
 | 打包 | `fastforge` | `make windows-install-deps` |
 | 打包 exe | Inno Setup 6 | `winget install JRSoftware.InnoSetup` |
 | 打包 msix | `makeappx`（Windows SDK）+ **签名证书** | 证书只有 CI 有，见「打包安装包」 |
@@ -71,7 +71,7 @@ Visual Studio 2022（C++ 桌面开发）** 四样是编译必需；要源码编�
 要打包再加 **`fastforge`**（`make windows-install-deps`）。
 
 ```powershell
-go env -w GOMODCACHE=C:/Users/Administrator/go/pkg/mod2
+go env -w "GOMODCACHE=$env:USERPROFILE/go/pkg/mod2"
 ```
 
 > 这条只做一次，但必须做 —— 否则源码编核心时会随窗口"时好时坏"。原因见「Go 模块缓存必须固化」。
@@ -309,8 +309,8 @@ Windows 之外的平台，真正的实现在 `hiddify-core` 自己的 Makefile �
 换个窗口就丢，于是退回一个被 `@latest` 扫描污染过的默认缓存，`tidy` 撞 `requires go >= 1.26.3`。
 
 ```powershell
-go env -w GOMODCACHE=C:/Users/Administrator/go/pkg/mod2   # 全局生效；go env -u 撤销
-go env GOMODCACHE                                          # 确认回显
+go env -w "GOMODCACHE=$env:USERPROFILE/go/pkg/mod2"   # 全局生效；go env -u 撤销
+go env GOMODCACHE                                      # 确认回显
 ```
 
 ---
@@ -374,6 +374,13 @@ flutter build windows --release
 `hiddify-lib-windows-amd64.tar.gz`、`-macos`、`-ios`、`-android`、
 `-linux-amd64`（另有 `-linux-arm64` / `-linux-amd64-musl` / `-linux-arm64-musl`）。
 地址即 `CORE_URL`：默认 `…/releases/download/draft`，`CHANNEL=prod` 时为 `…/download/v4.1.0`。
+本机有代理时给 curl 加 `--proxy socks5h://127.0.0.1:<端口>`，或在环境里设 `HTTPS_PROXY` 后重跑
+`make <platform>-libs`。
+
+**编核心成功、但 App 启动即退（code 2）或 CLI 报
+`panic: tls: ConnectionState ... struct field mismatch`**
+Go 版本不是 1.25.x（1.26 新增字段破坏了 psiphon-tls 的布局断言）。
+`go version` 确认后换 `mise use -g go@1.25.6` 重编核心，重跑 `flutter build windows --release`。
 
 **编核心时报 `finding module for package ...` 或 `requires go >= 1.26.3`**
 不是源码或版本问题，是 Go 用错了模块缓存：
