@@ -104,11 +104,23 @@
   .fab-add{position:absolute; right:14px; bottom:calc(var(--bar-h) + 16px);}
 
   .grid2{display:grid; grid-template-columns:1fr 1fr;}
+
+  /* ============ PC 端（Rail 常驻左侧，已定案） ============ */
+  .pcframe{width:720px; height:460px; background:var(--bg); border-radius:12px; overflow:hidden;
+           box-shadow:0 12px 40px #0009; display:flex; color:var(--text); position:relative; flex:none;}
+  .rail{width:76px; background:var(--card); border-right:1px solid var(--divider); display:flex; flex-direction:column; align-items:center; padding:10px 0; gap:2px; flex:none;}
+  .ritem{width:60px; padding:7px 0; border-radius:10px; text-align:center; font-size:10px; color:var(--sub); cursor:pointer;}
+  .ritem .ri{font-size:17px;}
+  .ritem.on{background:var(--m100); color:var(--p500); font-weight:600;}
+  html[data-mode="dark"] .ritem.on, html[data-mode="amoled"] .ritem.on{background:#ffffff14;}
+  .rsep{width:44px; border-top:1px solid var(--divider); margin:6px 0;}
+  .rgap{flex:1;}
 </style>
 </head>
 <body>
 <h1>NekoBox for Android — UI 复刻原型</h1>
-<div class="hint">目标态规格：hiddify-app（Flutter）按此复刻。结构取自 NekoBoxForAndroid 源码：layout_main / layout_group_list / layout_profile / main_drawer_menu / global_preferences / standard_v2ray_preferences / themes.xml</div>
+<div class="hint">目标态规格：hiddify-app（Flutter）按此复刻。结构取自 NekoBoxForAndroid 源码：layout_main / layout_group_list / layout_profile / main_drawer_menu / global_preferences / standard_v2ray_preferences / themes.xml<br>
+状态标记：✅ = 已在 Flutter 实装　⏳ = 计划中（括号内为对应步骤）。差异说明：仪表盘走 hiddify 的 gRPC（不依赖 Clash API）；"推广/文档"两个 NekoBox 抽屉项不移植。</div>
 
 <div class="ctrl">
   主题色：
@@ -127,7 +139,7 @@
 
   <!-- ═══════════ 屏1：主界面（ConfigurationFragment） ═══════════ -->
   <div>
-    <div class="cap">主界面 · 分组 Tab + 节点卡片 + StatsBar/FAB</div>
+    <div class="cap">✅ 主界面 · 分组 Tab + 节点卡片 + StatsBar/FAB（FAB 四态已实装；实现另有搜索/排序/列表网格切换/订阅摘要，属"hiddify 功能填充"）</div>
     <div class="phone">
       <div class="statusbar"><span>12:30</span><span>▲ 12 KB/s ▼ 340 KB/s 🔋</span></div>
       <div class="toolbar">
@@ -155,7 +167,7 @@
 
   <!-- ═══════════ 屏2：抽屉展开 ═══════════ -->
   <div>
-    <div class="cap">抽屉 · 三组菜单（main_drawer_menu.xml）</div>
+    <div class="cap">✅ 抽屉 · 三组菜单（已实装：组分隔线；"推广/文档"不移植）</div>
     <div class="phone">
       <div class="statusbar"><span>12:30</span><span>▲ ▼ 🔋</span></div>
       <div class="drawer-bg"></div>
@@ -167,7 +179,7 @@
         <div class="ditem"><span class="ic">⚙</span>设置</div>
         <div class="dsep"></div>
         <div class="ditem"><span class="ic">☰</span>日志</div>
-        <div class="ditem"><span class="ic"> ◎</span>仪表盘 <span style="margin-left:auto;color:var(--sub);font-size:10px">Clash API</span></div>
+        <div class="ditem"><span class="ic"> ◎</span>仪表盘 <span style="margin-left:auto;color:var(--sub);font-size:10px">gRPC</span></div>
         <div class="ditem"><span class="ic">🧰</span>工具</div>
         <div class="dsep"></div>
         <div class="ditem"><span class="ic">◈</span>推广</div>
@@ -179,7 +191,7 @@
 
   <!-- ═══════════ 屏3：设置页（global_preferences.xml） ═══════════ -->
   <div>
-    <div class="cap">设置 · 五类（global_preferences.xml）</div>
+    <div class="cap">⏳ 设置 · 五类（步骤4；"主题色"选择行已实装 ✅）</div>
     <div class="phone">
       <div class="statusbar"><span>12:30</span><span>▲ ▼ 🔋</span></div>
       <div class="toolbar"><div class="ico">←</div><div class="title">设置</div></div>
@@ -224,7 +236,7 @@
 
   <!-- ═══════════ 屏4：节点编辑页（VMess） ═══════════ -->
   <div>
-    <div class="cap">编辑节点 · VMess（按协议分文件的表单）</div>
+    <div class="cap">⏳ 编辑节点 · VMess（步骤3/5；编辑页现有实现换 Nk 壳）</div>
     <div class="phone">
       <div class="statusbar"><span>12:30</span><span>▲ ▼ 🔋</span></div>
       <div class="toolbar"><div class="ico">←</div><div class="title">VMess</div><div class="ico">✓</div></div>
@@ -264,6 +276,43 @@
       <div class="bottom"><div class="statsbar" style="justify-content:center">保存后自动测试延迟</div></div>
     </div>
   </div>
+
+  <!-- ═══════════ 屏5：PC 端（Rail 常驻左侧，已定案） ═══════════ -->
+  <div>
+    <div class="cap">✅ PC 端 · Rail 常驻左侧（同三组菜单；宽屏内容区 + 底部状态条）</div>
+    <div class="pcframe">
+      <div class="rail">
+        <div class="ritem on"><div class="ri">▣</div>配置</div>
+        <div class="ritem"><div class="ri">⑂</div>分组</div>
+        <div class="ritem"><div class="ri">⇄</div>路由</div>
+        <div class="ritem"><div class="ri">⚙</div>设置</div>
+        <div class="rsep"></div>
+        <div class="ritem"><div class="ri">☰</div>日志</div>
+        <div class="ritem"><div class="ri">◎</div>仪表盘</div>
+        <div class="ritem"><div class="ri">🧰</div>工具</div>
+        <div class="rsep"></div>
+        <div class="ritem"><div class="ri">ⓘ</div>关于</div>
+        <div class="rgap"></div>
+        <div style="font-size:9px;color:var(--sub);text-align:center">↑2.4MB/s<br>↓128KB/s</div>
+      </div>
+      <div style="flex:1; display:flex; flex-direction:column;">
+        <div class="toolbar">
+          <div class="title" style="margin-left:12px">配置</div>
+          <div class="ico">⌕</div><div class="ico">＋</div><div class="ico">⋮</div>
+        </div>
+        <div class="tabs">
+          <div class="tab on">全部 52</div><div class="tab">冲上云霄 39</div><div class="tab">机场B 13</div>
+        </div>
+        <div class="scroll"><div class="list" id="plist-pc"></div></div>
+        <div class="bottom">
+          <div class="fab" title="连接开关（四态）">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff"><path d="M13 3h-2v10h2Zm0 12h-2v6h2Z" transform="rotate(45 12 12)"/></svg>
+          </div>
+          <div class="statsbar"><span>↑ 128 KB/s</span><span>↓ 2.4 MB/s</span><span>已连接 · 香港-01 · 200ms</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -278,12 +327,14 @@ const nodes=[
  ["马来-Trojan","my01.example.com:443","—","trojan","c-trojan","…","wait",false],
 ];
 const ico='<span class="m">✎</span><span class="m">⤴</span><span class="m">🗑</span>';
-document.getElementById("plist").insertAdjacentHTML("beforeend",nodes.map(n=>`
+const cardHtml=(n)=>`
  <div class="pcard${n[7]?" sel":""}">
   <div class="r1"><span class="name">${n[0]}</span>${ico}</div>
   <div class="r2"><span>${n[1]}</span><span>${n[2]}</span></div>
   <div class="r3"><span class="chip ${n[4]}">${n[3]}</span><span class="ping ${n[6]}">${n[5]}</span></div>
- </div>`).join(""));
+ </div>`;
+document.getElementById("plist").insertAdjacentHTML("beforeend",nodes.map(cardHtml).join(""));
+document.getElementById("plist-pc").insertAdjacentHTML("beforeend",nodes.slice(0,4).map(cardHtml).join(""));
 
 /* ===== 交互 ===== */
 document.querySelectorAll(".sw").forEach(s=>s.onclick=()=>{
