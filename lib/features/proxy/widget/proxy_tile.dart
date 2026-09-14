@@ -10,7 +10,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 /// 节点卡片 —— **1:1 复刻** NekoBox `layout_profile.xml`：
 ///
-/// ```
+/// ```text
 /// MaterialCard(margin 4 / elevation 2 / 圆角 4)
 ///  └ 横向：左缘 4dp 选中条（未选中 = 透明占位，保持行高一致）
 ///     └ 纵向：
@@ -62,78 +62,87 @@ class ProxyTile extends HookConsumerWidget with PresLogger {
       child: InkWell(
         onTap: onTap,
         onLongPress: () async => await ref.read(dialogNotifierProvider.notifier).showProxyInfo(outboundInfo: proxy),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 左缘 4dp 选中条（NekoBox 的 selected_view；未选中透明占位）。
-            Container(width: 4, color: selected ? theme.colorScheme.primary : Colors.transparent),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 行 1：名称（粗体，占满；右侧动作图标二期补充）。
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 4, 0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            proxy.tagDisplay,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              fontFamily: PlatformUtils.isWindows ? FontFamily.emoji : null,
+        // IntrinsicHeight：行高由内容决定；否则 ListView 的无界高度会让 stretch 行塌成 0（卡片不可见）。
+        child: IntrinsicHeight(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 左缘 4dp 选中条（NekoBox 的 selected_view；未选中透明占位）。
+                Container(width: 4, color: selected ? theme.colorScheme.primary : Colors.transparent),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 行 1：名称（粗体，占满；右侧动作图标二期补充）。
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 4, 0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                proxy.tagDisplay,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  fontFamily: PlatformUtils.isWindows ? FontFamily.emoji : null,
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                      // 行 2：地址 ······ 流量。
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 2, 8, 0),
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                address,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                              ),
+                            ),
+                            const Spacer(),
+                            if (traffic != null)
+                              Text(
+                                traffic,
+                                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                              ),
+                          ],
+                        ),
+                      ),
+                      // 行 3：协议（着色纯文字） ······ 状态。
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 3, 8, 12),
+                        child: Row(
+                          children: [
+                            Text(
+                              proxy.type,
+                              style: theme.textTheme.bodySmall?.copyWith(color: typeColor, fontWeight: FontWeight.w600),
+                            ),
+                            const Spacer(),
+                            Text(
+                              statusText,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: statusColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  // 行 2：地址 ······ 流量。
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 2, 8, 0),
-                    child: Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            address,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                          ),
-                        ),
-                        const Spacer(),
-                        if (traffic != null)
-                          Text(
-                            traffic,
-                            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                          ),
-                      ],
-                    ),
-                  ),
-                  // 行 3：协议（着色纯文字） ······ 状态。
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 3, 8, 12),
-                    child: Row(
-                      children: [
-                        Text(
-                          proxy.type,
-                          style: theme.textTheme.bodySmall?.copyWith(color: typeColor, fontWeight: FontWeight.w600),
-                        ),
-                        const Spacer(),
-                        Text(
-                          statusText,
-                          style: theme.textTheme.bodySmall?.copyWith(color: statusColor, fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

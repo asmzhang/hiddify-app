@@ -10,7 +10,7 @@ import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/notifier/profiles_update_notifier.dart';
 import 'package:hiddify/features/profile/overview/profiles_notifier.dart';
-import 'package:hiddify/features/profile/widget/profile_tile.dart';
+import 'package:hiddify/features/profile/widget/nk_profile_tile.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 class ProfilesPage extends HookConsumerWidget {
@@ -52,10 +52,9 @@ class ProfilesPage extends HookConsumerWidget {
         icon: const Icon(Icons.add_rounded),
       ),
       body: asyncProfiles.when(
-        data: (data) => ListView.separated(
-          padding: const EdgeInsets.all(12).copyWith(bottom: 84),
-          separatorBuilder: (context, index) => const Gap(12),
-          itemBuilder: (context, index) => ProfileTile(profile: data[index]),
+        data: (data) => ListView.builder(
+          padding: const EdgeInsets.all(8).copyWith(bottom: 88),
+          itemBuilder: (context, index) => NkProfileTile(data[index]),
           itemCount: data.length,
         ),
         loading: () => const Center(child: CircularProgressIndicator()),
