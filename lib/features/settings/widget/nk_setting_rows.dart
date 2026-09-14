@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
-import 'package:hiddify/core/widget/nekobox/nk_card.dart';
 import 'package:hiddify/core/utils/preferences_utils.dart';
+import 'package:hiddify/core/widget/nekobox/nk_card.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 /// NekoBox 设置页行组件（global_preferences.xml 风格）：
@@ -16,7 +16,13 @@ class NkSettingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final divider = Divider(height: 1, thickness: 0.5, indent: 16, endIndent: 16, color: Theme.of(context).dividerColor);
+    final divider = Divider(
+      height: 1,
+      thickness: 0.5,
+      indent: 16,
+      endIndent: 16,
+      color: Theme.of(context).dividerColor,
+    );
     final children = <Widget>[];
     for (var i = 0; i < rows.length; i++) {
       children.add(rows[i]);
@@ -77,25 +83,24 @@ class NkValueRow<T> extends HookConsumerWidget {
           style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
       ),
-      onTap:
-          enabled
-              ? () async {
-                final inputValue = await ref
-                    .read(dialogNotifierProvider.notifier)
-                    .showSettingInput(
-                      title: title,
-                      initialValue: value,
-                      validator: validateInput ?? _defaultValidator,
-                      valueFormatter: formatInputValue,
-                      onReset: preferences.reset,
-                      digitsOnly: digitsOnly,
-                      mapTo: inputToValue,
-                      possibleValues: preferences.possibleValues,
-                    );
-                if (inputValue == null) return;
-                await preferences.update(inputValue);
-              }
-              : null,
+      onTap: enabled
+          ? () async {
+              final inputValue = await ref
+                  .read(dialogNotifierProvider.notifier)
+                  .showSettingInput(
+                    title: title,
+                    initialValue: value,
+                    validator: validateInput ?? _defaultValidator,
+                    valueFormatter: formatInputValue,
+                    onReset: preferences.reset,
+                    digitsOnly: digitsOnly,
+                    mapTo: inputToValue,
+                    possibleValues: preferences.possibleValues,
+                  );
+              if (inputValue == null) return;
+              await preferences.update(inputValue);
+            }
+          : null,
     );
   }
 }
@@ -139,23 +144,22 @@ class NkChoiceRow<T> extends HookConsumerWidget {
           Icon(Icons.chevron_right_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
         ],
       ),
-      onTap:
-          enabled
-              ? () async {
-                final selection = await ref
-                    .read(dialogNotifierProvider.notifier)
-                    .showSettingPicker<T>(
-                      title: title,
-                      showFlag: showFlag,
-                      selected: selected,
-                      options: choices,
-                      getTitle: (e) => presentChoice(e),
-                      onReset: preferences.reset,
-                    );
-                if (selection == null) return;
-                await preferences.update(selection);
-              }
-              : null,
+      onTap: enabled
+          ? () async {
+              final selection = await ref
+                  .read(dialogNotifierProvider.notifier)
+                  .showSettingPicker<T>(
+                    title: title,
+                    showFlag: showFlag,
+                    selected: selected,
+                    options: choices,
+                    getTitle: (e) => presentChoice(e),
+                    onReset: preferences.reset,
+                  );
+              if (selection == null) return;
+              await preferences.update(selection);
+            }
+          : null,
     );
   }
 }

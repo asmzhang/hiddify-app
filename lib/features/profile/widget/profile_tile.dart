@@ -51,6 +51,16 @@ class ProfileTile extends HookConsumerWidget {
       _ => null,
     };
 
+    // NekoBox 胖卡（屏1 顶部订阅摘要卡）：
+    // [刷新按钮] 名称（粗体，单行）        [下拉箭头]
+    //            订阅 host（次色，单行省略）
+    //            细进度条（流量余量）
+    //            流量（已用/总量）···      剩余 ∞ 天
+    final host = switch (profile) {
+      RemoteProfileEntity(:final url) => Uri.tryParse(url)?.host ?? url,
+      LocalProfileEntity() => null,
+    };
+
     final showActionButton = profile is RemoteProfileEntity || !isMain;
 
     // final effectiveMargin = isMain ? const EdgeInsets.symmetric(horizontal: 16, vertical: 8) : const EdgeInsets.only(left: 12, right: 12, bottom: 12);
@@ -120,33 +130,46 @@ class ProfileTile extends HookConsumerWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (isMain)
+                          if (isMain) ...[
+                            // 行1：名称（粗体）+ 下拉提示（点卡片进配置列表）。
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 4),
-                              child: Material(
-                                borderRadius: BorderRadius.circular(8),
-                                color: Colors.transparent,
-                                clipBehavior: Clip.antiAlias,
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        profile.name,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: theme.textTheme.titleMedium?.copyWith(
-                                          fontFamily: PlatformUtils.isWindows ? FontFamily.emoji : null,
-                                        ),
-                                        semanticsLabel: t.pages.profiles.activeProfileName(name: profile.name),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      profile.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        fontFamily: PlatformUtils.isWindows ? FontFamily.emoji : null,
                                       ),
+                                      semanticsLabel: t.pages.profiles.activeProfileName(name: profile.name),
                                     ),
-                                    const Icon(Icons.arrow_drop_down_rounded),
-                                  ],
-                                ),
+                                  ),
+                                  const Icon(Icons.arrow_drop_down_rounded),
+                                ],
                               ),
-                            )
-                          else
+                            ),
+                            // 行2：订阅 host（次色，单行）。
+                            if (host != null)
+                              Text(
+                                host,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                              ),
+                            // 行3：细进度条（流量余量）。
+                            if (subInfo != null) ...[
+                              const Gap(6),
+                              RemainingTrafficIndicator(subInfo.ratio),
+                              const Gap(6),
+                              // 行4：流量（已用/总量）··· 剩余天数。
+                              ProfileSubscriptionInfo(subInfo),
+                              const Gap(2),
+                            ],
+                          ] else ...[
                             Text(
                               profile.name,
                               maxLines: 2,
@@ -158,12 +181,13 @@ class ProfileTile extends HookConsumerWidget {
                                   ? t.pages.profiles.activeProfileName(name: profile.name)
                                   : t.pages.profiles.nonActiveProfileName(name: profile.name),
                             ),
-                          if (subInfo != null) ...[
-                            const Gap(4),
-                            RemainingTrafficIndicator(subInfo.ratio),
-                            const Gap(4),
-                            ProfileSubscriptionInfo(subInfo),
-                            const Gap(4),
+                            if (subInfo != null) ...[
+                              const Gap(4),
+                              RemainingTrafficIndicator(subInfo.ratio),
+                              const Gap(4),
+                              ProfileSubscriptionInfo(subInfo),
+                              const Gap(4),
+                            ],
                           ],
                         ],
                       ),
@@ -373,7 +397,10 @@ class ProfileSubscriptionInfo extends HookConsumerWidget {
         Flexible(
           child: Text(
             remaining.$1,
-            style: theme.textTheme.bodySmall?.copyWith(color: remaining.$2),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: remaining.$2 ?? theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
             overflow: TextOverflow.ellipsis,
           ),
         ),
