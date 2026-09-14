@@ -104,7 +104,7 @@
       "quickSettings": "快速设置选项"
     },
     "proxies": {
-      "title": "代理",
+      "title": "配置",
       "sort": "排序代理",
       "testDelay": "测试延迟",
       "search": "搜索",
@@ -194,7 +194,10 @@
       "testFailed": "测试失败"
     },
     "subscriptions": {
-      "title": "订阅"
+      "title": "分组"
+    },
+    "traffic": {
+      "title": "仪表盘"
     },
     "about": {
       "coreVersion": "内核版本",

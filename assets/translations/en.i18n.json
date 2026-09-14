@@ -104,7 +104,7 @@
       "quickSettings": "Quick setting options"
     },
     "proxies": {
-      "title": "Proxies",
+      "title": "Profiles",
       "sort": "Sort proxies",
       "testDelay": "Test delay",
       "search": "Search",
@@ -194,7 +194,10 @@
       "testFailed": "Test failed"
     },
     "subscriptions": {
-      "title": "Subscriptions"
+      "title": "Groups"
+    },
+    "traffic": {
+      "title": "Dashboard"
     },
     "about": {
       "coreVersion": "Core version",
