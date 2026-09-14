@@ -1,0 +1,25 @@
+# 统一编辑器行为：UTF-8 + LF，跨 Windows/Linux/macOS 一致
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Go 与 Makefile 用 tab（语言强制）
+[*.go]
+indent_style = tab
+[Makefile]
+indent_style = tab
+indent_size = 4
+
+# Windows 脚本保持 CRLF（与 .gitattributes 一致）
+[*.{bat,cmd,ps1}]
+end_of_line = crlf
+
+# Markdown 行尾双空格是换行语法，不要裁剪
+[*.md]
+trim_trailing_whitespace = false
