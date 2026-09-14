@@ -69,10 +69,7 @@ class ActiveProxyDelayIndicator extends HookConsumerWidget with InfraLogger {
                 // 看起来像"它在自动测速"，而实际上要自己点一下才测。
                 Text(
                   "—",
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.disabledColor,
-                  ),
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: theme.disabledColor),
                 ),
             ],
           ),
