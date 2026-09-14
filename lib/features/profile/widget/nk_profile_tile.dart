@@ -5,7 +5,7 @@ import 'package:hiddify/core/widget/adaptive_icon.dart';
 import 'package:hiddify/core/widget/adaptive_menu.dart';
 import 'package:hiddify/core/widget/nekobox/nk_theme.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
-import 'package:hiddify/features/profile/widget/profile_tile.dart';
+import 'package:hiddify/features/profile/widget/profile_actions.dart';
 import 'package:hiddify/gen/fonts.gen.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
