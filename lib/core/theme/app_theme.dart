@@ -1,36 +1,47 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:hiddify/core/theme/app_theme_mode.dart';
+import 'package:hiddify/core/theme/nk_palette.dart';
 import 'package:hiddify/core/theme/theme_extensions.dart';
 
 class AppTheme {
-  AppTheme(this.mode, this.fontFamily);
+  AppTheme(this.mode, this.fontFamily, {this.palette = NkPalette.pink});
   final AppThemeMode mode;
   final String fontFamily;
 
-  ThemeData lightTheme(ColorScheme? lightColorScheme) {
-    final ColorScheme scheme = lightColorScheme ?? ColorScheme.fromSeed(seedColor: const Color(0xFF293CA0));
+  /// NekoBox 复刻 · 当前主题色板（决定主色调）。
+  final NkPalette palette;
+
+  ThemeData lightTheme() {
+    final scheme = palette.scheme(Brightness.light);
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       fontFamily: fontFamily,
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: palette.accent,
+        foregroundColor: Colors.white,
+      ),
       extensions: const <ThemeExtension<dynamic>>{ConnectionButtonTheme.light},
     );
   }
 
-  ThemeData darkTheme(ColorScheme? darkColorScheme) {
-    final ColorScheme scheme =
-        darkColorScheme ?? ColorScheme.fromSeed(seedColor: const Color(0xFF293CA0), brightness: Brightness.dark);
+  ThemeData darkTheme() {
+    final scheme = palette.scheme(Brightness.dark);
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      scaffoldBackgroundColor: mode.trueBlack ? Colors.black : scheme.background,
+      scaffoldBackgroundColor: mode.trueBlack ? Colors.black : null,
       fontFamily: fontFamily,
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: palette.accent,
+        foregroundColor: Colors.white,
+      ),
       extensions: const <ThemeExtension<dynamic>>{ConnectionButtonTheme.light},
     );
   }
 
-  CupertinoThemeData cupertinoThemeData(bool sysDark, ColorScheme? lightColorScheme, ColorScheme? darkColorScheme) {
+  CupertinoThemeData cupertinoThemeData(bool sysDark) {
     final bool isDark = switch (mode) {
       AppThemeMode.system => sysDark,
       AppThemeMode.light => false,
@@ -41,7 +52,7 @@ class AppTheme {
     // final def = CupertinoThemeData(brightness: Brightness.dark);
 
     // return def;
-    final defaultMaterialTheme = isDark ? darkTheme(darkColorScheme) : lightTheme(lightColorScheme);
+    final defaultMaterialTheme = isDark ? darkTheme() : lightTheme();
     return MaterialBasedCupertinoThemeData(
       materialTheme: defaultMaterialTheme.copyWith(
         cupertinoOverrideTheme: def.copyWith(
