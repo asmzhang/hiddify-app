@@ -21,15 +21,18 @@ ifeq ($(OS),Windows_NT)
             $(wildcard $(d)/sh.exe))))
         ifneq ($(GIT_SH),)
             SHELL := $(GIT_SH)
-            # 只把一个 POSIX 格式的前缀加进 PATH。
-            # /usr/bin 和 /bin 在 sh 眼里就是 Git 自带的 usr/bin（tr/head/unzip 等），
-            # 而后面仍保留原始的 Windows 格式 PATH —— 由 MSYS 在启动 sh 时
-            # 自行转换成 POSIX 格式。
+            # 把 Git 的 usr/bin 和 bin 以 Windows 形式挂到 PATH 最前。
+            # 整条 PATH 必须保持「Windows 格式 + 分号分隔」，由 MSYS 在启动 sh 时
+            # 一次性整体转换 —— 实测这样 curl/git/dart 全部可达。
             #
-            # 不要在这里拼接 D:/... 这类 Windows 正斜杠路径：一旦 PATH 变成
-            # 「Windows 项 + POSIX 项」的混合体，MSYS 会放弃转换，
-            # bash 就把整条 PATH 当成一项，PATH 里的 dart / flutter 全部失效。
-            export PATH := /usr/bin:/bin:$(PATH)
+            # 不要用 POSIX 前缀（/usr/bin:/bin:...）：原生 Windows make 导出的
+            # PATH 是「POSIX 项 + Windows 项」混合体，MSYS 判定它以 / 开头后改按
+            # 冒号解析，在第一个盘符冒号处把整串切碎 —— 实测 recipe 里只剩
+            # /usr/bin:/bin 和第一个 PATH 项，curl/git/dart 全部找不到。
+            _GIT_SH_ROOT := $(patsubst %/bin/sh.exe,%,$(patsubst %/usr/bin/sh.exe,%,$(GIT_SH)))
+            # IDE/agent 注入的 \\?\ 设备路径条目会让 MSYS 的 PATH 转换半路截断
+            # （实测 sh 里只剩前几个目录，curl/git 全丢），剥掉前缀还原成普通路径。
+            export PATH := $(_GIT_SH_ROOT)/usr/bin;$(_GIT_SH_ROOT)/bin;$(subst \\?\,,$(PATH))
         else ifeq ($(shell uname),)
             $(error No POSIX shell found. Install Git for Windows, or run make from Git Bash / WSL. See docs/BUILD.md)
         endif
