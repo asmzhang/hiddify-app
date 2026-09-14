@@ -234,6 +234,7 @@
           "light": "浅色模式",
           "black": "纯黑模式"
         },
+        "themePalette": "主题色",
         "enableAnalytics": "启用分析",
         "enableAnalyticsMsg": "允许收集分析数据和发送崩溃报告以改进应用",
         "autoIpCheck": "自动检查连接 IP",

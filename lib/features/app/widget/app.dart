@@ -1,5 +1,4 @@
 import 'package:accessibility_tools/accessibility_tools.dart';
-import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,6 +11,7 @@ import 'package:hiddify/core/model/constants.dart';
 import 'package:hiddify/core/router/go_router/go_router_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/core/theme/app_theme.dart';
+import 'package:hiddify/core/theme/nk_palette_preferences.dart';
 import 'package:hiddify/core/theme/theme_preferences.dart';
 import 'package:hiddify/features/app_update/notifier/app_update_notifier.dart';
 import 'package:hiddify/features/connection/widget/connection_wrapper.dart';
@@ -58,7 +58,8 @@ class App extends HookConsumerWidget with WidgetsBindingObserver, PresLogger {
     final router = ref.watch(goRouterNotiferProvider);
     final locale = ref.watch(localePreferencesProvider);
     final themeMode = ref.watch(themePreferencesProvider);
-    final theme = AppTheme(themeMode, locale.preferredFontFamily);
+    final palette = ref.watch(nkPalettePreferencesProvider);
+    final theme = AppTheme(themeMode, locale.preferredFontFamily, palette: palette);
     final upgrader = ref.watch(upgraderProvider);
     final activeBreakpoint = Breakpoint(context).activeBreakpoint;
 
@@ -77,39 +78,35 @@ class App extends HookConsumerWidget with WidgetsBindingObserver, PresLogger {
       ShortcutWrapper(
         ToastificationWrapper(
           child: ConnectionWrapper(
-            DynamicColorBuilder(
-              builder: (ColorScheme? lightColorScheme, ColorScheme? darkColorScheme) {
-                return MaterialApp.router(
-                  routerConfig: router,
-                  locale: locale.flutterLocale,
-                  supportedLocales: AppLocaleUtils.supportedLocales,
-                  localizationsDelegates: GlobalMaterialLocalizations.delegates,
-                  debugShowCheckedModeBanner: false,
-                  themeMode: themeMode.flutterThemeMode,
-                  theme: theme.lightTheme(lightColorScheme),
-                  darkTheme: theme.darkTheme(darkColorScheme),
-                  title: Constants.appName,
-                  builder: (context, child) {
-                    final theme = Theme.of(context);
-                    child = UpgradeAlert(
-                      upgrader: upgrader,
-                      navigatorKey: router.routerDelegate.navigatorKey,
-                      child: child ?? const SizedBox(),
-                    );
-                    if (kDebugMode && _debugAccessibility) {
-                      return AccessibilityTools(checkFontOverflows: true, child: child);
-                    }
-                    return AnnotatedRegion<SystemUiOverlayStyle>(
-                      value: SystemUiOverlayStyle(
-                        statusBarColor: theme.scaffoldBackgroundColor,
-                        systemNavigationBarColor: theme.scaffoldBackgroundColor,
-                        systemNavigationBarIconBrightness: theme.brightness == Brightness.dark
-                            ? Brightness.light
-                            : Brightness.dark,
-                      ),
-                      child: child,
-                    );
-                  },
+            MaterialApp.router(
+              routerConfig: router,
+              locale: locale.flutterLocale,
+              supportedLocales: AppLocaleUtils.supportedLocales,
+              localizationsDelegates: GlobalMaterialLocalizations.delegates,
+              debugShowCheckedModeBanner: false,
+              themeMode: themeMode.flutterThemeMode,
+              theme: theme.lightTheme(),
+              darkTheme: theme.darkTheme(),
+              title: Constants.appName,
+              builder: (context, child) {
+                final theme = Theme.of(context);
+                child = UpgradeAlert(
+                  upgrader: upgrader,
+                  navigatorKey: router.routerDelegate.navigatorKey,
+                  child: child ?? const SizedBox(),
+                );
+                if (kDebugMode && _debugAccessibility) {
+                  return AccessibilityTools(checkFontOverflows: true, child: child);
+                }
+                return AnnotatedRegion<SystemUiOverlayStyle>(
+                  value: SystemUiOverlayStyle(
+                    statusBarColor: theme.scaffoldBackgroundColor,
+                    systemNavigationBarColor: theme.scaffoldBackgroundColor,
+                    systemNavigationBarIconBrightness: theme.brightness == Brightness.dark
+                        ? Brightness.light
+                        : Brightness.dark,
+                  ),
+                  child: child,
                 );
               },
             ),

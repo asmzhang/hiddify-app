@@ -234,6 +234,7 @@
           "light": "Light mode",
           "black": "Black mode"
         },
+        "themePalette": "Theme color",
         "enableAnalytics": "Enable analytics",
         "enableAnalyticsMsg": "Give permission to collect analytics and send crash reports to improve the app",
         "autoIpCheck": "Automatically check connection IP",
