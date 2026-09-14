@@ -42,8 +42,7 @@ class MyAdaptiveLayout extends HookConsumerWidget {
             if (branchesScope.values.any((node) => node.hasFocus)) {
               navScopeNode.requestFocus();
             } else if (navScopeNode.hasFocus) {
-              branchesScope[getNameOfBranch(showProfilesAction, navigationShell.currentIndex)]
-                  ?.requestFocus();
+              branchesScope[getNameOfBranch(showProfilesAction, navigationShell.currentIndex)]?.requestFocus();
             }
           }
         }
@@ -83,10 +82,8 @@ class MyAdaptiveLayout extends HookConsumerWidget {
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
                       ),
                     ),
-                    ...actions.map(
-                      (e) => NavigationDrawerDestination(icon: Icon(e.icon), label: Text(e.title)),
-                    ),
-                    const Divider(indent: 28, endIndent: 28),
+                    // NekoBox 复刻 · 抽屉按三组分段（配置组/工具组/关于），组间画分隔线。
+                    ..._drawerChildren(t, showProfilesAction),
                   ],
                 ),
               )
@@ -125,6 +122,23 @@ class MyAdaptiveLayout extends HookConsumerWidget {
   // shell route action onTap
   void _onTap(BuildContext context, int index) {
     navigationShell.goBranch(index, initialLocation: index == navigationShell.currentIndex);
+  }
+
+  // NekoBox 复刻 · 抽屉分组：组与组之间画一条分隔线（对标 main_drawer_menu.xml 的三段）。
+  List<Widget> _drawerChildren(Translations t, bool showProfilesAction) {
+    final metas = navVisibleMetas(showProfilesAction);
+    final actions = _actions(t, showProfilesAction);
+    final children = <Widget>[];
+    NkNavGroup? last;
+    for (var i = 0; i < metas.length; i++) {
+      if (last != null && metas[i].group != last) {
+        children.add(const Divider(indent: 28, endIndent: 28));
+      }
+      last = metas[i].group;
+      final e = actions[i];
+      children.add(NavigationDrawerDestination(icon: Icon(e.icon), label: Text(e.title)));
+    }
+    return children;
   }
 
   // 导航项完全由 navMetas 推导（唯一数据源）；这里只取**可见**项（navVisible）。

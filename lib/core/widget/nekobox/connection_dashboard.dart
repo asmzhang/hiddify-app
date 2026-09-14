@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hiddify/core/widget/nekobox/nk_card.dart';
 import 'package:hiddify/core/widget/nekobox/nk_theme.dart';
-
-enum NkConnectionState { disconnected, connecting, connected, error }
+import 'package:hiddify/features/connection/model/connection_status.dart';
 
 /// 连接仪表盘（对标 NekoBox 首页）：大圆钮 + 当前节点 + 状态 + 实时上/下行。
 ///
