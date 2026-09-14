@@ -48,7 +48,9 @@ List<OutboundGroup> parseOfflineProxyGroups(String configJson, {void Function(St
       for (final member in (outbound['outbounds'] as List?)?.whereType<String>() ?? const <String>[]) {
         // 成员本身可能又是一个分组（builder 会把 urltest/balancer 塞进 select），
         // 保留 isGroup 标记让 UI 能区分"节点"和"分组"。
-        group.items.add(outboundInfo(member, (byTag[member]?['type'] as String?) ?? 'unknown', member == group.selected));
+        group.items.add(
+          outboundInfo(member, (byTag[member]?['type'] as String?) ?? 'unknown', member == group.selected),
+        );
       }
       if (group.items.isNotEmpty) groups.add(group);
     }
