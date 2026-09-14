@@ -9,6 +9,7 @@ import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/failures.dart';
 import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
 import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
+import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/core/utils/preferences_utils.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
@@ -46,6 +47,8 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
     // 出口的字节数），所以不能把输入框内容塞进 provider 里，否则输入焦点会被冲掉。
     final query = useState('');
     final searchController = useTextEditingController();
+    // 搜索行显隐（NekoBox：搜索由 toolbar 图标触发，行默认收起）
+    final showSearch = useState(false);
     // 列表 / 网格（落盘，见 proxiesListViewProvider）
     final listView = ref.watch(proxiesListViewProvider);
 
@@ -69,81 +72,140 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
     return Scaffold(
       appBar: AppBar(
         // 手机端：汉堡键打开左侧导航抽屉；PC 端无（左侧是常驻 rail）
+        // NekoBox 复刻 · Toolbar 主色底（与分组 Tab 连成一体）。
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
         leading: Breakpoint(context).isMobile() ? const ShellDrawerButton() : null,
         title: Text(t.pages.proxies.title),
         actions: [
-          // 添加订阅（原来在首页的 AppBar 上）—— 合并后这里不能丢
+          // NekoBox 工具栏三件套：搜索 / ＋ / 更多。
           IconButton(
-            icon: Icon(Icons.add_rounded, color: Theme.of(context).colorScheme.primary),
+            onPressed: () => showSearch.value = !showSearch.value,
+            icon: const Icon(FluentIcons.search_24_regular),
+            tooltip: t.pages.proxies.search,
+          ),
+          IconButton(
             onPressed: () => ref.read(bottomSheetsNotifierProvider.notifier).showAddProfile(),
+            icon: const Icon(Icons.add_rounded),
           ),
-          // 列表 / 网格切换
-          IconButton(
-            onPressed: () => ref.read(proxiesListViewProvider.notifier).update(!listView),
-            icon: Icon(listView ? FluentIcons.grid_24_regular : FluentIcons.list_24_regular),
-          ),
-          // 「绕过中国 / 直连规则」就是设置里的「路由」页，规则编辑器本身是既有的，
-          // 只是埋在 设置 → 路由 里没有就近入口。这里给一个，省得找不到。
-          IconButton(
-            onPressed: () => context.goNamed('routingOptions'),
-            icon: const Icon(FluentIcons.arrow_routing_24_regular),
-            tooltip: t.pages.settings.routing.title,
+          // 更多菜单：批量测速 / 排序 / 路由规则（原工具条上的散装按钮收拢于此）。
+          PopupMenuButton<String>(
+            onSelected: (value) => switch (value) {
+              'urltest' => ref.read(proxiesOverviewNotifierProvider.notifier).urlTest("select"),
+              'sort' => () async {
+                final selected = await ref
+                    .read(dialogNotifierProvider.notifier)
+                    .showSettingPicker<ProxiesSort>(
+                      title: t.pages.proxies.sort,
+                      selected: sortBy,
+                      onReset: () => ref.read(proxiesSortNotifierProvider.notifier).update(ProxiesSort.values.first),
+                      options: ProxiesSort.values,
+                      getTitle: (e) => e.present(t),
+                    );
+                if (selected != null) {
+                  await ref.read(proxiesSortNotifierProvider.notifier).update(selected);
+                }
+              }(),
+              'route' => context.goNamed('routingOptions'),
+              _ => null,
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(value: 'urltest', child: Text(t.pages.proxies.testAll)),
+              PopupMenuItem(value: 'sort', child: Text(t.pages.proxies.sort)),
+              PopupMenuItem(value: 'route', child: Text(t.pages.settings.routing.title)),
+            ],
           ),
           const Gap(8),
         ],
+        // NekoBox 复刻 · 分组 Tab 紧贴 Toolbar、同 primary 底、<2 组隐藏（layout_group_list.xml）。
+        // 搜索行改为点搜索图标后折叠出现（NekoBox 的搜索也是图标触发的），排序/网格开关收在行尾。
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(52),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: searchController,
-                    onChanged: (value) => query.value = value,
-                    textInputAction: TextInputAction.search,
-                    decoration: InputDecoration(
-                      isDense: true,
-                      hintText: t.pages.proxies.search,
-                      prefixIcon: const Icon(FluentIcons.search_16_regular, size: 18),
-                      suffixIcon: query.value.isEmpty
-                          ? null
-                          : IconButton(
-                              icon: const Icon(FluentIcons.dismiss_16_regular, size: 18),
-                              tooltip: t.common.reset,
-                              onPressed: () {
-                                searchController.clear();
-                                query.value = '';
-                              },
+          preferredSize: Size.fromHeight(
+            (groups.length > 1 ? 46.0 : 0.0) + (showSearch.value || query.value.isNotEmpty ? 56.0 : 0.0),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (groups.length > 1)
+                SizedBox(
+                  height: 46,
+                  child: Material(
+                    color: Theme.of(context).colorScheme.primary,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      itemCount: groups.length,
+                      separatorBuilder: (context, index) => const Gap(2),
+                      itemBuilder: (context, index) {
+                        final group = groups[index];
+                        final selected = group.tag == activeGroupTag;
+                        return InkWell(
+                          onTap: () => ref.read(selectedProxyGroupTagProvider.notifier).update(group.tag),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: selected ? Theme.of(context).colorScheme.onPrimary : Colors.transparent,
+                                  width: 2.5,
+                                ),
+                              ),
                             ),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                            alignment: Alignment.center,
+                            child: Text(
+                              group.tag,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: selected
+                                    ? Theme.of(context).colorScheme.onPrimary
+                                    : Theme.of(context).colorScheme.onPrimary.withValues(alpha: .6),
+                                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
-                const Gap(8),
-                // 排序做成"带当前值"的按钮：原来只是个裸图标，看不出点了会变什么、
-                // 也看不出现在按什么排（用户反馈"排列要能看得到"就是这个）
-                PopupMenuButton<ProxiesSort>(
-                  initialValue: sortBy,
-                  onSelected: ref.read(proxiesSortNotifierProvider.notifier).update,
-                  tooltip: t.pages.proxies.sort,
-                  itemBuilder: (context) {
-                    return [...ProxiesSort.values.map((e) => PopupMenuItem(value: e, child: Text(e.present(t))))];
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(FluentIcons.arrow_sort_24_regular, size: 18),
-                        const Gap(4),
-                        Text(sortBy.present(t), style: Theme.of(context).textTheme.labelLarge),
-                      ],
-                    ),
+              if (showSearch.value || query.value.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: searchController,
+                          onChanged: (value) => query.value = value,
+                          autofocus: showSearch.value,
+                          textInputAction: TextInputAction.search,
+                          decoration: InputDecoration(
+                            isDense: true,
+                            hintText: t.pages.proxies.search,
+                            prefixIcon: const Icon(FluentIcons.search_16_regular, size: 18),
+                            suffixIcon: query.value.isEmpty
+                                ? null
+                                : IconButton(
+                                    icon: const Icon(FluentIcons.dismiss_16_regular, size: 18),
+                                    tooltip: t.common.reset,
+                                    onPressed: () {
+                                      searchController.clear();
+                                      query.value = '';
+                                    },
+                                  ),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                      const Gap(8),
+                      // 列表 / 网格切换（视图偏好，收在搜索行尾）
+                      IconButton(
+                        onPressed: () => ref.read(proxiesListViewProvider.notifier).update(!listView),
+                        icon: Icon(listView ? FluentIcons.grid_24_regular : FluentIcons.list_24_regular),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
         ),
       ),
@@ -213,26 +275,7 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
               // 提示条看的是"流量有没有被接管"（不是"内核在不在跑"）——
               // 内核跑着但没接管时，这条依然该出现，因为流量确实还没走代理。
               if (!capturing) _PreselectBanner(text: t.pages.proxies.preselect, selectedName: selectedName),
-              // 分组切换（照 nekoray 的分组树 / Clash Verge 的分组面板）。
-              // 分组清单来自**订阅配置** —— 更新订阅分组也跟着变，与连接状态无关。
-              if (groups.length > 1)
-                SizedBox(
-                  height: 42,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    itemCount: groups.length,
-                    separatorBuilder: (context, index) => const Gap(6),
-                    itemBuilder: (context, index) {
-                      final group = groups[index];
-                      return ChoiceChip(
-                        label: Text(group.tag),
-                        selected: group.tag == activeGroupTag,
-                        onSelected: (_) => ref.read(selectedProxyGroupTagProvider.notifier).update(group.tag),
-                      );
-                    },
-                  ),
-                ),
+              // 分组切换已上移为 AppBar 下的 Tab 条（NekoBox layout_group_list.xml）。
               Expanded(
                 child: items.isEmpty
                     ? Center(child: Text(t.pages.proxies.empty))
@@ -242,7 +285,7 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
                     ? ListView.builder(
                         padding: const EdgeInsets.only(bottom: 86),
                         itemCount: items.length,
-                        itemBuilder: (context, index) => _tile(items[index], group, ref, index),
+                        itemBuilder: (context, index) => _tile(items[index], group, ref),
                       )
                     : LayoutBuilder(
                         builder: (context, constraints) {
@@ -257,7 +300,7 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
                               crossAxisCount: crossAxisCount,
                               mainAxisExtent: 92,
                             ),
-                            itemBuilder: (context, index) => _tile(items[index], group, ref, index),
+                            itemBuilder: (context, index) => _tile(items[index], group, ref),
                           );
                         },
                       ),
@@ -301,10 +344,9 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
   }
 
   /// 列表和网格共用同一个节点项 —— 避免两处各写一遍（改一处漏一处）。
-  Widget _tile(OutboundInfo proxy, OutboundGroup group, WidgetRef ref, int index) {
+  Widget _tile(OutboundInfo proxy, OutboundGroup group, WidgetRef ref) {
     return ProxyTile(
       proxy,
-      index: index,
       selected: group.selected == proxy.tag,
       onTap: () async {
         await ref.read(proxiesOverviewNotifierProvider.notifier).changeProxy(group.tag, proxy.tag);
