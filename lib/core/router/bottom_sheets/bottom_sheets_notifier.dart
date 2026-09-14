@@ -7,7 +7,6 @@ import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/router/go_router/go_router_notifier.dart';
 import 'package:hiddify/features/per_app_proxy/model/per_app_proxy_mode.dart';
 import 'package:hiddify/features/profile/add/add_profile_modal.dart';
-import 'package:hiddify/features/profile/overview/profiles_modal.dart';
 import 'package:hiddify/features/route_rules/overview/predefined_rules_modal.dart';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -62,8 +61,6 @@ class BottomSheetsNotifier extends _$BottomSheetsNotifier {
       await _show(isScrollControlled: true, child: AddProfileModal(url: url));
     }
   }
-
-  Future<void> showProfilesOverview() async => await _show(isScrollControlled: true, child: const ProfilesModal());
 
   Future<void> showQuickSettings() async => await _show(isScrollControlled: false, child: const QuickSettingsModal());
 
