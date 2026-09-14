@@ -95,4 +95,15 @@ class ProfilesNotifier extends _$ProfilesNotifier with AppLogger {
         )
         .run();
   }
+
+  /// NekoBox 复刻 · 撤销滑动删除：按订阅 URL 重新拉取并恢复（会生成新 id）。
+  Future<void> restoreSubscription(String url) async {
+    await _profilesRepo
+        .upsertRemote(url)
+        .match(
+          (err) => loggy.warning('failed to restore subscription from [$url]', err),
+          (_) => loggy.info('subscription restored from [$url]'),
+        )
+        .run();
+  }
 }

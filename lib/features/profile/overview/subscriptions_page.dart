@@ -69,7 +69,41 @@ class SubscriptionsPage extends HookConsumerWidget {
             padding: const EdgeInsets.all(12),
             separatorBuilder: (_, _) => const Gap(12),
             itemCount: subs.length,
-            itemBuilder: (_, index) => _SubscriptionTile(profile: subs[index]),
+            // NekoBox 复刻 · 滑动删除 + Snackbar 撤销（撤销 = 按订阅 URL 重新拉取恢复）。
+            itemBuilder: (_, index) {
+              final profile = subs[index];
+              return Dismissible(
+                key: ValueKey(profile.id),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 24),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(Icons.delete_rounded, color: Theme.of(context).colorScheme.onErrorContainer),
+                ),
+                onDismissed: (_) async {
+                  await ref.read(profilesNotifierProvider.notifier).deleteProfile(profile);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(
+                        SnackBar(
+                          content: Text(t.pages.profiles.msg.delete.success),
+                          action: SnackBarAction(
+                            label: t.common.undo,
+                            onPressed: () =>
+                                ref.read(profilesNotifierProvider.notifier).restoreSubscription(profile.url),
+                          ),
+                        ),
+                      );
+                  }
+                },
+                child: _SubscriptionTile(profile: profile),
+              );
+            },
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
