@@ -215,6 +215,7 @@
     "settings": {
       "title": "设置",
       "resetTunnel": "重置 VPN 配置文件",
+      "misc": "其他",
       "options": {
         "import": {
           "clipboard": "从剪贴板导入选项",

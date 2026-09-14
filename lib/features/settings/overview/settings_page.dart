@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hiddify/core/haptic/haptic_service.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/region.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
@@ -8,7 +9,6 @@ import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/core/widget/nekobox/nk_card.dart';
-import 'package:hiddify/core/haptic/haptic_service.dart';
 import 'package:hiddify/features/auto_start/notifier/auto_start_notifier.dart';
 import 'package:hiddify/features/common/general_pref_tiles.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
@@ -142,237 +142,246 @@ class SettingsPage extends HookConsumerWidget {
         children: [
           // ── 基础 ──
           NkSectionHeader(t.pages.settings.general.title),
-          NkSettingCard(rows: [
-            if (PlatformUtils.isDesktop)
-              NkSwitchRow(
-                title: t.pages.settings.general.autoStart,
-                value: ref.watch(autoStartNotifierProvider).asData!.value,
-                onChanged: (value) async => value
-                    ? await ref.read(autoStartNotifierProvider.notifier).enable()
-                    : await ref.read(autoStartNotifierProvider.notifier).disable(),
+          NkSettingCard(
+            rows: [
+              if (PlatformUtils.isDesktop)
+                NkSwitchRow(
+                  title: t.pages.settings.general.autoStart,
+                  value: ref.watch(autoStartNotifierProvider).asData!.value,
+                  onChanged: (value) async => value
+                      ? await ref.read(autoStartNotifierProvider.notifier).enable()
+                      : await ref.read(autoStartNotifierProvider.notifier).disable(),
+                ),
+              const NkPalettePrefTile(),
+              const ThemeModePrefTile(),
+              NkChoiceRow(
+                title: t.pages.settings.inbound.serviceMode,
+                selected: ref.watch(ConfigOptions.serviceMode),
+                preferences: ref.watch(ConfigOptions.serviceMode.notifier),
+                choices: ServiceMode.choices,
+                presentChoice: (value) => value.present(t),
               ),
-            const NkPalettePrefTile(),
-            const ThemeModePrefTile(),
-            NkChoiceRow(
-              title: t.pages.settings.inbound.serviceMode,
-              selected: ref.watch(ConfigOptions.serviceMode),
-              preferences: ref.watch(ConfigOptions.serviceMode.notifier),
-              choices: ServiceMode.choices,
-              presentChoice: (value) => value.present(t),
-            ),
-            NkChoiceRow(
-              title: t.pages.settings.general.logLevel,
-              selected: ref.watch(ConfigOptions.logLevel),
-              preferences: ref.watch(ConfigOptions.logLevel.notifier),
-              choices: LogLevel.values,
-              presentChoice: (value) => value.name.toUpperCase(),
-            ),
-            const LocalePrefTile(),
-            if (PlatformUtils.isDesktop) ...[
-              const ClosingPrefTile(),
-              NkSwitchRow(
-                title: t.pages.settings.general.silentStart,
-                value: ref.watch(Preferences.silentStart),
-                onChanged: ref.read(Preferences.silentStart.notifier).update,
+              // MTU：配置项一直存在（默认 9000），但此前没有任何 UI 入口（只能改 JSON）。
+              // 标题沿用首字母缩写，不做翻译（同 "Clash API" 的处理）。
+              NkValueRow<int>(
+                title: 'MTU',
+                value: ref.watch(ConfigOptions.mtu),
+                preferences: ref.watch(ConfigOptions.mtu.notifier),
+                digitsOnly: true,
+                inputToValue: int.tryParse,
               ),
+              NkChoiceRow(
+                title: t.pages.settings.general.logLevel,
+                selected: ref.watch(ConfigOptions.logLevel),
+                preferences: ref.watch(ConfigOptions.logLevel.notifier),
+                choices: LogLevel.values,
+                presentChoice: (value) => value.name.toUpperCase(),
+              ),
+              const LocalePrefTile(),
+              if (PlatformUtils.isDesktop) ...[
+                const ClosingPrefTile(),
+                NkSwitchRow(
+                  title: t.pages.settings.general.silentStart,
+                  value: ref.watch(Preferences.silentStart),
+                  onChanged: ref.read(Preferences.silentStart.notifier).update,
+                ),
+              ],
+              if (PlatformUtils.isAndroid) ...[
+                NkSwitchRow(
+                  title: t.pages.settings.general.dynamicNotification,
+                  value: ref.watch(Preferences.dynamicNotification),
+                  onChanged: ref.read(Preferences.dynamicNotification.notifier).update,
+                ),
+                NkSwitchRow(
+                  title: t.pages.settings.general.hapticFeedback,
+                  value: ref.watch(hapticServiceProvider),
+                  onChanged: ref.read(hapticServiceProvider.notifier).updatePreference,
+                ),
+              ],
+              NkSwitchRow(
+                title: t.pages.settings.general.memoryLimit,
+                subtitle: t.pages.settings.general.memoryLimitMsg,
+                value: !ref.watch(Preferences.disableMemoryLimit),
+                onChanged: (value) async => await ref.read(Preferences.disableMemoryLimit.notifier).update(!value),
+              ),
+              NkNavRow(title: t.pages.settings.general.title, onTap: () => context.goNamed('general')),
             ],
-            if (PlatformUtils.isAndroid) ...[
-              NkSwitchRow(
-                title: t.pages.settings.general.dynamicNotification,
-                value: ref.watch(Preferences.dynamicNotification),
-                onChanged: ref.read(Preferences.dynamicNotification.notifier).update,
-              ),
-              NkSwitchRow(
-                title: t.pages.settings.general.hapticFeedback,
-                value: ref.watch(hapticServiceProvider),
-                onChanged: ref.read(hapticServiceProvider.notifier).updatePreference,
-              ),
-            ],
-            NkSwitchRow(
-              title: t.pages.settings.general.memoryLimit,
-              subtitle: t.pages.settings.general.memoryLimitMsg,
-              value: !ref.watch(Preferences.disableMemoryLimit),
-              onChanged: (value) async => await ref.read(Preferences.disableMemoryLimit.notifier).update(!value),
-            ),
-            NkNavRow(
-              title: t.pages.settings.general.title,
-              onTap: () => context.goNamed('general'),
-            ),
-          ]),
+          ),
 
           // ── 路由 ──
           NkSectionHeader(t.pages.settings.routing.title),
-          NkSettingCard(rows: [
-            NkChoiceRow(
-              title: t.pages.settings.routing.generalOptions.region,
-              selected: ref.watch(ConfigOptions.region),
-              preferences: ref.watch(ConfigOptions.region.notifier),
-              choices: Region.values,
-              presentChoice: (value) => value.present(t),
-              showFlag: true,
-            ),
-            NkNavRow(
-              title: t.pages.settings.routing.routeRule.rule.title,
-              onTap: () => context.goNamed('routingOptions'),
-            ),
-            if (PlatformUtils.isAndroid)
-              NkSwitchRow(
-                title: t.pages.settings.routing.generalOptions.perAppProxy.title,
-                value: ref.watch(Preferences.perAppProxyMode).enabled,
-                onChanged: (value) async {
-                  final newMode = value ? PerAppProxyMode.exclude : PerAppProxyMode.off;
-                  await ref.read(Preferences.perAppProxyMode.notifier).update(newMode);
-                  if (value && context.mounted) context.goNamed('perAppProxy');
-                },
+          NkSettingCard(
+            rows: [
+              NkChoiceRow(
+                title: t.pages.settings.routing.generalOptions.region,
+                selected: ref.watch(ConfigOptions.region),
+                preferences: ref.watch(ConfigOptions.region.notifier),
+                choices: Region.values,
+                presentChoice: (value) => value.present(t),
+                showFlag: true,
               ),
-            NkSwitchRow(
-              title: t.pages.settings.routing.generalOptions.resolveDestination,
-              value: ref.watch(ConfigOptions.resolveDestination),
-              onChanged: ref.read(ConfigOptions.resolveDestination.notifier).update,
-            ),
-            NkChoiceRow(
-              title: t.pages.settings.routing.generalOptions.ipv6Route,
-              selected: ref.watch(ConfigOptions.ipv6Mode),
-              preferences: ref.watch(ConfigOptions.ipv6Mode.notifier),
-              choices: IPv6Mode.values,
-              presentChoice: (value) => value.present(t),
-            ),
-            NkSwitchRow(
-              title: t.pages.settings.inbound.strictRoute,
-              value: ref.watch(ConfigOptions.strictRoute),
-              onChanged: ref.read(ConfigOptions.strictRoute.notifier).update,
-            ),
-            NkChoiceRow(
-              title: t.pages.settings.routing.generalOptions.balancerStrategy.title,
-              selected: ref.watch(ConfigOptions.balancerStrategy),
-              preferences: ref.watch(ConfigOptions.balancerStrategy.notifier),
-              choices: BalancerStrategy.values,
-              presentChoice: (value) => value.present(t),
-            ),
-          ]),
+              NkNavRow(
+                title: t.pages.settings.routing.routeRule.rule.title,
+                onTap: () => context.goNamed('routingOptions'),
+              ),
+              if (PlatformUtils.isAndroid)
+                NkSwitchRow(
+                  title: t.pages.settings.routing.generalOptions.perAppProxy.title,
+                  value: ref.watch(Preferences.perAppProxyMode).enabled,
+                  onChanged: (value) async {
+                    final newMode = value ? PerAppProxyMode.exclude : PerAppProxyMode.off;
+                    await ref.read(Preferences.perAppProxyMode.notifier).update(newMode);
+                    if (value && context.mounted) context.goNamed('perAppProxy');
+                  },
+                ),
+              NkSwitchRow(
+                title: t.pages.settings.routing.generalOptions.resolveDestination,
+                value: ref.watch(ConfigOptions.resolveDestination),
+                onChanged: ref.read(ConfigOptions.resolveDestination.notifier).update,
+              ),
+              NkChoiceRow(
+                title: t.pages.settings.routing.generalOptions.ipv6Route,
+                selected: ref.watch(ConfigOptions.ipv6Mode),
+                preferences: ref.watch(ConfigOptions.ipv6Mode.notifier),
+                choices: IPv6Mode.values,
+                presentChoice: (value) => value.present(t),
+              ),
+              NkSwitchRow(
+                title: t.pages.settings.inbound.strictRoute,
+                value: ref.watch(ConfigOptions.strictRoute),
+                onChanged: ref.read(ConfigOptions.strictRoute.notifier).update,
+              ),
+              NkChoiceRow(
+                title: t.pages.settings.routing.generalOptions.balancerStrategy.title,
+                selected: ref.watch(ConfigOptions.balancerStrategy),
+                preferences: ref.watch(ConfigOptions.balancerStrategy.notifier),
+                choices: BalancerStrategy.values,
+                presentChoice: (value) => value.present(t),
+              ),
+            ],
+          ),
 
           // ── DNS ──
           NkSectionHeader(t.pages.settings.dns.title),
-          NkSettingCard(rows: [
-            NkValueRow<String>(
-              title: t.pages.settings.dns.remoteDns,
-              value: ref.watch(ConfigOptions.remoteDnsAddress),
-              preferences: ref.watch(ConfigOptions.remoteDnsAddress.notifier),
-            ),
-            NkChoiceRow(
-              title: t.pages.settings.dns.remoteDnsDomainStrategy,
-              selected: ref.watch(ConfigOptions.remoteDnsDomainStrategy),
-              preferences: ref.watch(ConfigOptions.remoteDnsDomainStrategy.notifier),
-              choices: DomainStrategy.values,
-              presentChoice: (value) => value.present(t),
-            ),
-            NkValueRow<String>(
-              title: t.pages.settings.dns.directDns,
-              value: ref.watch(ConfigOptions.directDnsAddress),
-              preferences: ref.watch(ConfigOptions.directDnsAddress.notifier),
-            ),
-            NkChoiceRow(
-              title: t.pages.settings.dns.directDnsDomainStrategy,
-              selected: ref.watch(ConfigOptions.directDnsDomainStrategy),
-              preferences: ref.watch(ConfigOptions.directDnsDomainStrategy.notifier),
-              choices: DomainStrategy.values,
-              presentChoice: (value) => value.present(t),
-            ),
-            NkSwitchRow(
-              title: t.pages.settings.dns.enableFakeDns,
-              value: ref.watch(ConfigOptions.enableFakeDns),
-              onChanged: ref.read(ConfigOptions.enableFakeDns.notifier).update,
-            ),
-          ]),
+          NkSettingCard(
+            rows: [
+              NkValueRow<String>(
+                title: t.pages.settings.dns.remoteDns,
+                value: ref.watch(ConfigOptions.remoteDnsAddress),
+                preferences: ref.watch(ConfigOptions.remoteDnsAddress.notifier),
+              ),
+              NkChoiceRow(
+                title: t.pages.settings.dns.remoteDnsDomainStrategy,
+                selected: ref.watch(ConfigOptions.remoteDnsDomainStrategy),
+                preferences: ref.watch(ConfigOptions.remoteDnsDomainStrategy.notifier),
+                choices: DomainStrategy.values,
+                presentChoice: (value) => value.present(t),
+              ),
+              NkValueRow<String>(
+                title: t.pages.settings.dns.directDns,
+                value: ref.watch(ConfigOptions.directDnsAddress),
+                preferences: ref.watch(ConfigOptions.directDnsAddress.notifier),
+              ),
+              NkChoiceRow(
+                title: t.pages.settings.dns.directDnsDomainStrategy,
+                selected: ref.watch(ConfigOptions.directDnsDomainStrategy),
+                preferences: ref.watch(ConfigOptions.directDnsDomainStrategy.notifier),
+                choices: DomainStrategy.values,
+                presentChoice: (value) => value.present(t),
+              ),
+              NkSwitchRow(
+                title: t.pages.settings.dns.enableFakeDns,
+                value: ref.watch(ConfigOptions.enableFakeDns),
+                onChanged: ref.read(ConfigOptions.enableFakeDns.notifier).update,
+              ),
+            ],
+          ),
 
           // ── 入站 ──
           NkSectionHeader(t.pages.settings.inbound.title),
-          NkSettingCard(rows: [
-            NkValueRow<int>(
-              title: t.pages.settings.inbound.mixedPort,
-              value: ref.watch(ConfigOptions.mixedPort),
-              preferences: ref.watch(ConfigOptions.mixedPort.notifier),
-              digitsOnly: true,
-              inputToValue: int.tryParse,
-              validateInput: isPort,
-            ),
-            NkSwitchRow(
-              title: t.pages.settings.inbound.captureEnabled,
-              subtitle: t.pages.settings.inbound.captureEnabledSubtitle,
-              value: ref.watch(Preferences.captureEnabled),
-              onChanged: (value) => ref.read(connectionNotifierProvider.notifier).setCapture(value),
-            ),
-            const LanSharingPreferenceWidget(),
-            NkSwitchRow(
-              title: t.pages.settings.inbound.strictRoute,
-              value: ref.watch(ConfigOptions.strictRoute),
-              onChanged: ref.read(ConfigOptions.strictRoute.notifier).update,
-            ),
-            NkChoiceRow(
-              title: t.pages.settings.inbound.tunImplementation,
-              selected: ref.watch(ConfigOptions.tunImplementation),
-              preferences: ref.watch(ConfigOptions.tunImplementation.notifier),
-              choices: TunImplementation.values,
-              presentChoice: (value) => value.name,
-            ),
-          ]),
+          NkSettingCard(
+            rows: [
+              NkValueRow<int>(
+                title: t.pages.settings.inbound.mixedPort,
+                value: ref.watch(ConfigOptions.mixedPort),
+                preferences: ref.watch(ConfigOptions.mixedPort.notifier),
+                digitsOnly: true,
+                inputToValue: int.tryParse,
+                validateInput: isPort,
+              ),
+              NkSwitchRow(
+                title: t.pages.settings.inbound.captureEnabled,
+                subtitle: t.pages.settings.inbound.captureEnabledSubtitle,
+                value: ref.watch(Preferences.captureEnabled),
+                onChanged: (value) => ref.read(connectionNotifierProvider.notifier).setCapture(value),
+              ),
+              const LanSharingPreferenceWidget(),
+              // 「严格路由」只在「路由」卡里出现一次（归一原则：一个能力一个入口）。
+              NkChoiceRow(
+                title: t.pages.settings.inbound.tunImplementation,
+                selected: ref.watch(ConfigOptions.tunImplementation),
+                preferences: ref.watch(ConfigOptions.tunImplementation.notifier),
+                choices: TunImplementation.values,
+                presentChoice: (value) => value.name,
+              ),
+            ],
+          ),
 
           // ── 其他 ──
-          NkSectionHeader(t.pages.settings.options.reset),
-          NkSettingCard(rows: [
-            NkValueRow<String>(
-              title: t.pages.settings.general.connectionTestUrl,
-              value: ref.watch(ConfigOptions.connectionTestUrl),
-              preferences: ref.watch(ConfigOptions.connectionTestUrl.notifier),
-            ),
-            NkValueRow<Duration>(
-              title: t.pages.settings.general.urlTestInterval,
-              value: ref.watch(ConfigOptions.urlTestInterval),
-              preferences: ref.watch(ConfigOptions.urlTestInterval.notifier),
-              presentValue: (value) => value.toApproximateTime(isRelativeToNow: false),
-            ),
-            NkSwitchRow(
-              title: 'Clash API',
-              value: ref.watch(ConfigOptions.enableClashApi),
-              onChanged: ref.read(ConfigOptions.enableClashApi.notifier).update,
-            ),
-            NkValueRow<int>(
-              title: t.pages.settings.general.clashApiPort,
-              value: ref.watch(ConfigOptions.clashApiPort),
-              preferences: ref.watch(ConfigOptions.clashApiPort.notifier),
-              digitsOnly: true,
-              inputToValue: int.tryParse,
-              validateInput: isPort,
-              enabled: ref.watch(ConfigOptions.enableClashApi),
-            ),
-            NkNavRow(
-              title: t.pages.settings.tlsTricks.title,
-              onTap: () => context.goNamed('tlsTricks'),
-            ),
-            if (ref.watch(hasAnyProfileProvider).value ?? false)
-              NkNavRow(
-                title: t.pages.settings.chain.title,
-                subtitle: t.pages.settings.chain.subtitle,
-                onTap: () => context.goNamed('chainOptions'),
+          NkSectionHeader(t.pages.settings.misc),
+          NkSettingCard(
+            rows: [
+              NkValueRow<String>(
+                title: t.pages.settings.general.connectionTestUrl,
+                value: ref.watch(ConfigOptions.connectionTestUrl),
+                preferences: ref.watch(ConfigOptions.connectionTestUrl.notifier),
               ),
-            NkSwitchRow(
-              title: t.pages.settings.general.useXrayCoreWhenPossible,
-              subtitle: t.pages.settings.general.useXrayCoreWhenPossibleMsg,
-              value: ref.watch(ConfigOptions.useXrayCoreWhenPossible),
-              onChanged: ref.read(ConfigOptions.useXrayCoreWhenPossible.notifier).update,
-            ),
-            if (PlatformUtils.isIOS)
-              NkNavRow(
-                title: t.pages.settings.resetTunnel,
-                onTap: () async {
-                  await ref.read(resetTunnelNotifierProvider.notifier).run();
-                },
+              NkValueRow<Duration>(
+                title: t.pages.settings.general.urlTestInterval,
+                value: ref.watch(ConfigOptions.urlTestInterval),
+                preferences: ref.watch(ConfigOptions.urlTestInterval.notifier),
+                presentValue: (value) => value.toApproximateTime(isRelativeToNow: false),
               ),
-            if (Breakpoint(context).isMobile()) ...[
-              NkNavRow(title: t.pages.logs.title, onTap: () => context.goNamed('logs')),
-              NkNavRow(title: t.pages.about.title, onTap: () => context.goNamed('about')),
+              NkSwitchRow(
+                title: 'Clash API',
+                value: ref.watch(ConfigOptions.enableClashApi),
+                onChanged: ref.read(ConfigOptions.enableClashApi.notifier).update,
+              ),
+              NkValueRow<int>(
+                title: t.pages.settings.general.clashApiPort,
+                value: ref.watch(ConfigOptions.clashApiPort),
+                preferences: ref.watch(ConfigOptions.clashApiPort.notifier),
+                digitsOnly: true,
+                inputToValue: int.tryParse,
+                validateInput: isPort,
+                enabled: ref.watch(ConfigOptions.enableClashApi),
+              ),
+              NkNavRow(title: t.pages.settings.tlsTricks.title, onTap: () => context.goNamed('tlsTricks')),
+              if (ref.watch(hasAnyProfileProvider).value ?? false)
+                NkNavRow(
+                  title: t.pages.settings.chain.title,
+                  subtitle: t.pages.settings.chain.subtitle,
+                  onTap: () => context.goNamed('chainOptions'),
+                ),
+              NkSwitchRow(
+                title: t.pages.settings.general.useXrayCoreWhenPossible,
+                subtitle: t.pages.settings.general.useXrayCoreWhenPossibleMsg,
+                value: ref.watch(ConfigOptions.useXrayCoreWhenPossible),
+                onChanged: ref.read(ConfigOptions.useXrayCoreWhenPossible.notifier).update,
+              ),
+              if (PlatformUtils.isIOS)
+                NkNavRow(
+                  title: t.pages.settings.resetTunnel,
+                  onTap: () async {
+                    await ref.read(resetTunnelNotifierProvider.notifier).run();
+                  },
+                ),
+              if (Breakpoint(context).isMobile()) ...[
+                NkNavRow(title: t.pages.logs.title, onTap: () => context.goNamed('logs')),
+                NkNavRow(title: t.pages.about.title, onTap: () => context.goNamed('about')),
+              ],
             ],
-          ]),
+          ),
         ],
       ),
     );

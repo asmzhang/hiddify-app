@@ -215,6 +215,7 @@
     "settings": {
       "title": "Settings",
       "resetTunnel": "Reset VPN profile",
+      "misc": "Other",
       "options": {
         "import": {
           "clipboard": "Import options from clipboard",

@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/widget/adaptive_icon.dart';
 import 'package:hiddify/core/widget/adaptive_menu.dart';
-import 'package:hiddify/core/widget/nekobox/nk_theme.dart';
+import 'package:hiddify/core/widget/nekobox/nk_card.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
 import 'package:hiddify/features/profile/widget/profile_actions.dart';
 import 'package:hiddify/gen/fonts.gen.dart';
@@ -96,7 +96,7 @@ class NkProfileTile extends HookConsumerWidget {
                                 ),
                               ),
                             ),
-                            _CardAction(
+                            NkCardAction(
                               icon: Icons.edit_rounded,
                               tooltip: t.common.edit,
                               onTap: () {
@@ -106,14 +106,14 @@ class NkProfileTile extends HookConsumerWidget {
                             ),
                             AdaptiveMenu(
                               items: buildProfileShareItems(context, ref, profile),
-                              builder: (context, toggleVisibility, child) => _CardAction(
+                              builder: (context, toggleVisibility, child) => NkCardAction(
                                 icon: AdaptiveIcon(context).share,
                                 tooltip: t.common.share,
                                 onTap: toggleVisibility,
                               ),
                               child: null,
                             ),
-                            _CardAction(
+                            NkCardAction(
                               icon: Icons.delete_outline_rounded,
                               tooltip: t.common.delete,
                               onTap: () async => await confirmDeleteProfile(context, ref, profile),
@@ -189,30 +189,5 @@ class NkProfileTile extends HookConsumerWidget {
     if (subInfo.ratio >= 1) return (sub.noTraffic, theme.colorScheme.error);
     final remaining = subInfo.remaining.inDays > 365 ? "∞" : '${subInfo.remaining.inDays}';
     return (sub.remainingDuration(duration: remaining), theme.colorScheme.onSurfaceVariant);
-  }
-}
-
-/// 卡片行内图标按钮（小尺寸、次色）—— 对标 NekoBox 卡片右缘的 ImageButton。
-class _CardAction extends StatelessWidget {
-  const _CardAction({required this.icon, required this.tooltip, required this.onTap});
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(NkMetrics.radiusSmall),
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
-        ),
-      ),
-    );
   }
 }
