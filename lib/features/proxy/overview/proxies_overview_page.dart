@@ -10,7 +10,6 @@ import 'package:hiddify/core/model/failures.dart';
 import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
 import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
-import 'package:hiddify/core/widget/nekobox/connection_dashboard.dart';
 import 'package:hiddify/core/utils/preferences_utils.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
@@ -36,9 +35,6 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translationsProvider).requireValue;
 
-    final serviceRunning = ref.watch(serviceRunningProvider);
-    // 「内核在跑」≠「流量被接管」：测速按钮看内核，提示条看接管。
-    final coreRunning = ref.watch(coreRunningProvider).valueOrNull ?? serviceRunning;
     final capturing = ref.watch(capturingProvider);
     // 分组清单来自订阅配置（常驻内容）；当前看哪个分组落盘（照 nekoray 的当前分组）。
     final groups = ref.watch(offlineProxyGroupsProvider).valueOrNull ?? const <OutboundGroup>[];
@@ -52,9 +48,8 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
     final searchController = useTextEditingController();
     // 列表 / 网格（落盘，见 proxiesListViewProvider）
     final listView = ref.watch(proxiesListViewProvider);
-    final stats = ref.watch(statsNotifierProvider).asData?.value ?? SystemInfo.create();
 
-    // 连接状态（给仪表盘用）：区分 已连接 / 连接中 / 错误 / 未连接
+    // 连接状态（给 FAB 四态与底部状态栏用）：区分 已连接 / 连接中 / 错误 / 未连接
     final connectionStatus = ref.watch(connectionNotifierProvider).valueOrNull;
     final NkConnectionState nkState;
     if (connectionStatus is Connected) {
@@ -102,32 +97,6 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
             child: Row(
               children: [
-                // 「接管」开关：**全页只有这一处**。
-                // 原来那个大圆按钮在合并页里占掉半屏（订阅摘要 + 它 + 工具条 + 状态栏），
-                // 换成工具条上一个紧凑开关 —— 绿点表示接管中。
-                FilledButton.tonal(
-                  onPressed: () => ref.read(connectionNotifierProvider.notifier).toggleConnection(),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    minimumSize: const Size(0, 40),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: capturing ? Colors.green : Theme.of(context).disabledColor,
-                        ),
-                      ),
-                      const Gap(6),
-                      Icon(capturing ? Icons.stop_rounded : Icons.play_arrow_rounded, size: 18),
-                    ],
-                  ),
-                ),
-                const Gap(8),
                 Expanded(
                   child: TextField(
                     controller: searchController,
@@ -178,14 +147,25 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
           ),
         ),
       ),
-      // 未连接时留着按钮但禁用（onPressed=null 会自动变灰）：
-      // 直接隐藏会让人以为"测速功能没了"，灰着反而说明"连接后可用"
+      // NekoBox 复刻 · FAB = 连接开关（对标 ServiceButton 四态）：
+      // stopped=播放、connecting/disconnecting=转圈（禁点）、connected=停止。
+      // 测速入口不在这 —— 那是配置动作，连接才是这个页面唯一的"大按钮"。
       floatingActionButton: FloatingActionButton(
-        onPressed: !coreRunning
+        onPressed: connectionStatus is Connecting || connectionStatus is Disconnecting
             ? null
-            : () async => await ref.read(proxiesOverviewNotifierProvider.notifier).urlTest("select"),
-        tooltip: coreRunning ? t.pages.proxies.testAll : t.pages.proxies.testAfterConnect,
-        child: const Icon(FluentIcons.flash_24_filled),
+            : () => ref.read(connectionNotifierProvider.notifier).toggleConnection(),
+        tooltip: switch (nkState) {
+          NkConnectionState.connected => t.connection.connected,
+          NkConnectionState.connecting => t.connection.connecting,
+          _ => t.connection.tapToConnect,
+        },
+        child: connectionStatus is Connecting || connectionStatus is Disconnecting
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
+              )
+            : Icon(nkState == NkConnectionState.connected ? FluentIcons.stop_24_filled : FluentIcons.play_24_filled),
       ),
       // 底部状态栏：接管状态 + 当前节点 + 实时速率。
       // 原来这些信息分散在首页（当前代理条）和侧栏，合并后集中在这里常驻。
@@ -219,23 +199,6 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
 
           return Column(
             children: [
-              // 连接仪表盘（NekoBox 风格）：大圆钮 + 当前节点 + 状态 + 实时速率。
-              // **叠加**在原有工具条开关 / 底部速率条之上，不覆盖任何原有功能。
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-                child: ConnectionDashboard(
-                  state: nkState,
-                  name: selectedName ?? '—',
-                  statusText: switch (nkState) {
-                    NkConnectionState.connected => t.connection.connected,
-                    NkConnectionState.connecting => t.connection.connecting,
-                    _ => t.connection.tapToConnect,
-                  },
-                  up: stats.uplink.toInt().speed(),
-                  down: stats.downlink.toInt().speed(),
-                  onTap: () => ref.read(connectionNotifierProvider.notifier).toggleConnection(),
-                ),
-              ),
               // 「订阅」摘要 —— 原来在首页，合并后不能丢；点它进订阅页
               switch (ref.watch(activeProfileProvider)) {
                 AsyncData(value: final profile?) => ProfileTile(
@@ -350,7 +313,8 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
   }
 }
 
-/// 底部状态栏：**接管状态 + 当前节点 + 实时速率**。
+/// 底部状态栏（NekoBox `StatsBar` 规格）：主色底 + 白字，
+/// 内容 = 接管状态点 + 当前节点 + ↑↓ 实时速率 + 连接状态。
 ///
 /// 这三样原来分散在首页（当前代理条）和左侧栏（统计卡），合并成一页之后集中在这里常驻，
 /// 任何滚动位置都能看到"现在到底连上没、走的是谁"。
@@ -374,22 +338,23 @@ class _CaptureStatusBar extends ConsumerWidget {
       }
     }
 
-    final style = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant);
+    // 白字（主色底上），与 NekoBox 的 StatsBar 一致。
+    final style = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onPrimary);
     return Material(
-      color: theme.colorScheme.surfaceContainer,
+      color: theme.colorScheme.primary,
       child: SafeArea(
         top: false,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             children: [
-              // 绿点 = 接管中；灰点 = 没接管（内核可能仍在跑，只是流量没走代理）
+              // 亮绿点 = 接管中；半透明白点 = 没接管（内核可能仍在跑，只是流量没走代理）
               Container(
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: capturing ? Colors.green : theme.disabledColor,
+                  color: capturing ? Colors.lightGreenAccent : theme.colorScheme.onPrimary.withValues(alpha: .4),
                 ),
               ),
               const Gap(8),

@@ -16,6 +16,7 @@ class NavMeta {
     required this.path,
     required this.icon,
     required this.label,
+    required this.group,
     this.navVisible = true,
   });
 
@@ -35,13 +36,28 @@ class NavMeta {
 
   /// 是否出现在导航栏/抽屉里。`false` = 仅路由可达（导航中隐藏），但仍是一个 shell 分支。
   final bool navVisible;
+
+  /// NekoBox 复刻 · 抽屉分组（对应 main_drawer_menu.xml 的三段，
+  /// 组与组之间画分隔线）。Rail（桌面）不分组，平铺。
+  final NkNavGroup group;
 }
+
+/// 抽屉的三段分组（对标 NekoBox main_drawer_menu.xml）：
+/// ① 配置/分组/路由/设置 ② 日志/仪表盘/工具 ③ 关于。
+enum NkNavGroup { configs, tools, about }
 
 /// 导航项（唯一数据源）。`profiles` 只在存在 profile 时出现。
 ///
 /// 顺序即导航栏/抽屉的显示顺序，必须与 `_branchFor` 提供的内容一一对应。
 List<NavMeta> navMetas(bool showProfilesAction) => [
-  const NavMeta(key: 'home', routeName: 'home', path: '/home', icon: Icons.public_rounded, label: _homeLabel),
+  const NavMeta(
+    key: 'home',
+    routeName: 'home',
+    path: '/home',
+    icon: Icons.public_rounded,
+    label: _homeLabel,
+    group: NkNavGroup.configs,
+  ),
   if (showProfilesAction)
     const NavMeta(
       key: 'profiles',
@@ -51,6 +67,7 @@ List<NavMeta> navMetas(bool showProfilesAction) => [
       label: _profilesLabel,
       // 「订阅」页已覆盖配置管理，节点列表不再进导航；页面/路由保留（从首页订阅摘要等进入）。
       navVisible: false,
+      group: NkNavGroup.configs,
     ),
   const NavMeta(
     key: 'subscriptions',
@@ -58,6 +75,7 @@ List<NavMeta> navMetas(bool showProfilesAction) => [
     path: '/subscriptions',
     icon: Icons.rss_feed_rounded,
     label: _subscriptionsLabel,
+    group: NkNavGroup.configs,
   ),
   const NavMeta(
     key: 'route',
@@ -65,6 +83,7 @@ List<NavMeta> navMetas(bool showProfilesAction) => [
     path: '/route',
     icon: Icons.alt_route_rounded,
     label: _routeLabel,
+    group: NkNavGroup.configs,
   ),
   const NavMeta(
     key: 'settings',
@@ -72,6 +91,15 @@ List<NavMeta> navMetas(bool showProfilesAction) => [
     path: '/settings',
     icon: Icons.settings_rounded,
     label: _settingsLabel,
+    group: NkNavGroup.configs,
+  ),
+  const NavMeta(
+    key: 'logs',
+    routeName: 'logs',
+    path: '/logs',
+    icon: Icons.description_rounded,
+    label: _logsLabel,
+    group: NkNavGroup.tools,
   ),
   const NavMeta(
     key: 'traffic',
@@ -79,16 +107,24 @@ List<NavMeta> navMetas(bool showProfilesAction) => [
     path: '/traffic',
     icon: Icons.monitor_heart_rounded,
     label: _trafficLabel,
+    group: NkNavGroup.tools,
   ),
-  const NavMeta(key: 'tools', routeName: 'tools', path: '/tools', icon: Icons.build_rounded, label: _toolsLabel),
   const NavMeta(
-    key: 'logs',
-    routeName: 'logs',
-    path: '/logs',
-    icon: Icons.description_rounded,
-    label: _logsLabel,
+    key: 'tools',
+    routeName: 'tools',
+    path: '/tools',
+    icon: Icons.build_rounded,
+    label: _toolsLabel,
+    group: NkNavGroup.tools,
   ),
-  const NavMeta(key: 'about', routeName: 'about', path: '/about', icon: Icons.info_rounded, label: _aboutLabel),
+  const NavMeta(
+    key: 'about',
+    routeName: 'about',
+    path: '/about',
+    icon: Icons.info_rounded,
+    label: _aboutLabel,
+    group: NkNavGroup.about,
+  ),
 ];
 
 String _homeLabel(Translations t) => t.pages.proxies.title;

@@ -4,6 +4,10 @@ import 'package:hiddify/features/connection/model/connection_failure.dart';
 
 part 'connection_status.freezed.dart';
 
+/// NekoBox 复刻 · FAB/仪表盘用的四态展示枚举。
+/// 与 [ConnectionStatus] 的映射关系见 proxies_overview_page。
+enum NkConnectionState { disconnected, connecting, connected, error }
+
 @freezed
 sealed class ConnectionStatus with _$ConnectionStatus {
   const ConnectionStatus._();
