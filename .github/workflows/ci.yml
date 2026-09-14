@@ -31,4 +31,6 @@ jobs:
     if: "${{!contains(github.event.head_commit.message, 'release: version')}}"
     with:
       upload-artifact: ${{ github.event_name == 'push' }}
+      # fork 上发布类任务（update-draft / TestFlight / Play）注定失败，显式关闭
+      publish: false
       
