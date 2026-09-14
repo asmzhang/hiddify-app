@@ -16,7 +16,6 @@ import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/connection/notifier/system_proxy_notifier.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
-import 'package:hiddify/features/profile/widget/profile_tile.dart';
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
 import 'package:hiddify/features/proxy/widget/proxy_tile.dart';
@@ -36,7 +35,6 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translationsProvider).requireValue;
 
-    final capturing = ref.watch(capturingProvider);
     // 分组清单来自订阅配置（常驻内容）；当前看哪个分组落盘（照 nekoray 的当前分组）。
     final groups = ref.watch(offlineProxyGroupsProvider).valueOrNull ?? const <OutboundGroup>[];
     final activeGroupTag = ref.watch(selectedProxyGroupTagProvider);
@@ -239,9 +237,13 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
           if (group == null) return Center(child: Text(t.pages.proxies.empty));
 
           final query0 = query.value.trim().toLowerCase();
+          // NekoBox 复刻 · 只列订阅原始节点（不展开组出站）：
+          // "自动选择/urltest"这类组出站是 hiddify/sing-box 内部概念，NekoBox 列表里没有，
+          // 用户也只关心机场给的节点本身。当前组若指向某个组出站，选中态照常显示在其成员上。
+          final rawItems = group.items.where((e) => !e.isGroup).toList();
           final items = query0.isEmpty
-              ? group.items
-              : group.items
+              ? rawItems
+              : rawItems
                     .where(
                       (e) =>
                           e.tagDisplay.toLowerCase().contains(query0) ||
@@ -250,32 +252,12 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
                     )
                     .toList();
 
-          // 当前选中的是谁 —— 未连接时也要能一眼看到（否则点了节点没有任何反馈）
-          String? selectedName;
-          for (final item in group.items) {
-            if (item.tag == group.selected) {
-              selectedName = item.isGroup ? item.groupSelectedTagDisplay : item.tagDisplay;
-              break;
-            }
-          }
-
           return Column(
             children: [
-              // 「订阅」摘要 —— 原来在首页，合并后不能丢；点它进订阅页
-              switch (ref.watch(activeProfileProvider)) {
-                AsyncData(value: final profile?) => ProfileTile(
-                  profile: profile,
-                  isMain: true,
-                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  color: Theme.of(context).colorScheme.surfaceContainer,
-                ),
-                _ => const SizedBox.shrink(),
-              },
-              // 「接管」开关在工具条上（大圆按钮太占地方，已换掉）
-              // 提示条看的是"流量有没有被接管"（不是"内核在不在跑"）——
-              // 内核跑着但没接管时，这条依然该出现，因为流量确实还没走代理。
-              if (!capturing) _PreselectBanner(text: t.pages.proxies.preselect, selectedName: selectedName),
-              // 分组切换已上移为 AppBar 下的 Tab 条（NekoBox layout_group_list.xml）。
+              // NekoBox 复刻 · 列表上方不加任何"胖卡/横幅"——分组 Tab 之下直接是节点。
+              // 旧版的订阅摘要卡（ProfileTile isMain）与配置/分组页的紧凑三行卡信息重复，
+              // 拥挤且重复展示，已删；订阅摘要由分组 Tab 的"全部/订阅名"承担。
+              // 「未连接」预选横幅同理：当前选中已由卡片左缘主色条标明。
               Expanded(
                 child: items.isEmpty
                     ? Center(child: Text(t.pages.proxies.empty))
@@ -408,56 +390,6 @@ class _CaptureStatusBar extends ConsumerWidget {
               Text("↑ ${stats.uplink.toInt().speed()}", style: style),
               const Gap(10),
               Text("↓ ${stats.downlink.toInt().speed()}", style: style),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 未连接时的提示条：**只负责显示"当前选的是谁"**。
-///
-/// 「选择代理」和「启动代理」是两回事 —— 所以这条**不做点击、不放启动按钮**，
-/// 启动有它自己的位置（工具条上那个开关）。同行都是分开的：
-/// 选节点是配置决定，启停是运行动作，两者互不依赖。
-class _PreselectBanner extends StatelessWidget {
-  const _PreselectBanner({required this.text, this.selectedName});
-
-  final String text;
-  final String? selectedName;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-      child: Container(
-        decoration: BoxDecoration(color: theme.colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(10)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: [
-              Icon(FluentIcons.info_16_regular, size: 16, color: theme.colorScheme.onSecondaryContainer),
-              const Gap(8),
-              Expanded(
-                child: Text(
-                  text,
-                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSecondaryContainer),
-                ),
-              ),
-              const Gap(8),
-              Flexible(
-                child: Text(
-                  selectedName ?? '',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSecondaryContainer,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
             ],
           ),
         ),
