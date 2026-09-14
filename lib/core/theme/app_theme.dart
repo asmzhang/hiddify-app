@@ -12,12 +12,29 @@ class AppTheme {
   /// NekoBox 复刻 · 当前主题色板（决定主色调）。
   final NkPalette palette;
 
+  /// NekoBox 复刻 · 全局 Toolbar：主色底 + 主色前景（对标各页 actionBar 的 colorPrimary）。
+  ///
+  /// 之前只有"配置"页本地设了主色底，其余页面仍是默认 surface 底 → 各页观感不一致；
+  /// 统一到这里，页面无需再各自设置。
+  AppBarTheme _appBarTheme(ColorScheme scheme) => AppBarTheme(
+    backgroundColor: scheme.primary,
+    foregroundColor: scheme.onPrimary,
+    surfaceTintColor: Colors.transparent,
+    elevation: 0,
+    scrolledUnderElevation: 0,
+    centerTitle: false,
+    iconTheme: IconThemeData(color: scheme.onPrimary),
+    actionsIconTheme: IconThemeData(color: scheme.onPrimary),
+    titleTextStyle: TextStyle(color: scheme.onPrimary, fontSize: 20, fontWeight: FontWeight.w500),
+  );
+
   ThemeData lightTheme() {
     final scheme = palette.scheme(Brightness.light);
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       fontFamily: fontFamily,
+      appBarTheme: _appBarTheme(scheme),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: palette.accent,
         foregroundColor: Colors.white,
@@ -33,6 +50,7 @@ class AppTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: mode.trueBlack ? Colors.black : null,
       fontFamily: fontFamily,
+      appBarTheme: _appBarTheme(scheme),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: palette.accent,
         foregroundColor: Colors.white,
