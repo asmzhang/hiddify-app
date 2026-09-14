@@ -20,7 +20,7 @@ import 'package:hiddify/core/router/dialog/widgets/setting_text_dialog.dart';
 import 'package:hiddify/core/router/dialog/widgets/sort_profiles_dialog.dart';
 import 'package:hiddify/core/router/dialog/widgets/unknown_domains_warning_dialog.dart';
 import 'package:hiddify/core/router/dialog/widgets/window_closing_dialog.dart';
-import 'package:hiddify/core/router/go_router/go_router_notifier.dart';
+import 'package:hiddify/core/router/navigation_keys.dart';
 import 'package:hiddify/features/app_update/model/remote_version_entity.dart';
 import 'package:hiddify/features/common/qr_code_dialog.dart';
 import 'package:hiddify/features/common/qr_code_scanner_screen.dart';

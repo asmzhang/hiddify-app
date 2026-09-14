@@ -4,7 +4,7 @@ import 'package:hiddify/core/model/constants.dart';
 import 'package:hiddify/core/router/bottom_sheets/widgets/auto_apps_selection_modal.dart';
 import 'package:hiddify/core/router/bottom_sheets/widgets/quick_settings_modal.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
-import 'package:hiddify/core/router/go_router/go_router_notifier.dart';
+import 'package:hiddify/core/router/navigation_keys.dart';
 import 'package:hiddify/features/per_app_proxy/model/per_app_proxy_mode.dart';
 import 'package:hiddify/features/profile/add/add_profile_modal.dart';
 import 'package:hiddify/features/route_rules/overview/predefined_rules_modal.dart';
