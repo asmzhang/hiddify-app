@@ -1,7 +1,7 @@
 
 # ==============================================================
 #  ⚠️  USAGE: TRIGGERED BY MAKEFILE
-#  This file is executed via the 'linux-release-docker' command.
+#  This file is executed via the 'linux-docker-release' command.
 # ==============================================================
 
 FROM ubuntu:22.04

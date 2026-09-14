@@ -338,7 +338,7 @@ doctor:
 ifeq ($(OS),Windows_NT)
 	@if command -v $(CC_MINGW) >/dev/null 2>&1; then echo "    OK   $(CC_MINGW) (cgo compiler)"; elif [ -x "$(MINGW_BIN)/$(CC_MINGW).exe" ]; then echo "    OK   $(CC_MINGW) (cgo compiler) - $(MINGW_BIN)"; else echo "    WARN $(CC_MINGW)   - cgo compiler not found: pass MINGW_BIN=<dir>"; fi
 endif
-	@sh scripts/doctor_go_cache.sh hiddify-core || true
+	@sh scripts/doctor_go_cache.sh || true
 
 prepare:
 	@echo use the following commands to prepare the library for each platform:$(SHELL_FORCE)
