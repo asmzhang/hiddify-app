@@ -14,7 +14,7 @@ import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.
 import 'package:hiddify/core/utils/preferences_utils.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
-import 'package:hiddify/features/connection/notifier/system_proxy_notifier.dart';
+import 'package:hiddify/features/connection/notifier/connection_summary.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
@@ -342,25 +342,17 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
 ///
 /// 这三样原来分散在首页（当前代理条）和左侧栏（统计卡），合并成一页之后集中在这里常驻，
 /// 任何滚动位置都能看到"现在到底连上没、走的是谁"。
+///
+/// 节点/接管状态取自 [connectionSummaryProvider]（与抽屉头共用一份口径），
+/// 本组件只负责"速率"这一项自己的数据（[statsNotifierProvider]）。
 class _CaptureStatusBar extends ConsumerWidget {
   const _CaptureStatusBar();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final capturing = ref.watch(capturingProvider);
-    final group = ref.watch(proxiesOverviewNotifierProvider).valueOrNull;
+    final summary = ref.watch(connectionSummaryProvider);
     final stats = ref.watch(statsNotifierProvider).asData?.value ?? SystemInfo.create();
-
-    String? current;
-    if (group != null) {
-      for (final item in group.items) {
-        if (item.isSelected) {
-          current = item.tagDisplay;
-          break;
-        }
-      }
-    }
 
     // 白字（主色底上），与 NekoBox 的 StatsBar 一致。
     final style = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onPrimary);
@@ -378,13 +370,15 @@ class _CaptureStatusBar extends ConsumerWidget {
                 height: 8,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: capturing ? Colors.lightGreenAccent : theme.colorScheme.onPrimary.withValues(alpha: .4),
+                  color: summary.capturing
+                      ? Colors.lightGreenAccent
+                      : theme.colorScheme.onPrimary.withValues(alpha: .4),
                 ),
               ),
               const Gap(8),
-              if (current != null)
+              if (summary.nodeName != null)
                 Flexible(
-                  child: Text(current, style: style, overflow: TextOverflow.ellipsis, maxLines: 1),
+                  child: Text(summary.nodeName!, style: style, overflow: TextOverflow.ellipsis, maxLines: 1),
                 ),
               const Spacer(),
               Text("↑ ${stats.uplink.toInt().speed()}", style: style),

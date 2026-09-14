@@ -708,6 +708,7 @@
     "connect": "連線",
     "connecting": "連線中...",
     "connected": "已連線",
+    "disconnected": "未連線",
     "disconnect": "中斷連線",
     "disconnecting": "中斷連線中...",
     "reconnect": "重新連線",

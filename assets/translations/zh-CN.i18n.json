@@ -713,6 +713,7 @@
     "connect": "连接",
     "connecting": "连接中...",
     "connected": "已连接",
+    "disconnected": "未连接",
     "disconnect": "断开连接",
     "disconnecting": "断开连接中...",
     "reconnect": "重新连接",
