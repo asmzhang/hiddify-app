@@ -42,3 +42,18 @@ final offlineProxyGroupsProvider = FutureProvider<List<OutboundGroup>>((ref) asy
     },
   );
 });
+
+/// 取某个节点（按 tag）的**出站 JSON** —— 节点卡「分享」动作的数据源。
+///
+/// 与离线清单同源（同一个 `generateConfig` 结果），所以 tag 口径天然一致：
+/// 列表里能点到的节点，这里一定找得到对应出站。
+final outboundJsonProvider = FutureProvider.family<String?, String>((ref, tag) async {
+  final profile = await ref.watch(activeProfileProvider.future);
+  if (profile == null) return null;
+  final repo = await ref.watch(profileRepositoryProvider.future);
+  final either = await repo.generateConfig(profile.id).run();
+  return either.match((err) {
+    _log.loggy.warning("node share: generateConfig failed", err);
+    return null;
+  }, (configJson) => extractOutboundJson(configJson, tag));
+});

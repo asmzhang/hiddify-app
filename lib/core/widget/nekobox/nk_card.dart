@@ -5,14 +5,7 @@ import 'package:hiddify/core/widget/nekobox/nk_theme.dart';
 ///
 /// 页面里的"一块内容"都用它，视觉才统一。
 class NkCard extends StatelessWidget {
-  const NkCard({
-    required this.child,
-    this.title,
-    this.padding,
-    this.onTap,
-    this.margin,
-    super.key,
-  });
+  const NkCard({required this.child, this.title, this.padding, this.onTap, this.margin, super.key});
 
   final Widget child;
   final String? title;
@@ -60,6 +53,35 @@ class NkSectionHeader extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(NkMetrics.pad + 2, NkMetrics.gap + 4, NkMetrics.pad + 2, 4),
       child: Text(title, style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary)),
+    );
+  }
+}
+
+/// 卡片行内图标动作（小尺寸、次色）—— 对标 NekoBox 卡片右缘的 ImageButton。
+///
+/// 配置卡（NkProfileTile）与节点卡（ProxyTile）共用：NekoBox 的
+/// `layout_profile.xml` 与配置卡一样有行内 ✎ / ⤴，两处图标尺寸与点击区必须一致，
+/// 所以只保留这一个实现。
+class NkCardAction extends StatelessWidget {
+  const NkCardAction({required this.icon, required this.tooltip, required this.onTap, super.key});
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(NkMetrics.radiusSmall),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
+        ),
+      ),
     );
   }
 }

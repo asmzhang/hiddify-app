@@ -101,3 +101,24 @@ OutboundInfo outboundInfo(String tag, String type, bool selected) => OutboundInf
   ..isSelected = selected
   // 未连接时没有实测延迟；0 在 UI 上就是"—"
   ..urlTestDelay = 0;
+
+/// 按 tag 抽出**单条出站的原始 JSON**（节点卡「分享」动作的数据源）。
+///
+/// 为什么不做成"节点分享链接"：hiddify 侧只有"订阅链接 → 配置"的正向转换
+/// （ray2sing），**没有**"出站 → 分享链接"的逆向转换。硬拼一个链接出来是伪造，
+/// 所以这里给出的是可粘贴、可核对的出站定义本身。
+///
+/// 找不到该 tag、或配置不是合法 JSON 时返回 null，由调用方决定如何提示。
+String? extractOutboundJson(String configJson, String tag) {
+  try {
+    final config = jsonDecode(configJson) as Map<String, dynamic>;
+    final outbounds = (config['outbounds'] as List?)?.whereType<Map<String, dynamic>>();
+    if (outbounds == null) return null;
+    for (final outbound in outbounds) {
+      if (outbound['tag'] == tag) return const JsonEncoder.withIndent('  ').convert(outbound);
+    }
+    return null;
+  } catch (_) {
+    return null;
+  }
+}

@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:hiddify/core/localization/translations.dart';
+import 'package:hiddify/core/notification/in_app_notification_controller.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
+import 'package:hiddify/core/widget/adaptive_icon.dart';
+import 'package:hiddify/core/widget/nekobox/nk_card.dart';
 import 'package:hiddify/core/widget/nekobox/nk_theme.dart';
+import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/gen/fonts.gen.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hiddify/utils/custom_loggers.dart';
@@ -14,14 +20,19 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 /// MaterialCard(margin 4 / elevation 2 / 圆角 4)
 ///  └ 横向：左缘 4dp 选中条（未选中 = 透明占位，保持行高一致）
 ///     └ 纵向：
-///        行1 名称（粗体）            [编辑/分享/删除图标 —— 二期随 hiddify 功能补充]
+///        行1 名称（粗体）                      行内动作：⤴ 分享（复制出站 JSON）
 ///        行2 地址（次色）                       流量 ↑/↓
 ///        行3 协议（按协议着色的纯文字）        状态（延迟绿/红纯文字）
 /// ```
 ///
-/// 与 NekoBox 的两处刻意差异（都属"hiddify 功能最后补充"原则）：
-/// 长按弹出节点详情（补充能力）；国旗/序号暂不显示（二期按需补回）。
-/// 删除图标与 NekoBox 一致默认不显示（订阅节点的增删走订阅更新）。
+/// 与 NekoBox 的三处刻意差异（都属"hiddify 功能最后补充"原则）：
+/// - 长按弹出节点详情（补充能力）；国旗/序号暂不显示（二期按需补回）；
+/// - ✎（编辑节点）未做：NekoBox 点它进的是**节点编辑表单**，而 hiddify 侧没有节点级
+///   编辑页（`OutboundInfo` 不含凭据字段），属实体级补齐，见 docs/audit；
+/// - 🗑 与 NekoBox 一致默认隐藏（订阅节点的增删走订阅更新）；
+/// - 协议用**纯彩色文字**而非带色 chip：这是照 NekoBox 源码 `@id/profile_type`
+///   （`textColor=?attr/accentOrTextSecondary` 的 TextView）实装，mockup 里的 chip
+///   是原型稿的美化。
 class ProxyTile extends HookConsumerWidget with PresLogger {
   const ProxyTile(this.proxy, {super.key, required this.selected, required this.onTap});
 
@@ -32,6 +43,7 @@ class ProxyTile extends HookConsumerWidget with PresLogger {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final t = ref.watch(translationsProvider).requireValue;
     final delay = proxy.urlTestDelay;
     final address = '${proxy.host}:${proxy.port}';
     // 行3 左侧：协议类型 —— NekoBox 用 accentOrTextSecondary 的纯彩色文字（非徽标）。
@@ -76,9 +88,12 @@ class ProxyTile extends HookConsumerWidget with PresLogger {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // 行 1：名称（粗体，占满；右侧动作图标二期补充）。
+                      // 行 1：名称（粗体）+ 行内动作（对标 NekoBox 卡片右缘的 ⤴）。
+                      // NekoBox 这里还有 ✎（编辑节点）与 🗑（默认隐藏）：前者要先有
+                      // "节点级编辑表单"（属实体级补齐，需 core 提供凭据字段），
+                      // 订阅节点的删除走订阅更新，所以这里只保留分享。
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 8, 4, 0),
+                        padding: const EdgeInsets.fromLTRB(12, 4, 4, 0),
                         child: Row(
                           children: [
                             Expanded(
@@ -91,6 +106,25 @@ class ProxyTile extends HookConsumerWidget with PresLogger {
                                   fontFamily: PlatformUtils.isWindows ? FontFamily.emoji : null,
                                 ),
                               ),
+                            ),
+                            NkCardAction(
+                              icon: AdaptiveIcon(context).share,
+                              tooltip: t.common.share,
+                              onTap: () async {
+                                final json = await ref.read(outboundJsonProvider(proxy.tag).future);
+                                if (!context.mounted) return;
+                                if (json == null) {
+                                  // 只在"配置里找不到这个 tag"时发生（理论上不该出现：
+                                  // 列表本身就是从同一份配置解析出来的），所以用通用错误文案。
+                                  ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
+                                  return;
+                                }
+                                await Clipboard.setData(ClipboardData(text: json));
+                                if (!context.mounted) return;
+                                ref
+                                    .read(inAppNotificationControllerProvider)
+                                    .showSuccessToast(t.common.msg.export.clipboard.success);
+                              },
                             ),
                           ],
                         ),
