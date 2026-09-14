@@ -5,6 +5,20 @@
 
 ---
 
+> ### 🔄 2026-09-14 状态更新（新机器迁移完成，本文中的 D:\ 路径已全部失效）
+>
+> - 项目已迁移到 **`S:\test\hiddify-app`**，工具链走 mise（`flutter@3.38.5` / `go@1.25.6`），
+>   cgo 用 `C:\platform\llvm-mingw-20260908-ucrt-x86_64`。
+> - §4 的全部修复（UA、anytls、balancer、dns detour、ray2sing/sing-box 合并）已提交并编译验证：
+>   核心带修复重编成功、App 可启动、`libbox.Setup success` + gRPC 17078 正常。
+> - **新增一个环境硬约束：编核心必须 Go 1.25.x**（1.26 触发 psiphon-tls 布局断言 panic，
+>   App 启动即退 code 2）。`make doctor` 已加版本检查，详见 `docs/BUILD.md`。
+> - 顺带修复 Makefile 在 agent/IDE 环境下 PATH 被截断的 bug（`\\?\` 条目 + POSIX 前缀混拼）。
+> - **剩余**：① 实机导入订阅做最终验收（39 anytls + 分组）；② 本地若干提交待 push；
+>   ③ B/C/D 行动包（供应链加固 / 安全重构 / 架构演进）见审计记录，未开始。
+
+---
+
 ## 0. 一句话现状
 
 **订阅已能正确解析（39 个 anytls 节点 + 分组都造对了），但核心拒绝启动，原因是 `hiddify-core` 的源码缺陷；而要修它必须重编核心，重编又卡在一台机器上 Go 模块缓存损坏。两件事都有明确解法，见 §4。**
