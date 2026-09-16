@@ -5,10 +5,10 @@ import 'package:dartx/dartx.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:hiddify/features/profile/data/profile_parser.dart';
 
+export 'package:hiddify/core/model/profile_type.dart';
+
 part 'profile_entity.freezed.dart';
 part 'profile_entity.g.dart';
-
-enum ProfileType { remote, local }
 
 @freezed
 sealed class ProfileEntity with _$ProfileEntity {

@@ -4,6 +4,10 @@ import 'package:hiddify/features/connection/model/connection_failure.dart';
 
 part 'connection_status.freezed.dart';
 
+/// NekoBox 复刻 · FAB/仪表盘用的四态展示枚举。
+/// 与 [ConnectionStatus] 的映射关系见 proxies_overview_page。
+enum NkConnectionState { disconnected, connecting, connected, error }
+
 @freezed
 sealed class ConnectionStatus with _$ConnectionStatus {
   const ConnectionStatus._();
@@ -37,8 +41,9 @@ sealed class ConnectionStatus with _$ConnectionStatus {
     Disconnecting() => "DISCONNECTING",
   };
 
+  /// 状态就是状态：未连接就说「未连接」，「点击连接」是动作提示、不该拿来当状态词。
   String present(TranslationsEn t) => switch (this) {
-    Disconnected() => t.connection.tapToConnect,
+    Disconnected() => t.connection.disconnected,
     Connecting() => t.connection.connecting,
     Connected() => t.connection.connected,
     Disconnecting() => t.connection.disconnecting,

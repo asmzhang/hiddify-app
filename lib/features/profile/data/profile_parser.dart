@@ -155,6 +155,8 @@ class ProfileParser {
     // if (url.startsWith("http://"))
     //   throw const ProfileFailure.invalidUrl('HTTP is not supported. Please use HTTPS for secure connection.');
 
+    // NekoBox `allowInsecureOnRequest`（RawUpdater.kt:66）：仅订阅下载允许坏证书。
+    final allowInsecure = _ref.read(ConfigOptions.allowInsecureOnRequest);
     final rs = await _httpClient
         .download(
           url.trim(),
@@ -163,6 +165,7 @@ class ProfileParser {
           userAgent: _ref.read(ConfigOptions.useXrayCoreWhenPossible)
               ? _httpClient.userAgent.replaceAll("HiddifyNext", "HiddifyNextX")
               : null,
+          allowInsecure: allowInsecure,
         )
         .catchError((err) {
           if (CancelToken.isCancel(err as DioException)) {
@@ -221,6 +224,8 @@ class ProfileParser {
             userAgent: ref.read(ConfigOptions.useXrayCoreWhenPossible)
                 ? httpClient.userAgent.replaceAll('HiddifyNext', 'HiddifyNextX')
                 : null,
+            // 行展开也是订阅内容的一部分（NekoBox 同一客户端语义）
+            allowInsecure: ref.read(ConfigOptions.allowInsecureOnRequest),
           );
 
           results[currentIndex] = (await File(tmpPath).readAsString()).trim();

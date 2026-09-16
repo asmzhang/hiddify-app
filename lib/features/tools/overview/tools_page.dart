@@ -5,8 +5,10 @@ import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
+import 'package:hiddify/core/widget/nekobox/nk_card.dart';
 import 'package:hiddify/features/profile/notifier/profiles_update_notifier.dart';
 import 'package:hiddify/features/settings/notifier/config_option/config_option_notifier.dart';
+import 'package:hiddify/features/settings/widget/nk_setting_rows.dart';
 import 'package:hiddify/features/tools/data/stun_client.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -35,9 +37,7 @@ class ToolsPage extends HookConsumerWidget {
             ],
           ),
         ),
-        body: const TabBarView(
-          children: [_NetworkTab(), _BackupTab()],
-        ),
+        body: const TabBarView(children: [_NetworkTab(), _BackupTab()]),
       ),
     );
   }
@@ -69,39 +69,37 @@ class _NetworkTab extends HookConsumerWidget {
     }
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.only(top: 4, bottom: 16),
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(t.pages.tools.stunTest, style: theme.textTheme.titleMedium),
-                    ),
-                    FilledButton.icon(
-                      onPressed: busy.value ? null : run,
-                      icon: busy.value
-                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.play_arrow_rounded),
-                      label: Text(t.pages.tools.stunTest),
-                    ),
-                  ],
-                ),
-                const Gap(12),
-                if (failed.value)
-                  Text(t.pages.tools.testFailed, style: TextStyle(color: theme.colorScheme.error))
-                else if (result.value != null) ...[
-                  _kv(context, t.pages.tools.publicAddress, '${result.value!.address}:${result.value!.port}'),
-                  const Gap(8),
-                  _kv(context, t.pages.tools.natType, _natLabel(result.value!.natType)),
-                ] else
-                  Text('—', style: theme.textTheme.bodyMedium),
-              ],
-            ),
+        NkSectionHeader(t.pages.tools.network),
+        NkCard(
+          margin: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(child: Text(t.pages.tools.stunTest, style: theme.textTheme.titleSmall)),
+                  FilledButton.icon(
+                    onPressed: busy.value ? null : run,
+                    icon: busy.value
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.play_arrow_rounded, size: 18),
+                    label: Text(t.pages.tools.stunTest),
+                  ),
+                ],
+              ),
+              const Gap(10),
+              if (failed.value)
+                Text(t.pages.tools.testFailed, style: TextStyle(color: theme.colorScheme.error))
+              else if (result.value != null) ...[
+                _kv(context, t.pages.tools.publicAddress, '${result.value!.address}:${result.value!.port}'),
+                const Gap(8),
+                _kv(context, t.pages.tools.natType, _natLabel(result.value!.natType)),
+              ] else
+                Text('—', style: theme.textTheme.bodyMedium),
+            ],
           ),
         ),
       ],
@@ -125,78 +123,60 @@ class _BackupTab extends HookConsumerWidget {
     final config = ref.read(configOptionNotifierProvider.notifier);
 
     Future<void> importWithConfirm(Future<void> Function() action) async {
-      final confirmed = await ref.read(dialogNotifierProvider.notifier).showConfirmation(
-        title: t.common.msg.import.confirm,
-        message: t.dialogs.confirmation.settings.import.msg,
-      );
+      final confirmed = await ref
+          .read(dialogNotifierProvider.notifier)
+          .showConfirmation(title: t.common.msg.import.confirm, message: t.dialogs.confirmation.settings.import.msg);
       if (confirmed) await action();
     }
 
     return ListView(
+      padding: const EdgeInsets.only(top: 4, bottom: 16),
       children: [
-        _SectionHeader(title: t.common.export),
-        ListTile(
-          leading: const Icon(Icons.file_download_outlined),
-          title: Text(t.pages.settings.options.export.anonymousToFile),
-          onTap: () async => await config.exportJsonFile(),
+        NkSectionHeader(t.common.export),
+        NkSettingCard(
+          rows: [
+            NkNavRow(
+              title: t.pages.settings.options.export.anonymousToFile,
+              onTap: () async => await config.exportJsonFile(),
+            ),
+            NkNavRow(
+              title: t.pages.settings.options.export.anonymousToClipboard,
+              onTap: () async => await config.exportJsonClipboard(),
+            ),
+            NkNavRow(
+              title: t.pages.settings.options.export.allToFile,
+              onTap: () async => await config.exportJsonFile(excludePrivate: false),
+            ),
+            NkNavRow(
+              title: t.pages.settings.options.export.allToClipboard,
+              onTap: () async => await config.exportJsonClipboard(excludePrivate: false),
+            ),
+          ],
         ),
-        ListTile(
-          leading: const Icon(Icons.content_copy_outlined),
-          title: Text(t.pages.settings.options.export.anonymousToClipboard),
-          onTap: () async => await config.exportJsonClipboard(),
+        NkSectionHeader(t.common.import),
+        NkSettingCard(
+          rows: [
+            NkNavRow(
+              title: t.pages.settings.options.import.file,
+              onTap: () async => await importWithConfirm(() => config.importFromJsonFile()),
+            ),
+            NkNavRow(
+              title: t.pages.settings.options.import.clipboard,
+              onTap: () async => await importWithConfirm(() => config.importFromClipboard()),
+            ),
+          ],
         ),
-        ListTile(
-          leading: const Icon(Icons.file_download_outlined),
-          title: Text(t.pages.settings.options.export.allToFile),
-          onTap: () async => await config.exportJsonFile(excludePrivate: false),
-        ),
-        ListTile(
-          leading: const Icon(Icons.content_copy_outlined),
-          title: Text(t.pages.settings.options.export.allToClipboard),
-          onTap: () async => await config.exportJsonClipboard(excludePrivate: false),
-        ),
-        const Divider(),
-        _SectionHeader(title: t.common.import),
-        ListTile(
-          leading: const Icon(Icons.file_upload_outlined),
-          title: Text(t.pages.settings.options.import.file),
-          onTap: () async => await importWithConfirm(() => config.importFromJsonFile()),
-        ),
-        ListTile(
-          leading: const Icon(Icons.content_paste_outlined),
-          title: Text(t.pages.settings.options.import.clipboard),
-          onTap: () async => await importWithConfirm(() => config.importFromClipboard()),
-        ),
-        const Divider(),
-        ListTile(
-          leading: const Icon(Icons.update_rounded),
-          title: Text(t.pages.profiles.updateSubscriptions),
-          onTap: () => ref.read(foregroundProfilesUpdateNotifierProvider.notifier).trigger(),
-        ),
-        ListTile(
-          leading: const Icon(Icons.restore_rounded),
-          title: Text(t.pages.settings.options.reset),
-          onTap: () async => await config.resetOption(),
+        NkSectionHeader(t.pages.settings.options.reset),
+        NkSettingCard(
+          rows: [
+            NkNavRow(
+              title: t.pages.profiles.updateSubscriptions,
+              onTap: () => ref.read(foregroundProfilesUpdateNotifierProvider.notifier).trigger(),
+            ),
+            NkNavRow(title: t.pages.settings.options.reset, onTap: () async => await config.resetOption()),
+          ],
         ),
       ],
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Text(
-        title,
-        style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary),
-      ),
     );
   }
 }

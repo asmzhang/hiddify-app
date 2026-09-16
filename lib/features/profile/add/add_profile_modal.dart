@@ -5,6 +5,8 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/constants.dart';
+import 'package:hiddify/core/router/bottom_sheets/root_bottom_sheet.dart';
+import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/features/profile/add/widgets/free_btns.dart';
 import 'package:hiddify/features/profile/add/widgets/widgets.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
@@ -246,4 +248,27 @@ class AddProfileManual extends HookConsumerWidget {
       ),
     );
   }
+}
+
+/// 弹出"新增配置"底部弹窗（业务入口留在 feature 侧）。
+Future<void> showAddProfileSheet({String? url}) =>
+    showRootBottomSheet<void>(child: AddProfileModal(url: url), isScrollControlled: true);
+
+/// 深链入口：**必须先人工确认**再打开 —— 防零点击 SSRF。
+///
+/// 深链（`hiddify://import/<url>`）可以被任意网页触发，不确认就等于替用户发起了一次
+/// 到任意地址的订阅请求。这道确认是安全设计，不要绕开。
+///
+/// 形参用 Riverpod 的 [Ref]（app 层的路由 notifier 与 widget 的 WidgetRef 不同型，
+/// 这里只要求"能 read"）。
+Future<void> showAddProfileFromDeepLink(Ref ref, {required String url}) async {
+  final t = ref.read(translationsProvider).requireValue;
+  final isConfirmed = await ref
+      .read(dialogNotifierProvider.notifier)
+      .showConfirmation(
+        title: t.dialogs.confirmation.addProfileByDeepLinkWarning.title,
+        message: t.dialogs.confirmation.addProfileByDeepLinkWarning.message(host: Uri.parse(url).host),
+      );
+  if (!isConfirmed) return;
+  await showAddProfileSheet(url: url);
 }

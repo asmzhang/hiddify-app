@@ -45,7 +45,7 @@ class SingboxConfigOption with _$SingboxConfigOption {
     required bool enableTun,
     // required bool enableTunService,
     required bool setSystemProxy,
-    // required bool bypassLan,
+    required bool bypassLan,
     required bool allowConnectionFromLan,
     required String lanSharingPassword,
     required bool enableFakeDns,

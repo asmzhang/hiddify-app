@@ -1,9 +1,9 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:hiddify/core/logger/custom_logger.dart';
 import 'package:hiddify/utils/custom_loggers.dart';
 import 'package:loggy/loggy.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 class LoggerController extends LoggyPrinter with InfraLogger {
   LoggerController(this.consolePrinter, this.otherPrinters);
@@ -25,12 +25,12 @@ class LoggerController extends LoggyPrinter with InfraLogger {
   }
 
   static Future<void> postInit(bool debugMode) async {
-    final logLevel = debugMode && false ? LogLevel.all : LogLevel.info;
+    const logLevel = LogLevel.info;
     final logToFile = debugMode || (!Platform.isAndroid && !Platform.isIOS);
 
     if (!logToFile || kIsWeb) _instance.removePrinter("app");
 
-    Loggy.initLoggy(logPrinter: _instance, logOptions: LogOptions(logLevel));
+    Loggy.initLoggy(logPrinter: _instance, logOptions: const LogOptions(logLevel));
   }
 
   void addPrinter(String name, LoggyPrinter printer) {

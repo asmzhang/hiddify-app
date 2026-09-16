@@ -10,7 +10,10 @@ import 'package:hiddify/utils/custom_loggers.dart';
 class DioHttpClient with InfraLogger {
   final Map<String, Dio> _dio = {};
   DioHttpClient({required Duration timeout, required this.userAgent, required bool debug}) {
-    for (var mode in ["proxy", "direct", "both"]) {
+    for (final mode in ["proxy", "direct", "both", "insecure"]) {
+      // "insecure" = 订阅更新专用（NekoBox `allowInsecureOnRequest` → `RawUpdater.kt:66`
+      // `allowInsecure()`）：证书校验失败时放行，其余行为与 "both" 完全一致。
+      // 只用于订阅下载链路（ProfileParser），应用更新等共享实例不受影响。
       _dio[mode] = Dio(
         BaseOptions(
           connectTimeout: timeout,
@@ -32,6 +35,9 @@ class DioHttpClient with InfraLogger {
       _dio[mode]!.httpClientAdapter = IOHttpClientAdapter(
         createHttpClient: () {
           final client = HttpClient();
+          if (mode == "insecure") {
+            client.badCertificateCallback = (cert, host, port) => true;
+          }
           client.findProxy = (url) {
             if (mode == "proxy") {
               return "PROXY localhost:$port";
@@ -89,8 +95,11 @@ class DioHttpClient with InfraLogger {
     String? userAgent,
     ({String username, String password})? credentials,
     bool proxyOnly = false,
+    bool allowInsecure = false,
   }) async {
-    final mode = proxyOnly
+    final mode = allowInsecure
+        ? "insecure"
+        : proxyOnly
         ? "proxy"
         : await isPortOpen("127.0.0.1", port)
         ? "both"
@@ -111,8 +120,11 @@ class DioHttpClient with InfraLogger {
     String? userAgent,
     ({String username, String password})? credentials,
     bool proxyOnly = false,
+    bool allowInsecure = false,
   }) async {
-    final mode = proxyOnly
+    final mode = allowInsecure
+        ? "insecure"
+        : proxyOnly
         ? "proxy"
         : await isPortOpen("127.0.0.1", port)
         ? "both"

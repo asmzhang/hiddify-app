@@ -9,6 +9,7 @@ import 'package:hiddify/features/common/general_pref_tiles.dart';
 import 'package:hiddify/features/log/model/log_level.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/features/settings/widget/preference_tile.dart';
+import 'package:hiddify/singbox/model/singbox_config_enum.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:humanizer/humanizer.dart';
@@ -25,6 +26,7 @@ class GeneralPage extends HookConsumerWidget {
         children: [
           const LocalePrefTile(),
           const ThemeModePrefTile(),
+          const NkPalettePrefTile(),
           const EnableAnalyticsPrefTile(),
           SwitchListTile.adaptive(
             title: Text(t.pages.settings.general.autoIpCheck),
@@ -76,12 +78,23 @@ class GeneralPage extends HookConsumerWidget {
             secondary: const Icon(Icons.bug_report_rounded),
             value: ref.watch(debugModeNotifierProvider),
             onChanged: (value) async {
-              if (value)
+              if (value) {
                 await ref
                     .read(dialogNotifierProvider.notifier)
                     .showOk(t.pages.settings.general.debugMode, t.pages.settings.general.debugModeMsg);
+              }
               await ref.read(debugModeNotifierProvider.notifier).update(value);
             },
+          ),
+          // NekoBox 复刻 · 基础类含"服务模式"（VPN/TUN 与系统代理的切换）——
+          // 该配置此前只有快捷设置入口，设置页缺失。choices 按平台过滤。
+          ChoicePreferenceWidget(
+            selected: ref.watch(ConfigOptions.serviceMode),
+            preferences: ref.watch(ConfigOptions.serviceMode.notifier),
+            choices: ServiceMode.choices,
+            title: t.pages.settings.inbound.serviceMode,
+            icon: Icons.swap_horiz_rounded,
+            presentChoice: (value) => value.present(t),
           ),
           ChoicePreferenceWidget(
             selected: ref.watch(ConfigOptions.logLevel),
@@ -116,6 +129,14 @@ class GeneralPage extends HookConsumerWidget {
                   if (value == null) return;
                   await ref.read(ConfigOptions.urlTestInterval.notifier).update(Duration(minutes: value.toInt()));
                 }),
+          ),
+          // NekoBox `allowInsecureOnRequest`：仅订阅更新跳过证书检查（RawUpdater.kt:66），
+          // 纯 app 层开关，不影响内核与其它请求。
+          SwitchListTile.adaptive(
+            title: Text(t.pages.settings.general.allowInsecureOnRequest),
+            secondary: const Icon(Icons.lock_open_rounded),
+            value: ref.watch(ConfigOptions.allowInsecureOnRequest),
+            onChanged: ref.read(ConfigOptions.allowInsecureOnRequest.notifier).update,
           ),
           ValuePreferenceWidget(
             value: ref.watch(ConfigOptions.clashApiPort),

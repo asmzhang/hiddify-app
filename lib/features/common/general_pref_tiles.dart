@@ -6,6 +6,8 @@ import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/theme/app_theme_mode.dart';
+import 'package:hiddify/core/theme/nk_palette.dart';
+import 'package:hiddify/core/theme/nk_palette_preferences.dart';
 import 'package:hiddify/core/theme/theme_preferences.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -99,6 +101,40 @@ class ThemeModePrefTile extends ConsumerWidget {
             );
         if (selectedThemeMode != null) {
           await ref.read(themePreferencesProvider.notifier).changeThemeMode(selectedThemeMode);
+        }
+      },
+    );
+  }
+}
+
+class NkPalettePrefTile extends ConsumerWidget {
+  const NkPalettePrefTile({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translationsProvider).requireValue;
+    final palette = ref.watch(nkPalettePreferencesProvider);
+    return ListTile(
+      title: Text(t.pages.settings.general.themePalette),
+      subtitle: Text(palette.label),
+      leading: const Icon(Icons.palette_rounded),
+      trailing: Container(
+        width: 22,
+        height: 22,
+        decoration: BoxDecoration(color: palette.primary, shape: BoxShape.circle),
+      ),
+      onTap: () async {
+        final selected = await ref
+            .read(dialogNotifierProvider.notifier)
+            .showSettingPicker<NkPalette>(
+              title: t.pages.settings.general.themePalette,
+              selected: palette,
+              onReset: () => ref.read(nkPalettePreferencesProvider.notifier).changePalette(NkPalette.pink),
+              options: NkPalette.values,
+              getTitle: (e) => e.label,
+            );
+        if (selected != null) {
+          await ref.read(nkPalettePreferencesProvider.notifier).changePalette(selected);
         }
       },
     );

@@ -7,6 +7,7 @@ import 'package:hiddify/features/connection/model/connection_failure.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/profile/data/profile_path_resolver.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
+import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/hiddifycore/hiddify_core_service.dart';
 import 'package:hiddify/singbox/model/core_status.dart';
@@ -79,11 +80,45 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
 
   @override
   TaskEither<ConnectionFailure, Unit> connect(ProfileEntity activeProfile, bool disableMemoryLimit) => setup().flatMap(
-    (_) => applyConfigOption(activeProfile).flatMap(
-      (_) => singbox.start(profilePathResolver.file(activeProfile.id).path, activeProfile.name, disableMemoryLimit),
-      // .mapLeft(UnexpectedConnectionFailure.new),
-    ),
+    (_) => applyConfigOption(activeProfile).flatMap((_) => _start(activeProfile, disableMemoryLimit)),
   );
+
+  /// 启动内核：**优先用实体层组装出的出站表**，任何一步失败都回落到订阅基准文件。
+  ///
+  /// 为什么要这样（`docs/design/nekobox-parity.md` §8.6 第 4 步）：内核真正读的是
+  /// `configs/<id>.json`，而它只有 `{"outbounds":[…]}` —— 节点集合原本由"订阅原文"决定。
+  /// 改由 `proxy_entities` 决定之后，"节点可编辑"才有落脚点。组装产物写在
+  /// `configs/<id>.entities.json`，**订阅基准保持不动**。
+  ///
+  /// 回落路径就是改动前的行为，所以不会比原来更差。回落之所以安全：内核组装/启动失败走
+  /// `errorWrapper → StopAndAlert → SetCoreStatus(STOPPED)`（`hcore/custom.go`），
+  /// 状态被复位，第二次 start 不会被判成 ALREADY_STARTED。
+  ///
+  /// 只动节点：组由内核重建（`builder.go:130-371` 会丢弃输入里的组），本层不代劳。
+  TaskEither<ConnectionFailure, Unit> _start(ProfileEntity profile, bool disableMemoryLimit) =>
+      TaskEither(() async {
+        final subscriptionPath = profilePathResolver.file(profile.id).path;
+
+        String? entityPath;
+        try {
+          final assembled = await ref.read(proxyEntityRepositoryProvider).assembleOutboundsForProfile(profile.id);
+          if (assembled != null) {
+            final file = profilePathResolver.entityFile(profile.id);
+            await file.writeAsString(assembled);
+            entityPath = file.path;
+          }
+        } catch (e, stackTrace) {
+          loggy.warning("entity config assembly failed, starting from the subscription config instead", e, stackTrace);
+        }
+
+        if (entityPath != null) {
+          final result = await singbox.start(entityPath, profile.name, disableMemoryLimit).run();
+          if (result.isRight()) return result;
+          loggy.warning("start from entity config failed, falling back to the subscription config: $result");
+        }
+
+        return singbox.start(subscriptionPath, profile.name, disableMemoryLimit).run();
+      });
 
   @override
   TaskEither<ConnectionFailure, Unit> disconnect() => singbox.stop().mapLeft(UnexpectedConnectionFailure.new);
@@ -91,7 +126,7 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
   /// 换配置 = **下发设置 → 等（核心会自己重启）→ 再起一次**。
   ///
   /// 实测日志（02:21:48）说明了一切：
-  /// ```
+  /// ```text
   /// capture enabled - restarting core to apply it
   /// connection status: CONNECTED            ← 核心自己重启了一次
   /// connection status: DISCONNECTED
@@ -105,8 +140,6 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
   @override
   TaskEither<ConnectionFailure, Unit> reconnect(ProfileEntity activeProfile, bool disableMemoryLimit) =>
       TaskEither(() async {
-        final path = profilePathResolver.file(activeProfile.id).path;
-
         final applied = await applyConfigOption(activeProfile).run();
         applied.match(
           (err) => loggy.info("applyConfigOption reported an error (expected while the core restarts): $err"),
@@ -117,11 +150,11 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
         await singbox.stop().run();
 
         await Future.delayed(const Duration(milliseconds: 1500));
-        var result = await singbox.start(path, activeProfile.name, disableMemoryLimit).run();
+        var result = await _start(activeProfile, disableMemoryLimit).run();
         if (result.isLeft()) {
           loggy.warning("start after applying options failed, waiting longer and retrying once: $result");
           await Future.delayed(const Duration(milliseconds: 2000));
-          result = await singbox.start(path, activeProfile.name, disableMemoryLimit).run();
+          result = await _start(activeProfile, disableMemoryLimit).run();
         }
         return result.mapLeft(UnexpectedConnectionFailure.new);
       });

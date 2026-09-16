@@ -2,10 +2,11 @@ import 'package:dartx/dartx.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:hiddify/core/model/optional_range.dart';
 import 'package:hiddify/core/model/region.dart';
+import 'package:hiddify/core/preferences/general_preferences.dart';
+import 'package:hiddify/core/preferences/port_preferences.dart';
 import 'package:hiddify/core/utils/exception_handler.dart';
 import 'package:hiddify/core/utils/json_converters.dart';
 import 'package:hiddify/core/utils/preferences_utils.dart';
-import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/features/log/model/log_level.dart';
 import 'package:hiddify/features/profile/data/profile_parser.dart';
 import 'package:hiddify/features/route_rules/notifier/rules_notifier.dart';
@@ -105,11 +106,7 @@ abstract class ConfigOptions {
     mapTo: (value) => value.key,
   );
 
-  static final mixedPort = PreferencesNotifier.create<int, int>(
-    "mixed-port",
-    12334,
-    validator: (value) => isPort(value.toString()),
-  );
+  static final mixedPort = PortPreferences.mixedPort;
   static final tproxyPort = PreferencesNotifier.create<int, int>(
     "tproxy-port",
     12335,
@@ -167,6 +164,17 @@ abstract class ConfigOptions {
     mapTo: const IntervalInSecondsConverter().toJson,
   );
 
+  /// NekoBox 的 **Allow insecure on request**（`RawUpdater.kt:66`）：仅作用于**订阅更新**
+  /// 的 HTTP 客户端 —— 证书校验失败时放行（`allowInsecure()`），不影响其它请求。
+  ///
+  /// hiddify 落点 = `DioHttpClient` 里订阅下载专用的 insecure 实例（`_dio["insecure"]`），
+  /// `ProfileParser` 在下载订阅时按本开关路由；应用更新 / 每应用列表等其余请求不受影响。
+  /// 这是纯 app 层开关，不进内核（`HiddifyOptions` 无此字段，也不需要）。
+  ///
+  /// 同族的 `appTLSVersion`（订阅最低 TLS 版本）被 Dart SDK 卡住：dart:io 没有
+  /// 最低 TLS 版本 API（`restrictedTLS()` 是 NekoBox Libcore 的 Go 侧能力），不做。
+  static final allowInsecureOnRequest = PreferencesNotifier.create<bool, bool>("allow-insecure-on-request", false);
+
   static final enableClashApi = PreferencesNotifier.create<bool, bool>("enable-clash-api", true);
 
   static final clashApiPort = PreferencesNotifier.create<int, int>(
@@ -175,7 +183,13 @@ abstract class ConfigOptions {
     validator: (value) => isPort(value.toString()),
   );
 
-  // static final bypassLan = PreferencesNotifier.create<bool, bool>("bypass-lan", false);
+  /// NekoBox 的 **Bypass LAN in Core**（`res/xml/global_preferences.xml` 的
+  /// `bypassLanInCore`）。语义是**内核侧**的绕过局域网（路由规则层），
+  /// 与 NekoBox 那个 app 层的 `bypassLan` 是两个开关；hiddify 只有内核侧这一个。
+  ///
+  /// 内核在册可用：`hiddify-core/v2/config/hiddify_option.go` 的
+  /// `RouteOptions.BypassLAN` `json:"bypass-lan,omitempty"`。
+  static final bypassLan = PreferencesNotifier.create<bool, bool>("bypass-lan", false);
 
   static final allowConnectionFromLan = PreferencesNotifier.create<bool, bool>("allow-connection-from-lan", false);
 
@@ -377,8 +391,9 @@ abstract class ConfigOptions {
     "strict-route": strictRoute,
     "connection-test-url": connectionTestUrl,
     "url-test-interval": urlTestInterval,
+    "allow-insecure-on-request": allowInsecureOnRequest,
     "clash-api-port": clashApiPort,
-    // "bypass-lan": bypassLan,
+    "bypass-lan": bypassLan,
     "allow-connection-from-lan": allowConnectionFromLan,
     "lan-sharing-password": lanSharingPassword,
     // "enable-dns-routing": enableDnsRouting,
@@ -501,7 +516,7 @@ abstract class ConfigOptions {
       // 关掉它再启动 = 内核跑起来但不接管流量 ⇒ 能选节点、看延迟、测速。
       // 注意 TUN 只能在启动时决定，所以它不受这个开关约束。
       setSystemProxy: mode == ServiceMode.systemProxy && ref.watch(Preferences.captureEnabled),
-      // bypassLan: ref.watch(bypassLan),
+      bypassLan: ref.watch(bypassLan),
       allowConnectionFromLan: ref.watch(allowConnectionFromLan),
       lanSharingPassword: ref.watch(lanSharingPassword),
       enableFakeDns: ref.watch(enableFakeDns),
