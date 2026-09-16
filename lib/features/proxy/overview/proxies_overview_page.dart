@@ -7,18 +7,23 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/failures.dart';
+import 'package:hiddify/core/notification/in_app_notification_controller.dart';
 import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
-import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/core/utils/preferences_utils.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/connection/notifier/connection_summary.dart';
+import 'package:hiddify/features/profile/add/add_profile_modal.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
+import 'package:hiddify/features/profile/notifier/profiles_update_notifier.dart';
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
+import 'package:hiddify/features/proxy/data/protocol_form.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
+import 'package:hiddify/features/proxy/widget/protocol_form_modal.dart';
 import 'package:hiddify/features/proxy/widget/proxy_tile.dart';
+import 'package:hiddify/features/settings/overview/quick_settings_modal.dart';
 import 'package:hiddify/features/stats/notifier/stats_notifier.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hiddify/utils/utils.dart';
@@ -35,9 +40,16 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translationsProvider).requireValue;
 
-    // 分组清单来自订阅配置（常驻内容）；当前看哪个分组落盘（照 nekoray 的当前分组）。
-    final groups = ref.watch(offlineProxyGroupsProvider).valueOrNull ?? const <OutboundGroup>[];
-    final activeGroupTag = ref.watch(selectedProxyGroupTagProvider);
+    // 分组清单来自**统一数据源**：订阅分组（一份订阅 = 一个组）+ 手动分组。
+    // 展开成 Tab —— NekoBox 的 `GroupType` 只有 BASIC / SUBSCRIPTION，订阅内的 selector/urltest
+    // 不成为分组（`RawUpdater.kt:768-787`），所以不存在"自动选择"这种 Tab。
+    final tabs = ref.watch(proxyGroupTabsProvider).valueOrNull ?? const <ProxyGroupTab>[];
+    final selectedKey = ref.watch(selectedProxyGroupTagProvider);
+    // 选中的键不存在（首次使用 / 订阅被删 / 历史遗留的纯组名）⇒ 落到第一个 Tab，
+    // 与 notifier 里的回落规则保持一致，否则高亮和列表会对不上。
+    final activeKey = tabs.isEmpty
+        ? ""
+        : (tabs.any((t) => t.key == selectedKey) ? selectedKey : tabs.first.key);
     final proxies = ref.watch(proxiesOverviewNotifierProvider);
     final sortBy = ref.watch(proxiesSortNotifierProvider);
 
@@ -63,6 +75,29 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
       nkState = NkConnectionState.disconnected;
     }
 
+    // 当前 Tab —— 删除/编辑节点要知道"删的是哪个组里的"。
+    ProxyGroupTab? activeTab;
+    for (final tab in tabs) {
+      if (tab.key == activeKey) {
+        activeTab = tab;
+        break;
+      }
+    }
+    // 照 NekoBox `ConfigurationFragment.kt:1621-1625` 的 `started`：
+    // **正在使用的那个节点不允许编辑/删除** —— 条件是"它是当前选中 + 它所在的组
+    // 正在被内核加载 + 连接已建立"。手动分组的节点挂在激活那份配置里，
+    // 所以判据是"有激活订阅"而不是"组属于激活订阅"。
+    final activeProfileId = ref.watch(activeProfileProvider).valueOrNull?.id;
+    final bool activeTabIsActive;
+    if (activeTab == null) {
+      activeTabIsActive = false;
+    } else if (activeTab.profileId.isEmpty) {
+      activeTabIsActive = activeProfileId != null;
+    } else {
+      activeTabIsActive = activeTab.profileId == activeProfileId;
+    }
+    final activeNodeInUse = connectionStatus is Connected && activeTabIsActive;
+
     // final selectActiveProxyMutation = useMutation(
     //   initialOnFailure: (error) => CustomToast.error(t.presentShortError(error)).show(context),
     // );
@@ -82,14 +117,120 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
             icon: const Icon(FluentIcons.search_24_regular),
             tooltip: t.pages.proxies.search,
           ),
-          IconButton(
-            onPressed: () => ref.read(bottomSheetsNotifierProvider.notifier).showAddProfile(),
-            icon: const Icon(Icons.add_rounded),
-          ),
+          const IconButton(onPressed: showAddProfileSheet, icon: Icon(Icons.add_rounded)),
           // 更多菜单：批量测速 / 排序 / 路由规则（原工具条上的散装按钮收拢于此）。
+          // NekoBox 对照（`res/menu/add_profile_menu.xml` ⋮ 八项）：更新订阅、清流量统计、
+          // 去重、tcp ping、url test、清结果、删不可用、排序。已补：更新订阅 / 清结果 /
+          // 删不可用 / 去重 / tcp ping / url test / 排序 + hiddify 特有的路由入口；
+          // 余项（清流量统计）待后续批次。
           PopupMenuButton<String>(
             onSelected: (value) => switch (value) {
-              'urltest' => ref.read(proxiesOverviewNotifierProvider.notifier).urlTest("select"),
+              'urltest' => ref.read(proxiesOverviewNotifierProvider.notifier).urlTest(),
+              'clearResults' => () async {
+                final tab0 = activeTab;
+                final ok = await ref
+                    .read(proxiesOverviewNotifierProvider.notifier)
+                    .clearTestResults(
+                      profileId: tab0 == null || tab0.profileId.isEmpty ? null : tab0.profileId,
+                      groupId: tab0?.groupId,
+                    );
+                if (!ok) {
+                  ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
+                }
+              }(),
+              'removeDuplicate' => () async {
+                final tab0 = activeTab;
+                // NekoBox `ConfigurationFragment.kt:545-559`：先列重复者名单确认（上限 20 条），
+                // 同意后才真删。空名单不弹框（NekoBox `toClear.isNotEmpty()` 判定）。
+                final duplicates = await ref
+                    .read(proxiesOverviewNotifierProvider.notifier)
+                    .findDuplicateNodes(
+                      profileId: tab0 == null || tab0.profileId.isEmpty ? null : tab0.profileId,
+                      groupId: tab0?.groupId,
+                    );
+                if (!context.mounted) return;
+                if (duplicates.isEmpty) {
+                  ref.read(inAppNotificationControllerProvider).showInfoToast(t.pages.proxies.msg.noDuplicates);
+                  return;
+                }
+                final names = [
+                  for (final (index, node) in duplicates.indexed)
+                    if (index < 20) node.displayName else if (index == 20) '......' else null,
+                ].whereType<String>();
+                final confirmed = await ref
+                    .read(dialogNotifierProvider.notifier)
+                    .showConfirmation(
+                      title: t.dialogs.confirmation.deduplicate.title,
+                      message: '${t.dialogs.confirmation.deduplicate.msg}\n${names.join('\n')}',
+                    );
+                if (!confirmed || !context.mounted) return;
+                final ok = await ref.read(proxiesOverviewNotifierProvider.notifier).deleteNodes(duplicates);
+                if (!ok) {
+                  ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
+                  return;
+                }
+                // 出站表少了节点 ⇒ 内核要换配置（与删组/清空分组同理）。
+                if (tab0?.groupId != null) {
+                  await ref
+                      .read(proxiesOverviewNotifierProvider.notifier)
+                      .reloadCoreForGroup(tab0!.groupId!);
+                } else if (tab0?.profileId case final String pid) {
+                  await ref.read(proxiesOverviewNotifierProvider.notifier).reloadCoreForProfile(pid);
+                }
+              }(),
+              'tcpPing' => () async {
+                // NekoBox `pingTest(false)`：应用侧直连测速，无确认框
+                // （它的 tcp ping 也是点菜单直接开测）。结果写实体列。
+                final tab0 = activeTab;
+                final count = await ref
+                    .read(proxiesOverviewNotifierProvider.notifier)
+                    .tcpPingNodes(
+                      profileId: tab0 == null || tab0.profileId.isEmpty ? null : tab0.profileId,
+                      groupId: tab0?.groupId,
+                    );
+                if (count < 0 && context.mounted) {
+                  ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
+                }
+              }(),
+              'deleteUnavailable' => () async {
+                // NekoBox `ConfigurationFragment.kt:495-532`：先确认（一句
+                // delete_confirm_prompt，不带名单），同意后真删。
+                // 空名单不弹框（toClear.isNotEmpty() 判定），只 toast。
+                final tab0 = activeTab;
+                final unavailable = await ref
+                    .read(proxiesOverviewNotifierProvider.notifier)
+                    .findUnavailableNodes(
+                      profileId: tab0 == null || tab0.profileId.isEmpty ? null : tab0.profileId,
+                      groupId: tab0?.groupId,
+                    );
+                if (!context.mounted) return;
+                if (unavailable.isEmpty) {
+                  ref.read(inAppNotificationControllerProvider).showInfoToast(t.pages.proxies.msg.noUnavailable);
+                  return;
+                }
+                final confirmed = await ref
+                    .read(dialogNotifierProvider.notifier)
+                    .showConfirmation(
+                      title: t.dialogs.confirmation.deleteUnavailable.title,
+                      message: t.dialogs.confirmation.deleteUnavailable.msg,
+                    );
+                if (!confirmed || !context.mounted) return;
+                final ok = await ref.read(proxiesOverviewNotifierProvider.notifier).deleteNodes(unavailable);
+                if (!ok) {
+                  ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
+                  return;
+                }
+                // 出站表少了节点 ⇒ 内核要换配置（与去重同理）。
+                if (tab0?.groupId != null) {
+                  await ref
+                      .read(proxiesOverviewNotifierProvider.notifier)
+                      .reloadCoreForGroup(tab0!.groupId!);
+                } else if (tab0?.profileId case final String pid) {
+                  await ref.read(proxiesOverviewNotifierProvider.notifier).reloadCoreForProfile(pid);
+                }
+              }(),
+              'updateSubscriptions' =>
+                ref.read(foregroundProfilesUpdateNotifierProvider.notifier).trigger(),
               'sort' => () async {
                 final selected = await ref
                     .read(dialogNotifierProvider.notifier)
@@ -109,6 +250,11 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
             },
             itemBuilder: (context) => [
               PopupMenuItem(value: 'urltest', child: Text(t.pages.proxies.testAll)),
+              PopupMenuItem(value: 'clearResults', child: Text(t.pages.proxies.clearTestResults)),
+              PopupMenuItem(value: 'deleteUnavailable', child: Text(t.pages.proxies.deleteUnavailable)),
+              PopupMenuItem(value: 'removeDuplicate', child: Text(t.pages.proxies.removeDuplicate)),
+              PopupMenuItem(value: 'tcpPing', child: Text(t.pages.proxies.tcpPing)),
+              PopupMenuItem(value: 'updateSubscriptions', child: Text(t.pages.proxies.updateSubscriptions)),
               PopupMenuItem(value: 'sort', child: Text(t.pages.proxies.sort)),
               PopupMenuItem(value: 'route', child: Text(t.pages.settings.routing.title)),
             ],
@@ -119,12 +265,12 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
         // 搜索行改为点搜索图标后折叠出现（NekoBox 的搜索也是图标触发的），排序/网格开关收在行尾。
         bottom: PreferredSize(
           preferredSize: Size.fromHeight(
-            (groups.length > 1 ? 46.0 : 0.0) + (showSearch.value || query.value.isNotEmpty ? 56.0 : 0.0),
+            (tabs.length > 1 ? 46.0 : 0.0) + (showSearch.value || query.value.isNotEmpty ? 56.0 : 0.0),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (groups.length > 1)
+              if (tabs.length > 1)
                 SizedBox(
                   height: 46,
                   child: Material(
@@ -132,13 +278,13 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
-                      itemCount: groups.length,
+                      itemCount: tabs.length,
                       separatorBuilder: (context, index) => const Gap(2),
                       itemBuilder: (context, index) {
-                        final group = groups[index];
-                        final selected = group.tag == activeGroupTag;
+                        final tab = tabs[index];
+                        final selected = tab.key == activeKey;
                         return InkWell(
-                          onTap: () => ref.read(selectedProxyGroupTagProvider.notifier).update(group.tag),
+                          onTap: () => ref.read(selectedProxyGroupTagProvider.notifier).update(tab.key),
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             decoration: BoxDecoration(
@@ -151,7 +297,7 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
                             ),
                             alignment: Alignment.center,
                             child: Text(
-                              group.tag,
+                              tab.label,
                               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                 color: selected
                                     ? Theme.of(context).colorScheme.onPrimary
@@ -214,10 +360,11 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
         onPressed: connectionStatus is Connecting || connectionStatus is Disconnecting
             ? null
             : () => ref.read(connectionNotifierProvider.notifier).toggleConnection(),
+        // 这个按钮是**连接开关**：未连接时显示「连接」（动作名），不是「点击连接」。
         tooltip: switch (nkState) {
           NkConnectionState.connected => t.connection.connected,
           NkConnectionState.connecting => t.connection.connecting,
-          _ => t.connection.tapToConnect,
+          _ => t.connection.connect,
         },
         child: connectionStatus is Connecting || connectionStatus is Disconnecting
             ? const SizedBox(
@@ -237,9 +384,9 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
           if (group == null) return Center(child: Text(t.pages.proxies.empty));
 
           final query0 = query.value.trim().toLowerCase();
-          // NekoBox 复刻 · 只列订阅原始节点（不展开组出站）：
-          // "自动选择/urltest"这类组出站是 hiddify/sing-box 内部概念，NekoBox 列表里没有，
-          // 用户也只关心机场给的节点本身。当前组若指向某个组出站，选中态照常显示在其成员上。
+          // NekoBox 复刻 · 只列订阅原始节点：组类出站（selector/urltest/balancer）由
+          // `parseSubscriptionGroup` 在解析阶段就过滤掉了，这里再挡一道，
+          // 保证以后万一有组类条目混进来也不会显示成节点。
           final rawItems = group.items.where((e) => !e.isGroup).toList();
           final items = query0.isEmpty
               ? rawItems
@@ -267,7 +414,8 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
                     ? ListView.builder(
                         padding: const EdgeInsets.only(bottom: 86),
                         itemCount: items.length,
-                        itemBuilder: (context, index) => _tile(items[index], group, ref),
+                        itemBuilder: (context, index) =>
+                            _tile(context, items[index], group, ref, activeTab, activeNodeInUse, items.length),
                       )
                     : LayoutBuilder(
                         builder: (context, constraints) {
@@ -282,7 +430,8 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
                               crossAxisCount: crossAxisCount,
                               mainAxisExtent: 92,
                             ),
-                            itemBuilder: (context, index) => _tile(items[index], group, ref),
+                            itemBuilder: (context, index) =>
+                            _tile(context, items[index], group, ref, activeTab, activeNodeInUse, items.length),
                           );
                         },
                       ),
@@ -298,7 +447,7 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
                         topLeft: Radius.circular(16),
                         topRight: Radius.circular(16),
                       ),
-                      onTap: () => ref.read(bottomSheetsNotifierProvider.notifier).showQuickSettings(),
+                      onTap: () => showQuickSettingsSheet(),
                       child: SizedBox(
                         height: 32,
                         child: Padding(
@@ -325,14 +474,97 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
     );
   }
 
+  /// Tab 标签 = **订阅名**。
+  ///
+  /// 一份订阅只有一个分组、组名就是订阅名（NekoBox：`GroupType` 只有 BASIC/SUBSCRIPTION，
+  /// 订阅内分组不成为分组），所以这里不需要再拼组名 —— 拼了会变成
+  /// "云霄 · 云霄"这种重复。
+  ///
   /// 列表和网格共用同一个节点项 —— 避免两处各写一遍（改一处漏一处）。
-  Widget _tile(OutboundInfo proxy, OutboundGroup group, WidgetRef ref) {
+  Widget _tile(
+    BuildContext context,
+    OutboundInfo proxy,
+    OutboundGroup group,
+    WidgetRef ref,
+    ProxyGroupTab? tab,
+    bool nodeInUse,
+    int nodeCount,
+  ) {
+    final isSelected = group.selected == proxy.tag;
+    // ✎ 只在"这一行是实体 + 该协议有表单"时给出 —— 与 🗑 同一条判据，
+    // 保证"能点到的节点一定能改"（表单的规格查表见 protocol_form.dart）。
+    final canEdit = tab != null && protocolFormSpecFor(proxy.type) != null;
     return ProxyTile(
       proxy,
-      selected: group.selected == proxy.tag,
+      selected: isSelected,
       onTap: () async {
         await ref.read(proxiesOverviewNotifierProvider.notifier).changeProxy(group.tag, proxy.tag);
       },
+      onEdit: canEdit ? () => _editNode(context, ref, tab, proxy) : null,
+      // 🗑 只在实体层可用时给出（列表还在走配置回落时没有实体行可删）
+      onDelete: tab == null ? null : () => _deleteNode(context, ref, tab, proxy),
+      // 正在使用的节点不许编辑/删除（NekoBox `ConfigurationFragment.kt:1624-1625 isEnabled = !started`）
+      editEnabled: !(isSelected && nodeInUse),
+      // 只剩一个节点时也不许删 —— 空实体集会让组装回落基准（＝节点"复活"），
+      // 语义不清，索性禁止（决策 D1，见 docs/audit/2026-09-15-full-logic-audit.md §5）。
+      // 编辑不受这条限制（改参数不会让集合变空）。
+      deleteEnabled: !(isSelected && nodeInUse) && nodeCount > 1,
+    );
+  }
+
+  /// 编辑节点 —— 照 NekoBox `ConfigurationFragment.kt:1594` 的 ✎：
+  /// 打开**该协议自己的设置页**（`proxyEntity.settingIntent()` → `ui/profile/*SettingsActivity`）。
+  ///
+  /// 出站 JSON 取 [outboundJsonProvider]（实体优先、配置回落），与节点「分享」同源 ——
+  /// 所以"能分享的就能编辑"。真落到保存时，实体行不存在会被写接口拒掉（不会写坏配置）。
+  Future<void> _editNode(BuildContext context, WidgetRef ref, ProxyGroupTab tab, OutboundInfo proxy) async {
+    final t = ref.read(translationsProvider).requireValue;
+    final payload = await ref.read(outboundJsonProvider(proxy.tag).future);
+    if (!context.mounted) return;
+    if (payload == null) {
+      ref.read(inAppNotificationControllerProvider).showErrorToast(t.pages.proxies.form.jsonInvalid);
+      return;
+    }
+    await showProtocolFormSheet(
+      tag: proxy.tag,
+      type: proxy.type,
+      payloadJson: payload,
+      profileId: tab.profileId.isEmpty ? null : tab.profileId,
+      groupId: tab.groupId,
+    );
+  }
+
+  /// 删除节点 —— 照 NekoBox `ConfigurationFragment.kt:1602-1608` + `UndoSnackbarManager`：
+  /// **立刻从列表移除，并给一条带「撤销」的提示**；撤销则把那一行原样放回。
+  ///
+  /// 差异说明：NekoBox 是"延迟落库（Snackbar 消失时才 commit）+ 撤销"，这里是
+  /// "立即落库 + 撤销时重新插入" —— 用户可见行为一致（都是"删了能撤回"），
+  /// 少一层待提交队列，也就不存在"离开页面时漏提交"的风险。
+  Future<void> _deleteNode(BuildContext context, WidgetRef ref, ProxyGroupTab tab, OutboundInfo proxy) async {
+    final t = ref.read(translationsProvider).requireValue;
+    final messenger = ScaffoldMessenger.of(context);
+    final notifier = ref.read(proxiesOverviewNotifierProvider.notifier);
+
+    final removed = await notifier.removeNode(
+      profileId: tab.profileId.isEmpty ? null : tab.profileId,
+      groupId: tab.groupId,
+      tag: proxy.tag,
+    );
+    if (removed == null) {
+      ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
+      return;
+    }
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(t.pages.proxies.msg.nodeRemoved),
+        action: SnackBarAction(
+          label: t.common.undo,
+          onPressed: () async {
+            final restored = await notifier.restoreNode(removed);
+            if (!restored) ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
+          },
+        ),
+      ),
     );
   }
 }

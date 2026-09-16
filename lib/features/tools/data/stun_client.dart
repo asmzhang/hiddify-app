@@ -126,7 +126,7 @@ class StunClient {
 
   static Future<String?> _firstLocalIPv4() async {
     try {
-      final ifaces = await NetworkInterface.list(type: InternetAddressType.IPv4, includeLoopback: false);
+      final ifaces = await NetworkInterface.list(type: InternetAddressType.IPv4);
       for (final iface in ifaces) {
         for (final a in iface.addresses) {
           return a.address;

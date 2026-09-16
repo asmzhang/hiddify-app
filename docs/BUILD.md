@@ -82,79 +82,32 @@ go env -w "GOMODCACHE=$env:USERPROFILE/go/pkg/mod2"
 git clone -b my https://github.com/asmzhang/hiddify-app.git
 cd hiddify-app
 
-# ① 把各层内容拉到 my 的尖端
+# 拉代码，并把每一层都切到它自己的 my 分支
 git submodule update --init --recursive --remote
-
-# ② 把各层 HEAD 真正挂到 my 分支上（① 不做这件事）
-git submodule foreach --recursive "git checkout -B my origin/my"
 ```
 
 三层 `.gitmodules` 里 **7 个声明全写的 `branch = my`**（`hiddify-core`；`hiddify-sing-box`、`ray2sing`；
-`replace/` 下 4 个），所以 `--remote` 保证「拿到的是各层 `my` 尖端的提交」。
+`replace/` 下 4 个），所以 `--remote` = "每一层都跟 `my`"。
 
-> **① 只决定"内容"，不决定"HEAD 挂在哪个分支"。** `submodule update` 无论带不带
-> `--remote`，内部都是 `git checkout <sha>`，结束在**游离 HEAD**；`--remote` 也不会替你
-> 建出本地 `my` 分支（已逐层实测：7 层的 `rev-parse --abbrev-ref HEAD` 全是 `HEAD`）。
-> 少跑 ② 的后果：那层没有本地 `my`，你 `git commit` 会提交到游离头指针上，很容易丢。
->
-> ② 会**重置**各层 `my` 到远端尖端。若某层 `my` 上有未推送的提交，先
-> `git -C <那一层> push -u origin my`，或把 ② 换成 `git switch my` 只做切换、不对齐远端。
+> **别用不带 `--remote` 的 `git submodule update`。** 它会把子模块锁在**父仓库记录的 SHA** 上
+> （游离 HEAD），而父仓库的指针可能是旧的 —— 那会**直接切掉你在 `my` 上的提交**。
+> 本仓库真踩过：`ray2sing` 的 anytls 修复、`hiddify-sing-box` 的 `170d8315` 合并都被这样切掉过。
 
-> **不带 `--remote` 的原生行为是锁在父仓库记录的 SHA 上**（游离 HEAD），而父仓库的指针
-> 可能已经旧了 —— 本仓库真踩过：`ray2sing` 的 anytls 修复、`hiddify-sing-box` 的
-> `170d8315` 合并都被这样切掉过。**做了下面那次配置后这个坑就没了**：plain update
-> 也会自动拉取远端 `my` 并对齐。
-
-#### 可选：一次性配置，之后一条命令就是"一键"
-
-git **不允许**把自定义命令写进 `.gitmodules`（会直接
-`fatal: invalid value for 'submodule.<name>.update'` —— 版本控制的文件里放任意命令
-等于 "clone 即执行代码"，是刻意的安全设计），所以它只能落在 `.git/config`。
-写全局配置，本机所有 clone 一次性生效：
+核对（每层都该回显 `my`）：
 
 ```powershell
-$c = '!f() { git fetch -q --no-recurse-submodules origin "+refs/heads/my:refs/remotes/origin/my" >/dev/null 2>&1 || true; if ! git rev-parse --verify -q refs/remotes/origin/my >/dev/null 2>&1; then git checkout -q --detach "$1"; return; fi; if git rev-parse --verify -q refs/heads/my >/dev/null 2>&1 && ! git merge-base --is-ancestor refs/heads/my refs/remotes/origin/my 2>/dev/null; then echo "warn: 子模块 my 有未推送提交，已跳过自动对齐" >&2; git checkout -q my; else git checkout -q -B my origin/my; fi; }; f'
-'hiddify-core','hiddify-sing-box','ray2sing','replace/tailscale','replace/psiphon-quic-go','replace/psiphon-tls','replace/wireguard-go' |
-  ForEach-Object { git config --global "submodule.$_.update" $c }
+git -C hiddify-core rev-parse --abbrev-ref HEAD
+git -C hiddify-core/hiddify-sing-box rev-parse --abbrev-ref HEAD
+git -C hiddify-core/ray2sing rev-parse --abbrev-ref HEAD
+git -C hiddify-core/hiddify-sing-box/replace/tailscale rev-parse --abbrev-ref HEAD
+# replace/ 下另外 3 个同理
 ```
 
-配好之后 **`my` 成为权威源**：命令先自动 fetch 远端 `my`，再把各层 HEAD 对齐到 `origin/my`。
-
-| 命令 | 各层内容 | HEAD |
-|---|---|---|
-| `git submodule update --init --recursive` | **各层 `my` 尖端**（自动拉取） | **在 `my` 上** |
-| `git submodule update --init --recursive --remote` | 各层 `my` 尖端 | **在 `my` 上** |
-
-要点：
-
-- **父仓库记录的 gitlink 不再是内容来源。** 好处是改完子模块不必再回父仓库 `git add`
-  更新指针；代价是 `git submodule status` 会常显 `+`（属预期），构建不再钉在某个固定提交上。
-- 命令**必须自带 fetch**（显式 `+refs/heads/my:refs/remotes/origin/my`，`+` 允许强推覆盖）。
-  `git submodule update` 自己那次 fetch 靠不住 —— 记录的提交已在本地时它会整个跳过，
-  于是 `origin/my` 是陈旧的。
-- **未推送提交有保护**：某层 `my` 有远端没有的提交时，打印 warning、只切回 `my` 而不重置；
-  推走之后下次自动恢复对齐。
-- 离线（fetch 失败）时静默降级，用本地已知的 `origin/my` 落位，不中断。
-- 撤销：`git config --global --remove-section submodule.<name>`，逐条。
-
-核对（每层都该回显 `my`，一条命令看全部 7 层）：
+**已经切到游离 HEAD 了怎么修**（本地有 `my` 分支时，纯离线）：
 
 ```powershell
-git submodule foreach --recursive "git rev-parse --abbrev-ref HEAD"
-```
-
-> 别用 `git submodule status` 的括号内容来判断 —— 那是 `describe` 的启发式结果，
-> 会在同提交的多个 ref 里随便挑一个（实测会显示 `heads/master`、`remotes/origin/my` 等），
-> 和 HEAD 实际挂在哪个分支无关。
-
-**已经切到游离 HEAD 了怎么修**：
-
-```powershell
-# 只想把 7 层挂回 my、不对齐远端（纯离线，不动各层 my 指针）
-git submodule foreach --recursive "git switch my 2>/dev/null || git switch -c my --track origin/my"
-
-# 想同时对齐到远端 my 尖端（会重置各层 my 指针，见上面 ② 的提醒）
-git submodule foreach --recursive "git checkout -B my origin/my"
+git -C hiddify-core/hiddify-sing-box switch my
+git -C hiddify-core/ray2sing switch my
 ```
 
 > ① 八层 fork 的**远端都已有 `my` 分支**（已逐层核实），所以 `--remote` 可用。

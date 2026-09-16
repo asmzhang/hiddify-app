@@ -1,3 +1,5 @@
+// Third-party: json_editor_flutter (vendored copy).
+// Excluded from analyzer in analysis_options.yaml to keep upstream diffs minimal.
 library json_editor_flutter;
 
 import 'dart:convert';
@@ -993,7 +995,7 @@ class _HolderState extends State<_Holder> {
     var res = "{";
     if (data is Map<String, dynamic>) {
       if (widget.expandedObjects[widget.allParents.toString()] ?? false) return "";
-      final content = data as Map<String, dynamic>;
+      final content = data;
       //res += "${data.length}";
       if (content["type"] != null) {
         res += "${content["type"]}";
@@ -1005,7 +1007,7 @@ class _HolderState extends State<_Holder> {
         res += " [${d.substring(0, min(20, d.length))}...]";
       }
     } else if (data is List) {
-      final content = data as List;
+      final content = data;
       res += "${content.length}";
     }
     return res + "}";

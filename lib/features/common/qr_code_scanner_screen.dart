@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
+import 'package:hiddify/core/router/dialog/root_dialog.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -458,3 +459,6 @@ class QrCodeScannerDialog extends ConsumerWidget {
     );
   }
 }
+
+/// 弹出扫码页，返回扫描到的文本（业务入口留在 feature 侧）。
+Future<String?> showQrCodeScanner() => showRootDialog<String?>(const QrCodeScannerDialog());

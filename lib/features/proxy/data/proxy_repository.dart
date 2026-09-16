@@ -10,8 +10,12 @@ import 'package:hiddify/hiddifycore/hiddify_core_service.dart';
 import 'package:hiddify/utils/custom_loggers.dart';
 
 abstract interface class ProxyRepository {
-  // Stream<Either<ProxyFailure, List<OutboundGroup>>> watchProxies();
-  Stream<Either<ProxyFailure, OutboundGroup?>> watchProxies();
+  /// **全部**分组（内核 `OutboundsInfo` 全量）—— 运行期数据的唯一来源。
+  ///
+  /// 参数曾长期是 `OutboundGroup?`（只回第一组），应用于是自己解析配置 JSON 重建
+  /// 分组结构，再用 `_mergeLive` 缝合两份模型。改回全量后缝合层不再需要，
+  /// 详见 `docs/design/proxy-model-root-fix.md`。
+  Stream<Either<ProxyFailure, List<OutboundGroup>>> watchProxies();
   Stream<Either<ProxyFailure, List<OutboundGroup>>> watchActiveProxies();
   TaskEither<ProxyFailure, oldipinfo.IpInfo> getCurrentIpInfo(CancelToken cancelToken);
   TaskEither<ProxyFailure, Unit> selectProxy(String groupTag, String outboundTag);
@@ -24,44 +28,9 @@ class ProxyRepositoryImpl with ExceptionHandler, InfraLogger implements ProxyRep
   final HiddifyCoreService singbox;
   final DioHttpClient client;
 
-  // @override
-  // Stream<Either<ProxyFailure, List<OutboundGroup>>> watchProxies() {
-  //   return singbox.watchGroups().map((event) {
-  //     // final groupWithSelected = {
-  //     //   for (final group in event) group.tag: group.selected,
-  //     // };
-
-  //     return event;
-  //     // .map(
-  //     //   (e) => ProxyGroupEntity(
-  //     //     tag: e.tag,
-  //     //     type: e.type,
-  //     //     selected: e.selected,
-  //     //     items: e.items
-  //     //         .map(
-  //     //           (e) => ProxyItemEntity(
-  //     //             tag: e.tag,
-  //     //             type: e.type,
-  //     //             urlTestDelay: e.urlTestDelay,
-  //     //             selectedTag: groupWithSelected[e.tag],
-  //     //           ),
-  //     //         )
-  //     //         .filter((t) => t.isVisible)
-  //     //         .toList(),
-  //     //   ),
-  //     // )
-  //     // .toList();
-  //   }).handleExceptions(
-  //     (error, stackTrace) {
-  //       loggy.error("error watching proxies", error, stackTrace);
-  //       return ProxyUnexpectedFailure(error, stackTrace);
-  //     },
-  //   );
-  // }
-
   @override
-  Stream<Either<ProxyFailure, OutboundGroup?>> watchProxies() {
-    return singbox.watchGroup().handleExceptions((error, stackTrace) {
+  Stream<Either<ProxyFailure, List<OutboundGroup>>> watchProxies() {
+    return singbox.watchGroups().handleExceptions((error, stackTrace) {
       loggy.error("error watching proxies", error, stackTrace);
       return ProxyUnexpectedFailure(error, stackTrace);
     });

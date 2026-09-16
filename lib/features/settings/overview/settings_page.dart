@@ -239,6 +239,14 @@ class SettingsPage extends HookConsumerWidget {
                 value: ref.watch(ConfigOptions.resolveDestination),
                 onChanged: ref.read(ConfigOptions.resolveDestination.notifier).update,
               ),
+              // NekoBox `global_preferences.xml` 的 **Bypass LAN in Core**（内核侧绕过局域网）。
+              // 与 NekoBox 那个 app 层的 Bypass LAN 是两个开关；hiddify 只有内核侧这一个，
+              // 内核字段在册（RouteOptions.BypassLAN → json "bypass-lan"）。
+              NkSwitchRow(
+                title: t.pages.settings.routing.generalOptions.bypassLanInCore,
+                value: ref.watch(ConfigOptions.bypassLan),
+                onChanged: ref.read(ConfigOptions.bypassLan.notifier).update,
+              ),
               NkChoiceRow(
                 title: t.pages.settings.routing.generalOptions.ipv6Route,
                 selected: ref.watch(ConfigOptions.ipv6Mode),

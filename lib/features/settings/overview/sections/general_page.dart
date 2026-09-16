@@ -78,10 +78,11 @@ class GeneralPage extends HookConsumerWidget {
             secondary: const Icon(Icons.bug_report_rounded),
             value: ref.watch(debugModeNotifierProvider),
             onChanged: (value) async {
-              if (value)
+              if (value) {
                 await ref
                     .read(dialogNotifierProvider.notifier)
                     .showOk(t.pages.settings.general.debugMode, t.pages.settings.general.debugModeMsg);
+              }
               await ref.read(debugModeNotifierProvider.notifier).update(value);
             },
           ),
@@ -128,6 +129,14 @@ class GeneralPage extends HookConsumerWidget {
                   if (value == null) return;
                   await ref.read(ConfigOptions.urlTestInterval.notifier).update(Duration(minutes: value.toInt()));
                 }),
+          ),
+          // NekoBox `allowInsecureOnRequest`：仅订阅更新跳过证书检查（RawUpdater.kt:66），
+          // 纯 app 层开关，不影响内核与其它请求。
+          SwitchListTile.adaptive(
+            title: Text(t.pages.settings.general.allowInsecureOnRequest),
+            secondary: const Icon(Icons.lock_open_rounded),
+            value: ref.watch(ConfigOptions.allowInsecureOnRequest),
+            onChanged: ref.read(ConfigOptions.allowInsecureOnRequest.notifier).update,
           ),
           ValuePreferenceWidget(
             value: ref.watch(ConfigOptions.clashApiPort),

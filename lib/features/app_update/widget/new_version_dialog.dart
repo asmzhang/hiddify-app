@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
+import 'package:hiddify/core/router/dialog/root_dialog.dart';
 import 'package:hiddify/features/app_update/model/remote_version_entity.dart';
 import 'package:hiddify/features/app_update/notifier/app_update_notifier.dart';
 import 'package:hiddify/utils/utils.dart';
@@ -65,3 +66,10 @@ class NewVersionDialog extends HookConsumerWidget with PresLogger {
     );
   }
 }
+
+/// 弹出"有新版本"对话框（业务入口留在 feature 侧）。
+Future<void> showNewVersionDialog({
+  required String currentVersion,
+  required RemoteVersionEntity newVersion,
+  required bool canIgnore,
+}) => showRootDialog<void>(NewVersionDialog(currentVersion, newVersion, canIgnore: canIgnore));

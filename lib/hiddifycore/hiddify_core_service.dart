@@ -1,32 +1,29 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
+import 'dart:io';
 
 import 'package:fpdart/fpdart.dart';
 import 'package:grpc/grpc.dart';
 import 'package:hiddify/core/directories/directories_provider.dart';
-import 'package:hiddify/core/model/directories.dart';
 import 'package:hiddify/core/notification/in_app_notification_controller.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
+import 'package:hiddify/core/utils/serial_async_lock.dart';
 import 'package:hiddify/features/connection/model/connection_failure.dart';
+import 'package:hiddify/features/log/model/log_level.dart' as config_log_level;
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
-import 'package:hiddify/hiddifycore/core_interface/core_interface.dart';
+import 'package:hiddify/hiddifycore/core_interface/core_interface_wrapper_stub.dart'
+    if (dart.library.io) 'package:hiddify/hiddifycore/core_interface/core_interface_wrapper.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcommon/common.pb.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore_service.pbgrpc.dart';
 import 'package:hiddify/hiddifycore/init_signal.dart';
-import 'package:hiddify/singbox/model/singbox_config_option.dart';
-import 'package:hiddify/features/log/model/log_level.dart' as config_log_level;
 import 'package:hiddify/singbox/model/core_status.dart';
-import 'package:hiddify/singbox/model/warp_account.dart';
-
-import 'package:hiddify/hiddifycore/core_interface/core_interface_wrapper_stub.dart'
-    if (dart.library.io) 'package:hiddify/hiddifycore/core_interface/core_interface_wrapper.dart';
+import 'package:hiddify/singbox/model/singbox_config_option.dart';
 import 'package:hiddify/utils/custom_loggers.dart';
 import 'package:hiddify/utils/platform_utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:loggy/loggy.dart' as loggyl;
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:path/path.dart' as p;
 import 'package:rxdart/rxdart.dart';
 
 class HiddifyCoreService with InfraLogger {
@@ -42,6 +39,32 @@ class HiddifyCoreService with InfraLogger {
   final CallOptions? grpcOptions = null; //CallOptions(timeout: const Duration(milliseconds: 10000));
   final Map<String, StreamSubscription?> subscriptions = {};
   List<OutboundGroup> latest = [];
+
+  // ---------------------------------------------------------------------------
+  // 「重建 sing-box 注册表」类 RPC 的串行化 —— 这是崩溃的直接修复。
+  //
+  // 崩溃证据（`%APPDATA%\Hiddify\hiddify\crash_reports\2026-09-15T05-37-20\go.log`）：
+  //
+  //   internal/runtime/maps.fatal                        ← Go 运行时的「并发写 map」，进程直接 abort
+  //    → sing-box/protocol/hiddify/dnstt.loadResolvers()      tools.go:26   ← 无锁地写**包级 map**
+  //    → dnstt.RegisterOutbound → include.OutboundRegistry()  registry.go:116
+  //    → libbox.baseContextWithParent / baseContext
+  //    → libbox.CheckConfigOptions
+  //    ← 一个来自 `Parse`（`v2/config/parser.go:153`），
+  //      一个来自 `Start`（`v2/hcore/service.go:31`，以及 `start.go:131` 的 `libbox.FromContext`）
+  //
+  // 两份 dump 里各有**恰好 2 个** goroutine 停在 `loadResolvers` ⇒ 就是这两个 RPC 撞的。
+  //
+  // 会走到这条路的 RPC（全库枚举）：`Parse` / `Start` / `StartService` / `Restart`
+  // （`v2/hcore/restart.go:40` 的 Restart 也是调 StartService）。
+  // 内核这段**不可重入**，而应用是唯一客户端 ⇒ 由这里串行化。
+  // 见 docs/design/nekobox-parity.md §8.6.9。
+  //
+  // 实现是 `SerialAsyncLock`（`lib/core/utils/serial_async_lock.dart`），
+  // 它的三个性质（不重叠 / 保序 / **一次失败不破坏锁**）由 `tool/check_async_lock.dart` 断言覆盖。
+  final _registryLock = SerialAsyncLock();
+
+  Future<T> _serializeRegistryAccess<T>(Future<T> Function() action) => _registryLock.run(action);
 
   Future<void> init() async {
     await setup()
@@ -65,7 +88,8 @@ class HiddifyCoreService with InfraLogger {
   /// [debug] indicates if debug mode (avoid in prod)
 
   TaskEither<String, Unit> validateConfigByPath(String path, String tempPath, bool debug) {
-    return TaskEither(() async {
+    // 走 `Parse` ⇒ 必须与 `Start` 串行（见 _serializeRegistryAccess 的崩溃证据）
+    return TaskEither(() => _serializeRegistryAccess(() async {
       try {
         final response = await core.fgClient.parse(ParseRequest(tempPath: tempPath, configPath: path, debug: false));
         if (response.responseCode != ResponseCode.OK) return left("${response.responseCode} ${response.message}");
@@ -75,15 +99,16 @@ class HiddifyCoreService with InfraLogger {
         if (response.responseCode != ResponseCode.OK) return left("${response.responseCode} ${response.message}");
       }
       return right(unit);
-    });
+    }));
   }
 
   TaskEither<String, String> generateFullConfigByPath(String path) {
-    return TaskEither(() async {
+    // 走 `Parse` ⇒ 必须与 `Start` 串行
+    return TaskEither(() => _serializeRegistryAccess(() async {
       final response = await core.fgClient.parse(ParseRequest(configPath: path, debug: false));
       if (response.responseCode != ResponseCode.OK) return left("${response.responseCode} ${response.message}");
       return right(response.content);
-    });
+    }));
   }
 
   TaskEither<String, Unit> setup() {
@@ -128,8 +153,13 @@ class HiddifyCoreService with InfraLogger {
         if (e.code == StatusCode.unavailable) {
           loggy.debug("background core is not started yet! $e");
         } else {
-          rethrow;
+          // **不要用 `rethrow`** —— 见 setSystemProxyEnabled 里的说明：
+          // TaskEither 体内抛出会变成"被拒绝的 Future"而不是 Left，
+          // 调用方的 isRight()/match() 全部失效。这里必须如实返回 Left。
+          return left("${e.code} ${e.message}");
         }
+      } catch (e) {
+        return left("change options failed: $e");
       }
 
       return right(unit);
@@ -137,7 +167,8 @@ class HiddifyCoreService with InfraLogger {
   }
 
   TaskEither<ConnectionFailure, Unit> start(String path, String name, bool disableMemoryLimit) {
-    return TaskEither(() async {
+    // 走 `Start`/`StartService` ⇒ 必须与 `Parse` 串行（见 _serializeRegistryAccess 的崩溃证据）
+    return TaskEither(() => _serializeRegistryAccess(() async {
       statusController.add(currentState = const CoreStatus.starting());
       loggy.debug("starting");
       final background = await core.setupBackground(path, name);
@@ -149,15 +180,6 @@ class HiddifyCoreService with InfraLogger {
         await startListeningLogs("bg", core.bgClient);
         await startListeningStatus("bg", core.bgClient);
       }
-      // if (latestOptions != null) {
-      //   await core.bgClient.changeHiddifySettings(
-      //     ChangeHiddifySettingsRequest(
-      //       hiddifySettingsJson: jsonEncode(latestOptions!.toJson()),
-      //     ),
-      //   );
-      // }
-      // final content = await File(path).readAsString();
-      // loggy.debug("starting with content: $content");
       try {
         final res = await core.bgClient.start(
           StartRequest(
@@ -198,7 +220,7 @@ class HiddifyCoreService with InfraLogger {
       // if (res.messageType != MessageType.EMPTY) return left(res);
 
       return right(unit);
-    });
+    }));
   }
 
   TaskEither<String, Unit> stop() {
@@ -206,7 +228,7 @@ class HiddifyCoreService with InfraLogger {
       loggy.debug("stopping");
       var errMsg = "";
       try {
-        final res = await core.bgClient.stop(Empty());
+        await core.bgClient.stop(Empty());
       } on GrpcError catch (e) {
         if (e.code == StatusCode.unknown && !(e.message?.contains("HTTP/2") ?? false)) {
           errMsg = e.message ?? "failed to stop core: $e";
@@ -240,25 +262,57 @@ class HiddifyCoreService with InfraLogger {
   }
 
   /// 运行时开关系统代理 —— **不用重启内核**。这是「内核常驻」模式的基础。
+  ///
+  /// ⚠️ **本仓库的内核根本起不来命令服务器**，所以这条路现在必然失败：
+  ///   · 实现走 `libbox.NewStandaloneCommandClient()`（`v2/hcore/system_proxy.go:42`），
+  ///     它去连 `<workingDir>/command.sock`（`command_client.go:125-126`）；
+  ///   · 那个 socket 由 `libbox.CommandServer.Start()` 创建（`command_server.go:119`），
+  ///     而**唯一的那句调用在内核里被注释掉了**（`v2/hcore/service.go:48-50`，
+  ///     且 `startCommandServer` 这个函数已经不存在），所以 socket 永远不出现；
+  ///   · 于是客户端 probe 失败 → 连接被拒 → 直到超时。
+  ///
+  /// 所以超时压到 3 秒（原来是 10 秒）：既然是注定失败的尝试，不该让用户每次
+  /// 点「连接」都干等 10 秒。真正生效的是调用方的兜底 —— `ConnectionNotifier.setCapture`
+  /// 收到 Left 后会**重启内核**，由 sing-box 自己设系统代理
+  /// （`common/listener/listener.go:109-117` → `common/settings/proxy_windows.go:28`
+  /// 的 `wininet.SetSystemProxy`）。若将来内核把命令服务器恢复起来，这条路会自动重新可用。
   TaskEither<String, Unit> setSystemProxyEnabled(bool enabled) {
     return TaskEither(() async {
       loggy.debug("setting system proxy enabled: $enabled");
+
+      // 先探测命令服务器的 socket（审计 F4）：本项目内核**从不创建**它
+      // （见上面的说明），所以没必要去连、更没必要白等 3 秒超时 —— 直接返回 Left，
+      // 让调用方（`ConnectionNotifier.setCapture`）**立刻**走"重启内核"兜底。
+      // 只在桌面端探测：移动端是另一套（独立进程 + mTLS），不走 command.sock。
+      if (PlatformUtils.isDesktop) {
+        final socketPath = p.join(ref.read(appDirectoriesProvider).requireValue.workingDir.path, 'command.sock');
+        if (!File(socketPath).existsSync()) {
+          loggy.debug("command server unavailable (no $socketPath) - caller should fall back to core restart");
+          return left("command server unavailable: $socketPath");
+        }
+      }
+
       try {
         final res = await core.bgClient.setSystemProxyEnabled(
           SetSystemProxyEnabledRequest(isEnabled: enabled),
-          options: CallOptions(timeout: const Duration(seconds: 10)),
+          options: CallOptions(timeout: const Duration(seconds: 3)),
         );
         if (res.code != ResponseCode.OK) return left("${res.code} ${res.message}");
         return right(unit);
       } catch (e) {
         loggy.error("failed to set system proxy: $e");
-        rethrow;
+        // **绝不能 `rethrow`**：TaskEither 体内抛出会变成"被拒绝的 Future"而不是 Left，
+        // 于是 `ConnectionNotifier.setCapture` 里的 `applied.isRight()` 根本执行不到、
+        // 「失败则重启内核兜底」永不触发，异常还会逃到平台层变成 PlatformDispatcherError。
+        // 实测就是这条让系统代理永远开不起来 ⇒ 没有流量（2026-09-15 13:49:07 的日志）。
+        return left("failed to set system proxy: $e");
       }
     });
   }
 
   TaskEither<String, Unit> restart(String path, String name, bool disableMemoryLimit) {
-    return TaskEither(() async {
+    // 走 `Restart` ⇒ 内部就是 Stop + StartService ⇒ 同样必须与 `Parse` 串行
+    return TaskEither(() => _serializeRegistryAccess(() async {
       loggy.debug("restarting");
       // if (!await core.restart(path, name)) {
       try {
@@ -274,15 +328,7 @@ class HiddifyCoreService with InfraLogger {
       }
 
       return right(unit);
-      // await stop().run();
-      // return await start(path, name, disableMemoryLimit).run();
-      // }
-      // if (!core.isSingleChannel()) {
-      //   await startListeningStatus("bg", core.bgClient);
-      //   await startListeningLogs("bg", core.bgClient);
-      // }
-      // return right(unit);
-    });
+    }));
   }
 
   TaskEither<String, Unit> resetTunnel() {
@@ -301,14 +347,16 @@ class HiddifyCoreService with InfraLogger {
     });
   }
 
-  // Stream<List<OutboundGroup>> watchGroups() async* {
-  //   loggy.debug("watching groups");
-  //   yield* core.bgClient.outboundsInfo(Empty()).map((event) => event.items);
-  //   // res?.cancel();
-  // }
-
-  Stream<OutboundGroup?> watchGroup() async* {
-    loggy.debug("watching group");
+  /// **全部分组**（每组带全部成员 + 实时数据）—— 代理页的运行期**唯一真源**。
+  ///
+  /// 与 `watchGroup` 走同一个 `OutboundsInfo` RPC，区别只在这里**不丢组**：
+  /// 内核 `GetAllProxiesInfo` 本来就返回全量（`v2/hcore/proxy_info.go:128-161`，
+  /// 每个 group 逐个 append；`:144-156` 装 `group.All()` 并逐项标 `IsSelected`），
+  /// 应用侧曾经只取 `.first`，于是不得不另写一套「解析 generateConfig 的 JSON」来
+  /// 重建分组，造成两份模型 + 一层 `_mergeLive` 缝合 —— 列表随连接变化、
+  /// `selectProxy` 下发错组都长在那条缝上。恢复全量即可让内核做唯一来源。
+  Stream<List<OutboundGroup>> watchGroups() async* {
+    loggy.debug("watching groups");
     // interrupt managed by core
 
     if (!core.isInitialized()) {
@@ -316,15 +364,11 @@ class HiddifyCoreService with InfraLogger {
       return;
     }
     try {
-      yield* core.bgClient.outboundsInfo(Empty()).map((event) => event.items.isEmpty ? null : event.items.first);
+      yield* core.bgClient.outboundsInfo(Empty()).map((event) => event.items.toList());
     } catch (e) {
-      loggy.error("error watching group: $e");
+      loggy.error("error watching groups: $e");
       rethrow;
     }
-    // //emitting first event immediately
-    // yield* core.bgClient.outboundsInfo(Empty()).take(1).map((event) => event.items.isEmpty ? null : event.items.first);
-    // //emitting other event after every 4 seconds(latest event)
-    // yield* core.bgClient.outboundsInfo(Empty()).throttleTime(const Duration(seconds: 4), leading: false, trailing: true).map((event) => event.items.isEmpty ? null : event.items.first);
   }
 
   Stream<List<OutboundGroup>> watchActiveGroups() async* {
@@ -374,7 +418,8 @@ class HiddifyCoreService with InfraLogger {
         return right(unit);
       } catch (e) {
         loggy.error("error selecting outbound: $e");
-        rethrow;
+        // 同 setSystemProxyEnabled：TaskEither 体内不能抛，必须返回 Left
+        return left("error selecting outbound: $e");
       }
     });
   }
@@ -389,7 +434,8 @@ class HiddifyCoreService with InfraLogger {
         return right(unit);
       } catch (e) {
         loggy.error("error in url test: $e");
-        rethrow;
+        // 同 setSystemProxyEnabled：TaskEither 体内不能抛，必须返回 Left
+        return left("error in url test: $e");
       }
     });
   }
@@ -411,59 +457,15 @@ class HiddifyCoreService with InfraLogger {
       loggy.error("error watching logs: $e");
       rethrow;
     }
-    // Stream<List<String>> logStream(CoreClient coreClient) {
-    //   return coreClient.logListener(Empty()).asBroadcastStream().map((event) => [event.message]).onErrorResume((error, stackTrace) {
-    //     loggy.debug('Error in $coreClient: $error, retrying...');
-    //     final delay = (currentState == const SingboxStatus.stopped()) ? 5 : 1;
-    //     return const Stream<List<String>>.empty().delay(Duration(seconds: delay)).concatWith([logStream(coreClient)]);
-    //   });
-    // }
-
-    // // Create streams for both fg and bg clients with retry logic
-    // final fgLogStream = logStream(core.fgClient);
-
-    // if (core.bgClient == core.fgClient) {
-    //   yield* fgLogStream;
-    //   return;
-    // }
-    // final bgLogStream = logStream(core.bgClient);
-    // yield* MergeStream([bgLogStream, fgLogStream]);
   }
 
   TaskEither<String, Unit> clearLogs() {
     return TaskEither(() async {
       loggy.debug("clearing logs");
       logBuffer.clear();
-      // final res = await core.bgClient(Empty());
-      // if (res.code != ResponseCode.OK) return left("${res.code} ${res.message}");
       return right(unit);
     });
   }
-
-  // TaskEither<String, WarpResponse> generateWarpConfig({
-  //   required String licenseKey,
-  //   required String previousAccountId,
-  //   required String previousAccessToken,
-  // }) {
-  //   return TaskEither(() async {
-  //     loggy.debug("generating warp config");
-  //     final warpConfig = await core.fgClient.generateWarpConfig(
-  //       GenerateWarpConfigRequest(
-  //         licenseKey: licenseKey,
-  //         accountId: previousAccountId,
-  //         accessToken: previousAccessToken,
-  //       ),
-  //     );
-  //     // if (warpConfig.code != ResponseCode.OK) return left("${warpConfig.code} ${warpConfig.message}");
-  //     final WarpResponse warp = (
-  //       log: warpConfig.log,
-  //       accountId: warpConfig.account.accountId,
-  //       accessToken: warpConfig.account.accessToken,
-  //       wireguardConfig: jsonEncode(warpConfig.config.toProto3Json()),
-  //     );
-  //     return right(warp);
-  //   });
-  // }
 
   Stream<CoreStatus> watchStatus() async* {
     await startListeningStatus("bg", core.bgClient);
@@ -589,7 +591,6 @@ class HiddifyCoreService with InfraLogger {
       config_log_level.LogLevel.error => LogLevel.ERROR,
       config_log_level.LogLevel.fatal => LogLevel.FATAL,
       config_log_level.LogLevel.panic => LogLevel.FATAL,
-      _ => LogLevel.INFO, // Default case
     };
   }
 
@@ -600,12 +601,13 @@ class HiddifyCoreService with InfraLogger {
     if (!core.isSingleChannel()) {
       await stopListenSingle("fg");
       await stopListenSingle("bg");
+      // try both channel modes; failures mean "already closed" and are safe to swallow
       try {
         await core.fgClient.close(CloseRequest(mode: SetupMode.GRPC_NORMAL_INSECURE));
-      } catch (e) {}
+      } catch (_) {}
       try {
         await core.fgClient.close(CloseRequest(mode: SetupMode.GRPC_NORMAL));
-      } catch (e) {}
+      } catch (_) {}
     }
   }
 

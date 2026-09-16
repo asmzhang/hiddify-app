@@ -1,3 +1,4 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hiddify/core/localization/translations.dart';
@@ -7,6 +8,7 @@ import 'package:hiddify/core/widget/adaptive_icon.dart';
 import 'package:hiddify/core/widget/nekobox/nk_card.dart';
 import 'package:hiddify/core/widget/nekobox/nk_theme.dart';
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
+import 'package:hiddify/features/proxy/data/offline_proxy_parser.dart';
 import 'package:hiddify/gen/fonts.gen.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hiddify/utils/custom_loggers.dart';
@@ -20,40 +22,83 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 /// MaterialCard(margin 4 / elevation 2 / 圆角 4)
 ///  └ 横向：左缘 4dp 选中条（未选中 = 透明占位，保持行高一致）
 ///     └ 纵向：
-///        行1 名称（粗体）                      行内动作：⤴ 分享（复制出站 JSON）
+///        行1 名称（粗体）                      行内动作：✎ 编辑 / ⤴ 分享 / 🗑 删除
 ///        行2 地址（次色）                       流量 ↑/↓
 ///        行3 协议（按协议着色的纯文字）        状态（延迟绿/红纯文字）
 /// ```
 ///
-/// 与 NekoBox 的三处刻意差异（都属"hiddify 功能最后补充"原则）：
-/// - 长按弹出节点详情（补充能力）；国旗/序号暂不显示（二期按需补回）；
-/// - ✎（编辑节点）未做：NekoBox 点它进的是**节点编辑表单**，而 hiddify 侧没有节点级
-///   编辑页（`OutboundInfo` 不含凭据字段），属实体级补齐，见 docs/audit；
-/// - 🗑 与 NekoBox 一致默认隐藏（订阅节点的增删走订阅更新）；
-/// - 协议用**纯彩色文字**而非带色 chip：这是照 NekoBox 源码 `@id/profile_type`
-///   （`textColor=?attr/accentOrTextSecondary` 的 TextView）实装，mockup 里的 chip
-///   是原型稿的美化。
+/// 行内动作照 `layout_profile.xml` 的**顺序与可见性**：`edit` → `share` → `remove`，
+/// 三者默认显示，且只有"正在使用的那一个节点"禁用编辑/删除
+/// （`ui/ConfigurationFragment.kt:1624-1625`：`isEnabled = !started`；
+///  `:1612-1613` 的 `isGone = select` 只在"选择器模式"下隐藏 —— 那是 Chain 端点选择等场景）。
+///
+/// 与 NekoBox 的差异：
+/// - **✎ 只覆盖 4 种协议**（anytls / vless / hysteria2 / shadowsocks，真机 84 个节点的
+///   100%）。其余协议（NekoBox 另有 8 份表单）没有表单，[onEdit] 传 null ⇒ 不显示按钮。
+///   规格源仍是 NekoBox 的 `res/xml/*_preferences.xml`，见 `protocol_form.dart`。
+/// - 改名（NekoBox `name_preferences.xml`）未纳入表单：`tag` 是节点身份，改名要跨
+///   内核配置 / 选中偏好 / 删除基线三处迁移，属独立改动。
+/// - 长按弹出节点详情（hiddify 补充能力）；国旗/序号暂不显示。
+/// - 协议用**纯彩色文字**而非带色 chip：照 NekoBox 源码 `@id/profile_type`
+///   （`textColor=?attr/accentOrTextSecondary` 的 TextView），mockup 里的 chip 是原型稿美化。
 class ProxyTile extends HookConsumerWidget with PresLogger {
-  const ProxyTile(this.proxy, {super.key, required this.selected, required this.onTap});
+  const ProxyTile(
+    this.proxy, {
+    super.key,
+    required this.selected,
+    required this.onTap,
+    this.onEdit,
+    this.onDelete,
+    this.editEnabled = true,
+    this.deleteEnabled = true,
+  });
 
   final OutboundInfo proxy;
   final bool selected;
   final GestureTapCallback? onTap;
+
+  /// ✎ 编辑节点（NekoBox `layout_profile.xml` 的 `@id/edit` → 该协议的 `*SettingsActivity`）。
+  /// 为 null 时**不显示** —— 该协议还没有表单，或这一行不是实体（列表在走配置回落）。
+  final VoidCallback? onEdit;
+
+  /// 🗑 删除节点（NekoBox `removeButton`）。为 null 时**不显示**这个按钮
+  /// （用于"这一行不是实体"的情形 —— 例如列表还在走配置回落）。
+  final VoidCallback? onDelete;
+
+  /// 是否可用 —— 照 NekoBox `ConfigurationFragment.kt:1624-1625` 的 `isEnabled = !started`：
+  /// **正在使用的那个节点不允许编辑/删除**。
+  final bool editEnabled;
+
+  /// 是否可用 —— 同 [editEnabled]。
+  final bool deleteEnabled;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final t = ref.watch(translationsProvider).requireValue;
     final delay = proxy.urlTestDelay;
-    final address = '${proxy.host}:${proxy.port}';
+    // 行2 左侧：地址 —— 取自**实体**（NekoBox `AbstractBean.displayAddress()`），
+    // 不是运行期：内核的 `OutboundInfo` 不给 host/port。见 `displayAddress()`。
+    final address = displayAddress(proxy.host, proxy.port);
     // 行3 左侧：协议类型 —— NekoBox 用 accentOrTextSecondary 的纯彩色文字（非徽标）。
     final typeColor = NkColors.protocolColor(proxy.type);
     // 行3 右侧：状态 —— 分组显示当前选中项；节点显示延迟（绿/红纯文字，复用 PingBadge 文案规则）。
+    // 负数编码 = 实体测速结果里的"不可用"（TCP ping 落库的分类，见
+    // `encodeOfflineTestResult`），显示为 NekoBox `connection_test_*` 文案而非 "×"。
     final String statusText;
     final Color statusColor;
     if (proxy.isGroup) {
       statusText = proxy.groupSelectedTagDisplay.trim();
       statusColor = theme.colorScheme.onSurfaceVariant;
+    } else if (offlineTestErrorKey(delay) case final errorKey?) {
+      statusText = switch (errorKey) {
+        'testRefused' => t.pages.proxies.msg.testRefused,
+        'testTimeout' => t.pages.proxies.msg.testTimeout,
+        'testUnreachable' => t.pages.proxies.msg.testUnreachable,
+        'testDomainNotFound' => t.pages.proxies.msg.testDomainNotFound,
+        _ => t.pages.proxies.msg.testUnreachable,
+      };
+      statusColor = NkColors.latencyBad;
     } else if (delay <= 0) {
       statusText = '—';
       statusColor = theme.colorScheme.onSurfaceVariant;
@@ -88,10 +133,9 @@ class ProxyTile extends HookConsumerWidget with PresLogger {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // 行 1：名称（粗体）+ 行内动作（对标 NekoBox 卡片右缘的 ⤴）。
-                      // NekoBox 这里还有 ✎（编辑节点）与 🗑（默认隐藏）：前者要先有
-                      // "节点级编辑表单"（属实体级补齐，需 core 提供凭据字段），
-                      // 订阅节点的删除走订阅更新，所以这里只保留分享。
+                      // 行 1：名称（粗体）+ 行内动作。
+                      // 顺序照 NekoBox `layout_profile.xml`：edit → share → remove
+                      // （`edit` 暂缺，见类注释）。
                       Padding(
                         padding: const EdgeInsets.fromLTRB(12, 4, 4, 0),
                         child: Row(
@@ -108,14 +152,19 @@ class ProxyTile extends HookConsumerWidget with PresLogger {
                               ),
                             ),
                             NkCardAction(
+                              icon: FluentIcons.edit_24_regular,
+                              tooltip: t.common.edit,
+                              onTap: editEnabled ? onEdit : null,
+                            ),
+                            NkCardAction(
                               icon: AdaptiveIcon(context).share,
                               tooltip: t.common.share,
                               onTap: () async {
                                 final json = await ref.read(outboundJsonProvider(proxy.tag).future);
                                 if (!context.mounted) return;
                                 if (json == null) {
-                                  // 只在"配置里找不到这个 tag"时发生（理论上不该出现：
-                                  // 列表本身就是从同一份配置解析出来的），所以用通用错误文案。
+                                  // 只在"两个来源都找不到这个 tag"时发生（理论上不该出现：
+                                  // 列表本身就是从实体或同一份配置来的），所以用通用错误文案。
                                   ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
                                   return;
                                 }
@@ -126,6 +175,13 @@ class ProxyTile extends HookConsumerWidget with PresLogger {
                                     .showSuccessToast(t.common.msg.export.clipboard.success);
                               },
                             ),
+                            if (onDelete != null)
+                              NkCardAction(
+                                icon: AdaptiveIcon(context).delete,
+                                tooltip: t.common.delete,
+                                // 正在使用的那个节点不允许删除（NekoBox `!started`）
+                                onTap: deleteEnabled ? onDelete : null,
+                              ),
                           ],
                         ),
                       ),

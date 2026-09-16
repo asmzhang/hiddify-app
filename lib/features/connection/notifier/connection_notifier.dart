@@ -11,7 +11,10 @@ import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/system_proxy_notifier.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
+import 'package:hiddify/features/settings/data/config_option_repository.dart';
+import 'package:hiddify/hiddifycore/hiddify_core_service_provider.dart';
 import 'package:hiddify/hiddifycore/init_signal.dart';
+import 'package:hiddify/singbox/model/singbox_config_enum.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:in_app_review/in_app_review.dart';
@@ -49,12 +52,11 @@ class ConnectionNotifier extends _$ConnectionNotifier with AppLogger {
 
     ref.listen(activeProfileProvider.select((value) => value.asData?.value), (previous, next) async {
       if (previous == null) return;
-      // **只在真的换了订阅时重连**（id 变了）。
+      // **只在真的换了订阅时重连**（id 变了）。订阅内容更新走 `profile_notifier`
+      // 那条路径（`updateProfile` → `reconnect`），不在这里重复触发。
       //
-      // 更新订阅（同一个 id，只有内容变了）**不碰连接** —— 照 nekoray：
-      // 订阅更新是纯数据操作（`GroupUpdater::Update` 全程不 restart、不 start），
-      // 列表直接来自数据层所以立刻就变，跟连接状态完全分开。
-      // （我之前用 lastUpdate 触发重连，等于把"更新订阅"和"重启连接"焊在一起，是错的。）
+      // 注意（本条此前写反过）：下面 `reconnect` 现在只保证「内核在有就跑新配置」，
+      // **不碰接管状态** —— 更新订阅不会让连接断开或接管。
       final shouldReconnect = next == null || previous.id != next.id;
       if (shouldReconnect) {
         loggy.info("active profile changed (id: ${previous.id} -> ${next?.id}) - reconnecting");
@@ -63,10 +65,17 @@ class ConnectionNotifier extends _$ConnectionNotifier with AppLogger {
     });
     ref.watch(coreRestartSignalProvider);
 
-    // **每次启动都从"不接管"开始** ——「不要自动连接」。
-    // 接管状态是落盘的，用户上次试过之后下次打开就会自动接管，所以这里显式复位。
+    // **应用启动时从"不接管"开始** ——「不要自动连接」。
+    // 接管状态是落盘的，用户上次试过之后下次打开就会自动接管，所以启动时复位一次。
     // （内核照旧静默起来，所以"没连接也能测速"不受影响。）
-    Future.microtask(() => ref.read(Preferences.captureEnabled.notifier).update(false));
+    //
+    // ⚠️ 只能做一次：captureEnabled 一变化就会重建本 notifier（下面 watch 了
+    // capturingProvider），若复位挂在每次 build 上，用户刚打开的开关会被自己的
+    // 重建清掉 —— 这是「开了关不了」的第一环。
+    if (!_captureResetDone) {
+      _captureResetDone = true;
+      Future.microtask(() => ref.read(Preferences.captureEnabled.notifier).update(false));
+    }
 
     // **内核默认常驻**：应用起来（且有订阅）就把它拉起来 —— 但**不接管流量**
     // （`captureEnabled` 默认 false）。这样"没连接也能测速、挑节点"成立，
@@ -107,6 +116,10 @@ class ConnectionNotifier extends _$ConnectionNotifier with AppLogger {
   bool _coreStarted = false;
 
   bool _autoStartAttempted = false;
+
+  /// 「启动时不接管」的复位**只做一次**。
+  /// 挂在每次 build 上会清掉用户刚打开的开关（captureEnabled 一变化就重建本 notifier）。
+  bool _captureResetDone = false;
 
   /// 静默把内核拉起来（**不接管**，因为 `captureEnabled` 默认 false）。
   ///
@@ -156,10 +169,30 @@ class ConnectionNotifier extends _$ConnectionNotifier with AppLogger {
 
   /// 切换**是否接管流量** —— 与"内核在不在跑"完全独立的一个量。
   ///
-  /// 接管与否只在启动时生效（TUN 更是只能在启动时决定），所以内核已经在跑的时候
-  /// 要**重启内核**才能应用。nekoray 切 TUN 也是这么做的（`neko_start(started_id)`）。
+  /// 但那只对**系统代理**成立。另外两种模式里，「连接」就等于「内核在不在跑」：
+  /// - **TUN**：`capturing == coreUp`（网卡和路由只能在启动时建）
+  /// - **仅代理**：根本没有"接管"这回事，内核只是等着被程序连
+  ///
+  /// 所以这两种模式：**开 = 启内核，关 = 停内核**。
+  /// （审计发现：原来只有 TUN 分支这么处理，仅代理模式会一路走到最后的
+  ///  "重启内核"路径 —— 但重启后 `capturing` 仍为 false，于是白重启一次、
+  ///  状态还永远停在"未连接"。）
   Future<void> setCapture(bool enabled) async {
-    if (ref.read(Preferences.captureEnabled) == enabled) return;
+    final mode = ref.read(ConfigOptions.serviceMode);
+
+    if (mode != ServiceMode.systemProxy) {
+      if (enabled) {
+        if (!_coreStarted) await _connect();
+      } else if (_coreStarted) {
+        await _disconnect();
+      }
+      return;
+    }
+
+    // 幂等判断看**实际接管状态**，并与落盘开关一起确认 ——
+    // 只看 captureEnabled 的话，它一旦与实际接管错位（如启动复位的时序），
+    // 「关闭」就会被这行静默吞掉。
+    if (ref.read(capturingProvider) == enabled && ref.read(Preferences.captureEnabled) == enabled) return;
     await ref.read(Preferences.captureEnabled.notifier).update(enabled);
 
     // 内核还没跑：启动它就行，这次启动会带上刚改好的接管设置
@@ -167,6 +200,16 @@ class ConnectionNotifier extends _$ConnectionNotifier with AppLogger {
       await _connect();
       return;
     }
+
+    // **系统代理可以运行时切换，不必重启内核** —— core 提供了 `SetSystemProxyEnabled`，
+    // 它直接改系统代理设置（注册表级），内核继续跑、连接不断。
+    // 成功即结束；失败则**自动落到下面"重启内核"的路径兜底**，行为不会比原来更差。
+    final applied = await ref.read(hiddifyCoreServiceProvider).setSystemProxyEnabled(enabled).run();
+    if (applied.isRight()) {
+      loggy.info("capture ${enabled ? "enabled" : "disabled"} - applied at runtime (no core restart)");
+      return;
+    }
+    loggy.warning("runtime system-proxy switch failed, falling back to core restart: $applied");
 
     final profile = await ref.read(activeProfileProvider.future);
     if (profile == null) return;
@@ -180,22 +223,52 @@ class ConnectionNotifier extends _$ConnectionNotifier with AppLogger {
     }).run();
   }
 
+  /// 让内核用上「当前的订阅配置」—— 换订阅、订阅内容更新都走这里。
+  ///
+  /// **契约：只动内核，不动接管状态。** 内核在跑就重载成新配置；接管与否由用户
+  /// 的开关决定，不因为这个调用而变化。
+  ///
+  /// 历史（重要）：这里原来只有 `state == Connected`（= **接管中**）才重连。于是
+  /// 桌面默认（`captureEnabled=false`，内核常驻但不接管）下，更新订阅内容或切换
+  /// 激活订阅都**不会**让内核换成新配置。代理页的清单现在来自内核（见
+  /// `docs/design/proxy-model-root-fix.md`），内核不重载就意味着：列表滞后于订阅，
+  /// 而且「选择了别的订阅的节点」落盘的那笔 pending 永远等不到新内核来应用。
   Future<void> reconnect(ProfileEntity? profile) async {
-    if (state case AsyncData(:final value) when value == const Connected()) {
-      if (profile == null) {
+    if (state is! AsyncData) return;
+
+    // 没有激活订阅：接管中就断开；没接管则无事可做（内核也不该继续跑）。
+    if (profile == null) {
+      if (state.value == const Connected()) {
         loggy.info("no active profile, disconnecting");
         return _disconnect();
       }
-      loggy.info("active profile changed, reconnecting");
-      await ref.read(Preferences.startedByUser.notifier).update(true);
-      await _connectionRepo.reconnect(profile, ref.read(Preferences.disableMemoryLimit)).mapLeft((err) async {
-        loggy.warning("error reconnecting", err);
-        state = AsyncError(err, StackTrace.current);
-        await ref
-            .read(dialogNotifierProvider.notifier)
-            .showCustomAlertFromErr(err.present(ref.read(translationsProvider).requireValue));
-      }).run();
+      return;
     }
+
+    // 内核没跑：什么都不用做 —— 下次启动（用户点连接或 `_autoStartOnce`）自然读到新配置。
+    if (!_coreStarted) {
+      loggy.debug("core is not running, nothing to reload (the next start picks up the new config)");
+      return;
+    }
+
+    final capturing = state.value == const Connected();
+    if (capturing) {
+      await ref.read(Preferences.startedByUser.notifier).update(true);
+    }
+    loggy.info(
+      capturing
+          ? "active profile changed, reconnecting"
+          : "reloading core with the new config (not capturing - capture state untouched)",
+    );
+    await _connectionRepo.reconnect(profile, ref.read(Preferences.disableMemoryLimit)).mapLeft((err) async {
+      loggy.warning(capturing ? "error reconnecting" : "error reloading core", err);
+      // 未接管时不动 state：那是由内核状态流驱动、且当前就是 Disconnected，
+      // 抢着写 AsyncError 只会让界面闪烁；错误用对话框告知即可。
+      if (capturing) state = AsyncError(err, StackTrace.current);
+      await ref
+          .read(dialogNotifierProvider.notifier)
+          .showCustomAlertFromErr(err.present(ref.read(translationsProvider).requireValue));
+    }).run();
   }
 
   Future<void> abortConnection() async {

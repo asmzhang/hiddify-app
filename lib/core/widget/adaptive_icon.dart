@@ -16,4 +16,7 @@ class AdaptiveIcon {
     TargetPlatform.iOS || TargetPlatform.macOS => FluentIcons.share_ios_24_regular,
     _ => FluentIcons.share_24_regular,
   };
+
+  /// 删除（NekoBox 节点行的 🗑）。Fluent 的 delete 图标各平台一致，不做分支。
+  IconData get delete => FluentIcons.delete_24_regular;
 }

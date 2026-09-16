@@ -40,32 +40,46 @@ lib/
 
 ---
 
-## 3. 剩余 25 条清单与建议修法
+## 3. 剩余 8 条清单与建议修法
 
-### A. 对话框/弹窗里的业务组件（7 个文件，最容易修）
+> 2026-09-14 更新：A 组（对话框/弹窗）已全部完成 —— 见下节。
+> 逆依赖 **47 → 25（组合根）→ 16（对话框）→ 8（弹窗）**，涉及文件 13 → 12 → 5。
 
-| 文件 | 反向依赖 | 建议 |
-|---|---|---|
-| `core/router/dialog/widgets/sort_profiles_dialog.dart` | `features/profile/*` | 挪到 `features/profile/widget/`，调用方（profiles_page 等）直接 push；`DialogNotifier.showSortProfiles()` 退役 |
-| `core/router/dialog/widgets/new_version_dialog.dart` | `features/app_update/*` | 挪到 `features/app_update/widget/` |
-| `core/router/dialog/widgets/window_closing_dialog.dart` | `features/window/*` | 挪到 `features/window/widget/` |
-| `core/router/dialog/widgets/setting_checkbox_dialog.dart` | `features/route_rules/notifier` | 该对话框被路由规则页专用 → 挪到 `features/route_rules/widget/` |
-| `core/router/dialog/widgets/setting_picker_dialog.dart` | `features/settings/widget/preference_tile.dart` | 抽出"旗帜/图标展示"到 core（或改为传 `Widget Function(T)` 由调用方给） |
-| `core/router/dialog/dialog_notifier.dart` | 上述 4 个 + `features/common/qr_code_*` | 只留通用对话框（确认/输入/选择/OK），业务对话框的 `showXxx()` 方法随之搬到对应 feature |
-| `core/router/bottom_sheets/*`（3 个文件） | `features/{profile,route_rules,per_app_proxy,chain,settings}` | 同法：`AddProfileModal` / `PredefinedRulesModal` / `AutoAppsSelectionModal` / `QuickSettingsModal` 各归其 feature；`BottomSheetsNotifier` 只留通用的 `_show` 机制 |
+### A. 对话框/弹窗（✅ 已完成）
 
-### B. 偏好 / 数据层（4 个文件，需先移模型）
+做法：core 只留两个"纯基础设施 + 零业务内容"的入口 ——
+`showRootDialog()`（`core/router/dialog/root_dialog.dart`）与
+`showRootBottomSheet()`（`core/router/bottom_sheets/root_bottom_sheet.dart`）；
+每个业务对话框/弹窗搬回它的 feature，并在同文件导出 `showXxxDialog()/showXxxSheet()` 薄入口，
+调用方改调它。`DialogNotifier` 只留通用对话框（确认/输入/选择/OK…），
+`BottomSheetsNotifier` 整个删除。
 
-| 文件 | 反向依赖 | 建议 |
-|---|---|---|
-| `core/preferences/general_preferences.dart` | `features/per_app_proxy/model/per_app_proxy_mode.dart`、`features/window/notifier/window_notifier.dart` | `PerAppProxyMode` 是"偏好枚举"，应下沉到 core（或 core 定义、feature 扩展）；window 的偏好项改成 core 里的纯值 |
-| `core/db/db.dart` | `features/profile/model/profile_entity.dart`、`features/per_app_proxy/model/per_app_proxy_mode.dart` | DB 表结构依赖领域模型 → 二选一：把这两个模型下沉到 core，或把 `db.dart` 上移到 features 之上的数据层。**先定模型归属，再动 DB**（涉及 drift schema/迁移，风险最高，放最后） |
-| `core/http_client/http_client_provider.dart` | `features/settings/data/config_option_repository.dart` | 它只是为了读代理/UA 偏好 → 直接读 `Preferences`，不要依赖 feature 仓库 |
-| `core/router/adaptive_layout/shell_drawer.dart` | 无 | （示例：留 core 的正面样本） |
+已搬：`sort_profiles_dialog`→profile、`new_version_dialog`→app_update、
+`window_closing_dialog`→window、`setting_checkbox_dialog`→route_rules、
+`predefined_rules_modal`（入口函数）、`add_profile_modal`（含深链确认）、
+`quick_settings_modal`→settings、`auto_apps_selection_modal`→per_app_proxy。
+顺手删掉零调用的 `showExperimentalFeatureNotice`。
 
-**顺序建议**：A（对话框/弹窗，纯搬移+改调用点）→ B 前三项（偏好/HTTP，改动小）→ `db.dart`（最后，需处理 drift 迁移）。
+### B. 偏好 / 数据层（✅ 已完成，2026-09-14）
 
-每步都要：`flutter analyze`（0 error）→ `dart run build_runner build` → `flutter build windows --release` → 真机跑一遍截图（`core/router` 与启动路径相关时必跑）。
+做法：**共享模型/常量下沉 core，原位置留 `export` 薄转发**，调用方零改动或只改 import：
+
+| 下沉对象 | 原位置 | 现位置 | 说明 |
+|---|---|---|---|
+| `PerAppProxyMode` / `AppProxyMode` | `features/per_app_proxy/model/per_app_proxy_mode.dart` | `core/model/per_app_proxy_mode.dart` | 偏好 + DB 双方都要用的枚举；原文件改为单行 `export`，10 个调用方无需改 import |
+| `ProfileType` | `features/profile/model/profile_entity.dart` | `core/model/profile_type.dart` | db.dart 实际只用这个枚举（不是 `ProfileEntity` 本身）；profile_entity `export` 保持兼容 |
+| `minimumWindowSize` / `defaultWindowSize` | `features/window/notifier/window_notifier.dart` | `core/model/window_size.dart` | 窗口尺寸常量（general_preferences 的 windowSize 默认值需要） |
+| `ConfigOptions.mixedPort` | `features/settings/data/config_option_repository.dart` | `core/preferences/port_preferences.dart`（`PortPreferences.mixedPort`） | HTTP 客户端（core）需要监听该端口建立本地代理；`ConfigOptions.mixedPort` 改为别名引用，settings 页面零改动 |
+
+改动的 core 文件（import 换到 core 内部）：
+`general_preferences.dart`、`db.dart`、`http_client_provider.dart`、`config_option_repository.dart`（补 PortPreferences import）、`window_notifier.dart`（补回 Preferences import + 换 window_size）。
+
+**效果：core→features 逆依赖 47 → 25（组合根）→ 16（对话框）→ 8（弹窗）→ 5 → 0（B 组），涉及文件 13 → 12 → 5 → 0。**
+**`lib/core` 不再 import `lib/features` / `lib/app`（drift 生成文件 db.g.dart 除外，其 import 由 part 结构决定、与源文件一致）。**
+
+经验教训：
+- drift 的 `textEnum<T>()` 只需要枚举类型本身，不需要 freezed 实体——先看 db.dart 真正用了什么，不要被 "DB 依赖领域模型" 的表象吓住，迁移风险实际为零（表结构未动，schemaVersion 仍是 6）。
+- 换 import 时先 grep 该文件对旧 import 其余符号的引用（window_notifier 还用 `Preferences`，不能整行删）。
 
 ---
 

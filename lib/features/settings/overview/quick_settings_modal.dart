@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hiddify/core/localization/translations.dart';
+import 'package:hiddify/core/router/bottom_sheets/root_bottom_sheet.dart';
 import 'package:hiddify/features/chain/overview/chain_quick_settings.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/features/settings/widget/lan_sharing_tile.dart';
@@ -79,3 +80,6 @@ class QuickSettingsModal extends HookConsumerWidget {
     );
   }
 }
+
+/// 弹出"快捷设置"底部弹窗（业务入口留在 feature 侧）。
+Future<void> showQuickSettingsSheet() => showRootBottomSheet<void>(child: const QuickSettingsModal());

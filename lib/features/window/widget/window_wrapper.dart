@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:hiddify/core/preferences/actions_at_closing.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
-import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/router/navigation_keys.dart';
 import 'package:hiddify/features/window/notifier/window_notifier.dart';
+import 'package:hiddify/features/window/widget/window_closing_dialog.dart';
 import 'package:hiddify/utils/custom_loggers.dart';
 import 'package:hiddify/utils/platform_utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -60,7 +60,7 @@ class _WindowWrapperState extends ConsumerState<WindowWrapper> with WindowListen
       case ActionsAtClosing.ask:
         if (isWindowClosingDialogOpened) return;
         isWindowClosingDialogOpened = true;
-        await ref.read(dialogNotifierProvider.notifier).showWindowClosing();
+        await showWindowClosingDialog();
         isWindowClosingDialogOpened = false;
 
       case ActionsAtClosing.hide:

@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/notification/in_app_notification_controller.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
-import 'package:hiddify/core/widget/adaptive_icon.dart';
 import 'package:hiddify/core/widget/adaptive_menu.dart';
+import 'package:hiddify/features/common/qr_code_dialog.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
 import 'package:hiddify/features/profile/overview/profiles_notifier.dart';
 import 'package:hiddify/utils/utils.dart';
@@ -41,7 +41,7 @@ List<AdaptiveMenuItem> buildProfileShareItems(BuildContext context, WidgetRef re
         onTap: () async {
           final link = LinkParser.generateSubShareLink(url, name);
           if (link.isNotEmpty) {
-            await ref.read(dialogNotifierProvider.notifier).showQrCode(link, message: name);
+            await showQrCodeDialog(link, message: name);
           }
         },
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
+import 'package:hiddify/core/router/dialog/root_dialog.dart';
 import 'package:hiddify/features/route_rules/notifier/rule_notifier.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:protobuf/protobuf.dart';
@@ -59,3 +60,14 @@ class SettingCheckboxDialog extends ConsumerWidget {
     );
   }
 }
+
+/// 弹出多选设置对话框（业务入口留在 feature 侧）。
+Future<List<ProtobufEnum>?> showSettingCheckboxDialog({
+  required String title,
+  required List<ProtobufEnum> values,
+  required List<ProtobufEnum> selectedValues,
+  List<ProtobufEnum>? defaultValue,
+  Map<String, String>? t,
+}) => showRootDialog<List<ProtobufEnum>?>(
+  SettingCheckboxDialog(title: title, values: values, selectedValues: selectedValues, defaultValue: defaultValue, t: t),
+);
