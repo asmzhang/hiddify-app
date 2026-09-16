@@ -4,6 +4,7 @@ import 'package:gap/gap.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/notification/in_app_notification_controller.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
+import 'package:hiddify/features/common/qr_code_dialog.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/hiddifycore/hiddify_core_service_provider.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -70,7 +71,7 @@ class LanSharingPreferenceWidget extends HookConsumerWidget {
                     final link = await getSharingLink();
                     if (link != null) {
                       final qrLink = '#profile-title: LAN only\n$link#LAN only';
-                      await ref.read(dialogNotifierProvider.notifier).showQrCode(qrLink, message: link);
+                      await showQrCodeDialog(qrLink, message: link);
                     }
                   },
                   icon: Icon(Icons.qr_code_rounded, color: theme.colorScheme.primary),

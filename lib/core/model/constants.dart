@@ -21,10 +21,12 @@ const kAnimationDuration = Duration(milliseconds: 250);
 
 abstract class AddProfileModalConst {
   static const fixBtnsGap = 16.0;
-  static const fixBtnsGapCount = 5;
-  static const fixBtnsGapCountDesktop = 4;
-  static const fixBtnsItemCount = 4;
-  static const fixBtnsItemCountDesktop = 3;
+  // gapCount = 按钮数 + 1（首尾各一个间距）；itemCount = 按钮数。
+  // 批次 3 加了「手动输入（Manual Settings）」按钮 ⇒ 手机 5 项 / 桌面 4 项（桌面无扫码）。
+  static const fixBtnsGapCount = 6;
+  static const fixBtnsGapCountDesktop = 5;
+  static const fixBtnsItemCount = 5;
+  static const fixBtnsItemCountDesktop = 4;
   static const navBarGap = 16.0;
   static const navBarBottomGap = 4.0;
   //switch default height
@@ -42,17 +44,6 @@ abstract class BottomSheetConst {
   static const maxWidth = 456.0;
   static const boxConstraints = BoxConstraints(maxWidth: maxWidth);
   static const borderRadius = BorderRadius.vertical(top: Radius.circular(32));
-}
-
-abstract class ProfileTileConst {
-  static const radius = Radius.circular(16);
-  static const cardBorderRadius = BorderRadius.all(radius);
-  static const borderRadiusRight = BorderRadius.horizontal(right: radius);
-  static const borderRadiusLeft = BorderRadius.horizontal(left: radius);
-  static BorderRadius startBorderRadius(TextDirection direction) =>
-      direction == TextDirection.ltr ? borderRadiusLeft : borderRadiusRight;
-  static BorderRadius endBorderRadius(TextDirection direction) =>
-      direction == TextDirection.ltr ? borderRadiusRight : borderRadiusLeft;
 }
 
 abstract class IntroConst {

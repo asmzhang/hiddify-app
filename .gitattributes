@@ -1,0 +1,37 @@
+# 统一仓库内文本文件为 LF，检出时也保持 LF（跨平台一致，由本文件决定行尾，
+# 不再依赖各机器的 core.autocrlf 设置）。需要 CRLF 的特例显式列出。
+* text=auto eol=lf
+
+# Windows 批处理必须 CRLF，否则 cmd 解析可能出错
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.sln text eol=crlf
+
+# 二进制文件，禁止任何转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.zip binary
+*.gz binary
+*.tgz binary
+*.tar binary
+*.dll binary
+*.exe binary
+*.lib binary
+*.so binary
+*.dylib binary
+*.aar binary
+*.jar binary
+*.keystore binary
+*.jks binary
+*.p12 binary
+*.pfx binary
+*.db binary

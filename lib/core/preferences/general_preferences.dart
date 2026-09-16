@@ -2,13 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hiddify/core/app_info/app_info_provider.dart';
 import 'package:hiddify/core/model/environment.dart';
+import 'package:hiddify/core/model/per_app_proxy_mode.dart';
 import 'package:hiddify/core/model/region.dart';
+import 'package:hiddify/core/model/window_size.dart';
 import 'package:hiddify/core/preferences/actions_at_closing.dart';
-
 import 'package:hiddify/core/preferences/preferences_provider.dart';
 import 'package:hiddify/core/utils/preferences_utils.dart';
-import 'package:hiddify/features/per_app_proxy/model/per_app_proxy_mode.dart';
-import 'package:hiddify/features/window/notifier/window_notifier.dart';
 import 'package:hiddify/utils/platform_utils.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -109,7 +108,9 @@ abstract class Preferences {
 
   static final dynamicNotification = PreferencesNotifier.create<bool, bool>("dynamic_notification", true);
 
-  static final autoCheckIp = PreferencesNotifier.create<bool, bool>("auto_check_ip", true);
+  /// 接管后是否自动查一次 IP。**默认关** ——「刷新不要自动」，
+  /// 需要时由用户点刷新（`IpInfoNotifier.refresh()`）。
+  static final autoCheckIp = PreferencesNotifier.create<bool, bool>("auto_check_ip", false);
 
   static final startedByUser = PreferencesNotifier.create<bool, bool>("started_by_user", false);
 

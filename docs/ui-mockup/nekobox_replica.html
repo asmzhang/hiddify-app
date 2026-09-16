@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-mode="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NekoBox for Android — UI 复刻原型（hiddify-app 目标态）</title>
+<style>
+  /* ============ 主题变量（对应 NekoBox themes.xml） ============ */
+  :root{
+    --p500:#E91E63; --p700:#C2185B; --accent:#FF4081;
+    --bar:#F06292; --m100:#F8BBD0;
+    --bg:#FAFAFA; --card:#FFFFFF; --text:#212121; --sub:#757575;
+    --divider:#E0E0E0; --tab-un:#99FFFFFF; --tab-on:#FFFFFF;
+    --ok:#4CAF50; --err:#F44336;
+    --hdr-h:52px; --bar-h:44px;
+  }
+  html[data-mode="dark"]{ --bg:#121212; --card:#1E1E1E; --text:#EEEEEE; --sub:#9E9E9E; --divider:#333333; --tab-un:#66FFFFFF; }
+  html[data-mode="amoled"]{ --bg:#000000; --card:#0A0A0A; --text:#E0E0E0; --sub:#8A8A8A; --divider:#222222; --p500:#2B2B2B; --p700:#242424; --bar:#2B2B2B; --accent:#9E9E9E; }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif; background:#2c2f36; color:#eee; padding:18px;}
+  h1{font-size:20px; margin-bottom:4px;}
+  .hint{color:#aab; font-size:12px; margin-bottom:14px;}
+
+  /* ============ 控制条 ============ */
+  .ctrl{display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-bottom:18px;
+        background:#383c45; padding:10px 14px; border-radius:10px; font-size:13px;}
+  .sw{width:22px; height:22px; border-radius:50%; border:2px solid #fff3; cursor:pointer; display:inline-block; vertical-align:middle;}
+  .sw.on{border-color:#fff; box-shadow:0 0 0 2px #fff5;}
+  .seg{display:inline-flex; border:1px solid #ffffff33; border-radius:8px; overflow:hidden;}
+  .seg button{background:none; border:none; color:#ccd; padding:5px 12px; cursor:pointer; font-size:13px;}
+  .seg button.on{background:var(--p500); color:#fff;}
+
+  /* ============ 手机框 ============ */
+  .row{display:flex; gap:22px; flex-wrap:wrap; align-items:flex-start;}
+  .phone{width:340px; height:700px; background:var(--bg); border-radius:26px; overflow:hidden;
+         box-shadow:0 12px 40px #0009; display:flex; flex-direction:column; color:var(--text); position:relative; flex:none;}
+  .cap{font-size:13px; color:#aab; text-align:center; margin-bottom:8px;}
+  .statusbar{height:22px; background:var(--p700); color:#fff; font-size:10px; display:flex; justify-content:space-between; align-items:center; padding:0 10px; flex:none;}
+  .scroll{flex:1; overflow-y:auto; scrollbar-width:thin;}
+
+  /* ============ Toolbar + Tabs（layout_group_list.xml） ============ */
+  .toolbar{background:var(--p500); color:#fff; height:var(--hdr-h); display:flex; align-items:center; padding:0 6px; flex:none;}
+  .toolbar .title{font-weight:600; font-size:16px; margin-left:4px; flex:1;}
+  .ico{width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:17px;}
+  .ico:hover{background:#ffffff22;}
+  .tabs{background:var(--p500); display:flex; gap:2px; padding:0 4px; flex:none;}
+  .tab{color:var(--tab-un); padding:11px 12px 9px; font-size:13px; cursor:pointer; border-bottom:2.5px solid transparent; white-space:nowrap;}
+  .tab.on{color:var(--tab-on); border-bottom-color:var(--tab-on);}
+
+  /* ============ Profile 卡片（layout_profile.xml） ============ */
+  .list{padding:8px;}
+  .pcard{background:var(--card); border-radius:8px; box-shadow:0 1px 3px #0003; margin:5px 3px; padding:9px 10px 8px 14px; position:relative; cursor:pointer;}
+  .pcard.sel::before{content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--p500); border-radius:8px 0 0 8px;}
+  .pcard.sel{outline:1.5px solid var(--p500);}
+  .r1{display:flex; align-items:center; gap:6px;}
+  .r1 .name{font-weight:700; font-size:13.5px; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .r1 .m{color:var(--sub); font-size:12px; cursor:pointer;}
+  .r2{display:flex; justify-content:space-between; color:var(--sub); font-size:11.5px; margin-top:3px;}
+  .r3{display:flex; justify-content:space-between; align-items:center; margin-top:5px;}
+  .chip{font-size:10.5px; padding:1.5px 8px; border-radius:9px; font-weight:600;}
+  .c-vmess{background:#E3F2FD; color:#1565C0;} .c-vless{background:#E8F5E9; color:#2E7D32;}
+  .c-ss{background:#FFF3E0; color:#E65100;} .c-trojan{background:#FCE4EC; color:#AD1457;}
+  .c-hy2{background:#EDE7F6; color:#5E35B1;} .c-anytls{background:#E0F7FA; color:#00838F;}
+  .ping{font-size:11.5px; font-weight:600;} .ping.ok{color:var(--ok);} .ping.err{color:var(--err);} .ping.wait{color:var(--sub);}
+  .sec-title{color:var(--sub); font-size:11px; padding:10px 12px 4px; letter-spacing:.5px;}
+
+  /* ============ 抽屉（main_drawer_menu.xml） ============ */
+  .drawer-bg{position:absolute; inset:0; background:#0006; z-index:5;}
+  .drawer{position:absolute; left:0; top:0; bottom:0; width:258px; background:var(--card); z-index:6; display:flex; flex-direction:column;}
+  .dhead{background:var(--p700); color:#fff; padding:20px 14px 14px;}
+  .dhead .app{font-weight:700; font-size:16px;}
+  .dhead .st{font-size:11.5px; opacity:.85; margin-top:3px;}
+  .ditem{display:flex; gap:14px; align-items:center; padding:12px 16px; font-size:13.5px; cursor:pointer;}
+  .ditem:hover{background:var(--m100);}
+  html[data-mode="dark"] .ditem:hover, html[data-mode="amoled"] .ditem:hover{background:#ffffff10;}
+  .ditem .ic{width:20px; text-align:center;}
+  .dsep{border-top:1px solid var(--divider); margin:6px 0;}
+
+  /* ============ 底部 StatsBar + FAB ============ */
+  .bottom{flex:none; position:relative;}
+  .statsbar{background:var(--bar); color:#fff; height:var(--bar-h); display:flex; align-items:center; justify-content:space-around; font-size:12px;}
+  .fab{position:absolute; right:16px; top:-28px; width:56px; height:56px; border-radius:50%;
+       background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center;
+       box-shadow:0 4px 10px #0005; cursor:pointer; z-index:4;}
+  .ring{position:absolute; inset:-5px; border-radius:50%; border:3px solid var(--accent); border-top-color:transparent; animation:spin 1.1s linear infinite; display:none;}
+  .fab.conn .ring{display:block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ============ 设置页 ============ */
+  .scard{background:var(--card); margin:7px 8px; border-radius:10px; overflow:hidden; box-shadow:0 1px 2px #0002;}
+  .srow{display:flex; align-items:center; gap:12px; padding:11px 14px; border-top:1px solid var(--divider); font-size:13px;}
+  .srow:first-child{border-top:none;}
+  .srow .t{flex:1;} .srow .d{color:var(--sub); font-size:11px; margin-top:2px;}
+  .srow .v{color:var(--sub); font-size:12px;}
+  .toggle{width:34px; height:18px; border-radius:10px; background:#9E9E9E; position:relative; flex:none;}
+  .toggle::after{content:""; position:absolute; left:2px; top:2px; width:14px; height:14px; border-radius:50%; background:#fff; transition:.15s;}
+  .toggle.on{background:var(--accent);} .toggle.on::after{left:18px;}
+
+  /* ============ 编辑页（standard_v2ray_preferences.xml） ============ */
+  .field{padding:8px 14px; border-top:1px solid var(--divider);}
+  .field label{font-size:11px; color:var(--sub); display:block;}
+  .field .in{font-size:13px; padding:3px 0; color:var(--text); border-bottom:1px dashed var(--divider);}
+  .fab-add{position:absolute; right:14px; bottom:calc(var(--bar-h) + 16px);}
+
+  .grid2{display:grid; grid-template-columns:1fr 1fr;}
+
+  /* ============ PC 端（Rail 常驻左侧，已定案） ============ */
+  .pcframe{width:720px; height:460px; background:var(--bg); border-radius:12px; overflow:hidden;
+           box-shadow:0 12px 40px #0009; display:flex; color:var(--text); position:relative; flex:none;}
+  .rail{width:76px; background:var(--card); border-right:1px solid var(--divider); display:flex; flex-direction:column; align-items:center; padding:10px 0; gap:2px; flex:none;}
+  .ritem{width:60px; padding:7px 0; border-radius:10px; text-align:center; font-size:10px; color:var(--sub); cursor:pointer;}
+  .ritem .ri{font-size:17px;}
+  .ritem.on{background:var(--m100); color:var(--p500); font-weight:600;}
+  html[data-mode="dark"] .ritem.on, html[data-mode="amoled"] .ritem.on{background:#ffffff14;}
+  .rsep{width:44px; border-top:1px solid var(--divider); margin:6px 0;}
+  .rgap{flex:1;}
+</style>
+</head>
+<body>
+<h1>NekoBox for Android — UI 复刻原型</h1>
+<div class="hint">目标态规格：hiddify-app（Flutter）按此复刻。结构取自 NekoBoxForAndroid 源码：layout_main / layout_group_list / layout_profile / main_drawer_menu / global_preferences / standard_v2ray_preferences / themes.xml<br>
+状态标记：✅ = 已在 Flutter 实装　⏳ = 计划中（括号内为对应步骤）。差异说明：仪表盘走 hiddify 的 gRPC（不依赖 Clash API）；"推广/文档"两个 NekoBox 抽屉项不移植。</div>
+
+<div class="ctrl">
+  主题色：
+  <span class="sw on" style="background:#E91E63" data-t="--p500:#E91E63;--p700:#C2185B;--accent:#FF4081;--bar:#F06292;--m100:#F8BBD0" title="Pink（默认）"></span>
+  <span class="sw" style="background:#2196F3" data-t="--p500:#2196F3;--p700:#1976D2;--accent:#64B5F6;--bar:#42A5F5;--m100:#BBDEFB" title="Blue"></span>
+  <span class="sw" style="background:#009688" data-t="--p500:#009688;--p700:#00796B;--accent:#4DB6AC;--bar:#26A69A;--m100:#B2DFDB" title="Teal"></span>
+  <span class="sw" style="background:#FFC107" data-t="--p500:#FFC107;--p700:#FFA000;--accent:#FFD54F;--bar:#FFCA28;--m100:#FFECB3" title="Amber"></span>
+  <span class="sw" style="background:#fb7299" data-t="--p500:#fb7299;--p700:#d44a72;--accent:#fb7299;--bar:#fb7299;--m100:#fdd5e0" title="B站粉"></span>
+  &nbsp;模式：
+  <span class="seg" id="mode">
+    <button class="on" data-m="light">日间</button><button data-m="dark">夜间</button><button data-m="amoled">AMOLED</button>
+  </span>
+</div>
+
+<div class="row">
+
+  <!-- ═══════════ 屏1：主界面（ConfigurationFragment） ═══════════ -->
+  <div>
+    <div class="cap">✅ 主界面 · 分组 Tab + 节点卡片 + StatsBar/FAB（FAB 四态已实装；实现另有搜索/排序/列表网格切换/订阅摘要，属"hiddify 功能填充"）</div>
+    <div class="phone">
+      <div class="statusbar"><span>12:30</span><span>▲ 12 KB/s ▼ 340 KB/s 🔋</span></div>
+      <div class="toolbar">
+        <div class="ico">≡</div><div class="title">NekoBox</div>
+        <div class="ico">⌕</div><div class="ico">＋</div><div class="ico">⋮</div>
+      </div>
+      <div class="tabs" id="tabs">
+        <div class="tab on">全部 52</div><div class="tab">冲上云霄 39</div><div class="tab">机场B 13</div>
+      </div>
+      <div class="scroll"><div class="list" id="plist">
+        <div class="sec-title">长按拖拽排序 · 点卡片连接 · 左缘为选中指示条</div>
+        <!-- 卡片由 JS 生成 -->
+      </div></div>
+      <div class="bottom">
+        <div class="fab" id="fab" title="启动/停止（四态动画）">
+          <div class="ring"></div>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm-1.5 5h3v6h-3Zm0 8h3v2h-3Z" opacity=".0"/><path d="M13 3h-2v10h2Zm0 12h-2v6h2Z" transform="rotate(45 12 12)"/></svg>
+        </div>
+        <div class="statsbar">
+          <span>↑ 128 KB/s</span><span>↓ 2.4 MB/s</span><span>可用：200ms</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 屏2：抽屉展开 ═══════════ -->
+  <div>
+    <div class="cap">✅ 抽屉 · 三组菜单（已实装：组分隔线；"推广/文档"不移植）</div>
+    <div class="phone">
+      <div class="statusbar"><span>12:30</span><span>▲ ▼ 🔋</span></div>
+      <div class="drawer-bg"></div>
+      <div class="drawer">
+        <div class="dhead"><div class="app">NekoBox</div><div class="st">已连接 · 冲上云霄-香港01 · 200ms</div></div>
+        <div class="ditem"><span class="ic">▣</span>配置<span style="margin-left:auto;color:var(--sub);font-size:11px">52</span></div>
+        <div class="ditem"><span class="ic">⑂</span>分组</div>
+        <div class="ditem"><span class="ic">⇄</span>路由</div>
+        <div class="ditem"><span class="ic">⚙</span>设置</div>
+        <div class="dsep"></div>
+        <div class="ditem"><span class="ic">☰</span>日志</div>
+        <div class="ditem"><span class="ic"> ◎</span>仪表盘 <span style="margin-left:auto;color:var(--sub);font-size:10px">gRPC</span></div>
+        <div class="ditem"><span class="ic">🧰</span>工具</div>
+        <div class="dsep"></div>
+        <div class="ditem"><span class="ic">◈</span>推广</div>
+        <div class="ditem"><span class="ic">📄</span>文档</div>
+        <div class="ditem"><span class="ic">ⓘ</span>关于</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 屏3：设置页（global_preferences.xml） ═══════════ -->
+  <div>
+    <div class="cap">✅ 设置 · 五类内联（基础/路由/DNS/入站/其他；高频项内联开关/取值/选择行，TLS技巧/链式代理/路由规则保留子页导航；规格源：global_preferences.xml）</div>
+    <div class="phone">
+      <div class="statusbar"><span>12:30</span><span>▲ ▼ 🔋</span></div>
+      <div class="toolbar"><div class="ico">←</div><div class="title">设置</div></div>
+      <div class="scroll">
+        <div class="sec-title">基础</div>
+        <div class="scard">
+          <div class="srow"><div class="t">自动连接<div class="d">启动时连接上次的节点</div></div><div class="toggle on"></div></div>
+          <div class="srow"><div class="t">主题色</div><div class="v">Pink</div></div>
+          <div class="srow"><div class="t">夜间模式<div class="d">跟随系统 / 始终 / 从不</div></div><div class="v">跟随系统</div></div>
+          <div class="srow"><div class="t">服务模式</div><div class="v">VPN</div></div>
+          <div class="srow"><div class="t">MTU</div><div class="v">9000</div></div>
+          <div class="srow"><div class="t">日志级别</div><div class="v">info</div></div>
+        </div>
+        <div class="sec-title">路由</div>
+        <div class="scard">
+          <div class="srow"><div class="t">按应用代理</div><div class="ic">›</div></div>
+          <div class="srow"><div class="t">绕过局域网地址</div><div class="toggle"></div></div>
+          <div class="srow"><div class="t">流量嗅探</div><div class="toggle on"></div></div>
+          <div class="srow"><div class="t">IPv6</div><div class="toggle"></div></div>
+        </div>
+        <div class="sec-title">DNS</div>
+        <div class="scard">
+          <div class="srow"><div class="t">远程 DNS</div><div class="v">https://dns.google/dns-query</div></div>
+          <div class="srow"><div class="t">直连 DNS</div><div class="v">223.5.5.5</div></div>
+          <div class="srow"><div class="t">远程 domain_strategy</div><div class="v">use_ipv4</div></div>
+          <div class="srow"><div class="t">FakeDNS</div><div class="toggle"></div></div>
+        </div>
+        <div class="sec-title">入站</div>
+        <div class="scard">
+          <div class="srow"><div class="t">混合端口</div><div class="v">2080</div></div>
+          <div class="srow"><div class="t">允许来自局域网的连接</div><div class="toggle"></div></div>
+        </div>
+        <div class="sec-title">其他</div>
+        <div class="scard">
+          <div class="srow"><div class="t">延迟测试 URL</div><div class="v">cp.cloudflare.com</div></div>
+          <div class="srow"><div class="t">启用 Clash API</div><div class="toggle on"></div></div>
+          <div class="srow"><div class="t">网络切换时重置连接</div><div class="toggle"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 屏4：节点编辑页（VMess） ═══════════ -->
+  <div>
+    <div class="cap">✅ 编辑页 · Nk 壳（Toolbar ✓保存 + 名称/订阅/流量分组卡片 + 配置内容编辑器；协议级字段表单待实体级补齐）</div>
+    <div class="phone">
+      <div class="statusbar"><span>12:30</span><span>▲ ▼ 🔋</span></div>
+      <div class="toolbar"><div class="ico">←</div><div class="title">VMess</div><div class="ico">✓</div></div>
+      <div class="scroll">
+        <div class="sec-title">基本</div>
+        <div class="scard"><div class="field"><label>名称</label><div class="in">香港-01</div></div></div>
+        <div class="sec-title">代理</div>
+        <div class="scard">
+          <div class="field"><label>地址</label><div class="in">hk01.example.com</div></div>
+          <div class="grid2">
+            <div class="field"><label>端口</label><div class="in">443</div></div>
+            <div class="field"><label>UUID</label><div class="in">a1b2…-…</div></div>
+          </div>
+          <div class="grid2">
+            <div class="field"><label>alterId</label><div class="in">0</div></div>
+            <div class="field"><label>加密</label><div class="in">auto</div></div>
+          </div>
+          <div class="field"><label>传输网络</label><div class="in">ws</div></div>
+          <div class="field"><label>伪装 host / path</label><div class="in">example.com / /ws</div></div>
+        </div>
+        <div class="sec-title">TLS</div>
+        <div class="scard">
+          <div class="srow"><div class="t">TLS</div><div class="toggle on"></div></div>
+          <div class="field"><label>SNI</label><div class="in">example.com</div></div>
+          <div class="field"><label>ALPN</label><div class="in">h2, http/1.1</div></div>
+          <div class="srow"><div class="t">允许不安全</div><div class="toggle"></div></div>
+        </div>
+        <div class="sec-title">Mux</div>
+        <div class="scard">
+          <div class="srow"><div class="t">多路复用</div><div class="toggle on"></div></div>
+          <div class="grid2">
+            <div class="field"><label>协议</label><div class="in">h2mux</div></div>
+            <div class="field"><label>最大并发</label><div class="in">4</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="bottom"><div class="statsbar" style="justify-content:center">保存后自动测试延迟</div></div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 屏5：PC 端（Rail 常驻左侧，已定案） ═══════════ -->
+  <div>
+    <div class="cap">✅ PC 端 · Rail 常驻左侧（同三组菜单；宽屏内容区 + 底部状态条）</div>
+    <div class="pcframe">
+      <div class="rail">
+        <div class="ritem on"><div class="ri">▣</div>配置</div>
+        <div class="ritem"><div class="ri">⑂</div>分组</div>
+        <div class="ritem"><div class="ri">⇄</div>路由</div>
+        <div class="ritem"><div class="ri">⚙</div>设置</div>
+        <div class="rsep"></div>
+        <div class="ritem"><div class="ri">☰</div>日志</div>
+        <div class="ritem"><div class="ri">◎</div>仪表盘</div>
+        <div class="ritem"><div class="ri">🧰</div>工具</div>
+        <div class="rsep"></div>
+        <div class="ritem"><div class="ri">ⓘ</div>关于</div>
+        <div class="rgap"></div>
+        <div style="font-size:9px;color:var(--sub);text-align:center">↑2.4MB/s<br>↓128KB/s</div>
+      </div>
+      <div style="flex:1; display:flex; flex-direction:column;">
+        <div class="toolbar">
+          <div class="title" style="margin-left:12px">配置</div>
+          <div class="ico">⌕</div><div class="ico">＋</div><div class="ico">⋮</div>
+        </div>
+        <div class="tabs">
+          <div class="tab on">全部 52</div><div class="tab">冲上云霄 39</div><div class="tab">机场B 13</div>
+        </div>
+        <div class="scroll"><div class="list" id="plist-pc"></div></div>
+        <div class="bottom">
+          <div class="fab" title="连接开关（四态）">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff"><path d="M13 3h-2v10h2Zm0 12h-2v6h2Z" transform="rotate(45 12 12)"/></svg>
+          </div>
+          <div class="statsbar"><span>↑ 128 KB/s</span><span>↓ 2.4 MB/s</span><span>已连接 · 香港-01 · 200ms</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== 节点卡片数据（对应 layout_profile.xml 三行结构） ===== */
+const nodes=[
+ ["香港-01 ✦已选","hk01.example.com:443","↑ 12 GB / ↓ 34 GB","anytls","c-anytls","200ms","ok",true],
+ ["香港-02","hk02.example.com:443","↑ 3 GB / ↓ 9 GB","anytls","c-anytls","312ms","ok",false],
+ ["日本-奈飞","jp01.example.com:443","—","vmess","c-vmess","450ms","ok",false],
+ ["美国-原生","us01.example.com:8443","—","vless","c-vless","timeout","err",false],
+ ["台湾-Hysteria2","tw01.example.com:36712","↑ 800 MB / ↓ 2 GB","hy2","c-hy2","88ms","ok",false],
+ ["新加坡-SS","sg01.example.com:8388","—","shadowsocks","c-ss","…","wait",false],
+ ["马来-Trojan","my01.example.com:443","—","trojan","c-trojan","…","wait",false],
+];
+const ico='<span class="m">✎</span><span class="m">⤴</span><span class="m">🗑</span>';
+const cardHtml=(n)=>`
+ <div class="pcard${n[7]?" sel":""}">
+  <div class="r1"><span class="name">${n[0]}</span>${ico}</div>
+  <div class="r2"><span>${n[1]}</span><span>${n[2]}</span></div>
+  <div class="r3"><span class="chip ${n[4]}">${n[3]}</span><span class="ping ${n[6]}">${n[5]}</span></div>
+ </div>`;
+document.getElementById("plist").insertAdjacentHTML("beforeend",nodes.map(cardHtml).join(""));
+document.getElementById("plist-pc").insertAdjacentHTML("beforeend",nodes.slice(0,4).map(cardHtml).join(""));
+
+/* ===== 交互 ===== */
+document.querySelectorAll(".sw").forEach(s=>s.onclick=()=>{
+  document.querySelectorAll(".sw").forEach(x=>x.classList.remove("on")); s.classList.add("on");
+  s.dataset.t.split(";").forEach(p=>{const [k,v]=p.split(":"); document.documentElement.style.setProperty(k,v);});
+});
+document.querySelectorAll("#mode button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("#mode button").forEach(x=>x.classList.remove("on")); b.classList.add("on");
+  document.documentElement.dataset.mode=b.dataset.m;
+});
+document.querySelectorAll("#tabs .tab").forEach(t=>t.onclick=()=>{
+  document.querySelectorAll("#tabs .tab").forEach(x=>x.classList.remove("on")); t.classList.add("on");
+});
+const fab=document.getElementById("fab");
+fab.onclick=()=>{fab.classList.toggle("conn");
+  document.querySelector(".statsbar").lastElementChild.textContent=fab.classList.contains("conn")?"已连接 · 香港-01 · 200ms":"已停止";};
+</script>
+</body>
+</html>

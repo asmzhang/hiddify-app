@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/utils/preferences_utils.dart';
-import 'package:hiddify/features/proxy/active/ip_widget.dart';
+import 'package:hiddify/core/widget/country_flag.dart';
 import 'package:hiddify/features/settings/notifier/battery_optimization/battery_optimizations_notifier.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -117,7 +117,7 @@ class ChoicePreferenceWidget<T> extends HookConsumerWidget {
       title: Text(title),
       subtitle: Text(presentChoice(selected)),
       leading: icon != null ? Icon(icon) : null,
-      trailing: showFlag ? flagByTitle(presentChoice(selected), size: 40) : null,
+      trailing: showFlag ? countryFlagByTitle(presentChoice(selected), size: 40) : null,
       enabled: enabled,
       onTap: () async {
         final selection = await ref
@@ -138,18 +138,6 @@ class ChoicePreferenceWidget<T> extends HookConsumerWidget {
         onChanged?.call(selection);
       },
     );
-  }
-
-  static Widget? flagByTitle(String title, {double size = 32}) {
-    if (title.isEmpty) return null;
-    try {
-      final match = RegExp(r'\(([^)]+)\)$').firstMatch(title);
-      final countryCode = match?.group(1);
-      if (countryCode == null) return null;
-      return IPCountryFlag(countryCode: countryCode, size: size);
-    } catch (e) {
-      return null;
-    }
   }
 }
 

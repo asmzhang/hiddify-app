@@ -50,10 +50,13 @@ class LogsOverviewNotifier extends _$LogsOverviewNotifier with AppLogger {
         .read(logRepositoryProvider)
         .requireValue
         .watchLogs()
-        .throttle((_) => Stream.value(_listener?.isPaused ?? false), leading: false, trailing: true)
+        .throttle((_) {
+          // ignore: void_checks
+          return Stream.value(_listener?.isPaused ?? false);
+        }, leading: false, trailing: true)
         .throttleTime(const Duration(milliseconds: 250), leading: false, trailing: true)
-        .asyncMap((event) async {
-          await event.fold(
+        .asyncMap((event) {
+          return event.fold(
             (f) {
               _logs = [];
               state = state.copyWith(logs: AsyncError(f, StackTrace.current));

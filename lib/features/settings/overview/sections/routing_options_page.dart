@@ -6,12 +6,12 @@ import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/region.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
-import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/features/per_app_proxy/model/per_app_proxy_mode.dart';
 import 'package:hiddify/features/per_app_proxy/overview/per_app_proxy_notifier.dart';
 import 'package:hiddify/features/route_rules/notifier/rules_notifier.dart';
+import 'package:hiddify/features/route_rules/overview/predefined_rules_modal.dart';
 import 'package:hiddify/features/route_rules/widget/rule_tile.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/features/settings/widget/preference_tile.dart';
@@ -135,7 +135,7 @@ class RoutingOptionsPage extends HookConsumerWidget {
                     _FabMenuItem(
                       icon: Icons.view_list_rounded,
                       label: t.pages.settings.routing.predefinedRules.title,
-                      onTap: ref.read(bottomSheetsNotifierProvider.notifier).showPredefinedRules,
+                      onTap: showPredefinedRulesSheet,
                     ),
                   ],
                 ),

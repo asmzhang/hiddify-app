@@ -53,6 +53,10 @@ migrate_working_dir/
 # 助手/项目工作数据（记忆、日志等），不入库
 .workbuddy/
 
+# mise 本机工具版本（如需按项目钉版请改为提交 mise.toml 并移除此行）
+.mise.toml
+mise.toml
+
 /assets/core/*
 !/assets/core/.gitkeep
 

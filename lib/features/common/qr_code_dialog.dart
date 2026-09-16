@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hiddify/core/router/dialog/root_dialog.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class QrCodeDialog extends StatelessWidget {
@@ -46,3 +47,7 @@ class QrCodeDialog extends StatelessWidget {
     );
   }
 }
+
+/// 弹出二维码对话框（业务入口留在 feature 侧）。
+Future<void> showQrCodeDialog(String link, {String? message}) =>
+    showRootDialog<void>(QrCodeDialog(link, message: message));

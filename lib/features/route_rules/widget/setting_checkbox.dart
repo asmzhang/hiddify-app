@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hiddify/core/localization/translations.dart';
-import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
+import 'package:hiddify/features/route_rules/widget/setting_checkbox_dialog.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:protobuf/protobuf.dart';
 
@@ -37,15 +37,13 @@ class SettingCheckbox extends ConsumerWidget {
       title: Text(title),
       subtitle: Text(textWithTranslation(selectedValues, ref)),
       onTap: () async {
-        final result = await ref
-            .read(dialogNotifierProvider.notifier)
-            .showSettingCheckbox(
-              title: title,
-              values: values,
-              selectedValues: selectedValues,
-              defaultValue: defaultValue,
-              t: t,
-            );
+        final result = await showSettingCheckboxDialog(
+          title: title,
+          values: values,
+          selectedValues: selectedValues,
+          defaultValue: defaultValue,
+          t: t,
+        );
         if (result is List<ProtobufEnum>) setValue(result);
       },
     );

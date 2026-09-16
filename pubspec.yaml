@@ -22,7 +22,7 @@ dependencies:
   # re_highlight: ^0.0.3
   # json_editor_flutter: ^1.4.2
 
-  slang: ^4.8.1
+  slang: 4.8.1
   slang_flutter: ^4.8.0
   fpdart: ^1.1.0
   freezed_annotation: ^2.4.1
@@ -122,8 +122,8 @@ dependencies:
   humanizer: ^3.0.1
 
 dev_dependencies:
-  # flutter_test:
-  #   sdk: flutter
+  flutter_test:
+    sdk: flutter
   lint: ^2.3.0
   build_web_compilers: ^4.0.11
   build_runner: ^2.4.13
@@ -132,8 +132,8 @@ dev_dependencies:
   riverpod_generator: ^2.4.3
   drift_dev: ^2.21.0
   ffigen: ^19.1.0
-  slang_build_runner: ^4.4.0
-  flutter_gen_runner: ^5.4.0
+  slang_build_runner: 4.8.1
+  flutter_gen_runner: 5.10.0
   dart_mappable_builder: ^4.2.1
   # protoc_builder: ^0.4.1
   # google_protobuf: ^3.20.1;

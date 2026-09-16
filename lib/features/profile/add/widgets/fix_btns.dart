@@ -7,9 +7,10 @@ import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/constants.dart';
-import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
+import 'package:hiddify/features/common/qr_code_scanner_screen.dart';
 import 'package:hiddify/features/profile/add/widgets/widgets.dart';
 import 'package:hiddify/features/profile/notifier/profile_notifier.dart';
+import 'package:hiddify/features/proxy/widget/manual_node_flow.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -62,7 +63,7 @@ class FixBtns extends ConsumerWidget {
             title: t.common.scanQr,
             icon: Icons.qr_code_scanner,
             onTap: () async {
-              final cr = await ref.read(dialogNotifierProvider.notifier).showQrScanner();
+              final cr = await showQrCodeScanner();
               if (cr == null) return;
               ref.read(addProfileNotifierProvider.notifier).addClipboard(cr);
             },
@@ -76,6 +77,18 @@ class FixBtns extends ConsumerWidget {
           icon: Icons.add,
           onTap: () {
             ref.read(addProfilePageNotifierProvider.notifier).goManual();
+          },
+        ),
+        // NekoBox 复刻 · ＋ → Manual Settings（`add_profile_menu.xml:25`）：
+        // 手动输入**单个节点**（走协议表单），与上面那个"手动加订阅"不是一回事。
+        const Gap(AddProfileModalConst.fixBtnsGap),
+        FixBtn(
+          key: const ValueKey('add_manual_node_button'),
+          height: height,
+          title: t.pages.proxies.form.manual,
+          icon: Icons.playlist_add,
+          onTap: () async {
+            await startManualNodeFlow(context, ref);
           },
         ),
         const Gap(AddProfileModalConst.fixBtnsGap),

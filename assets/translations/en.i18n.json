@@ -31,6 +31,7 @@
     "share": "Share",
     "edit": "Edit",
     "delete": "Delete",
+    "more": "More",
     "discard": "Discard",
     "import": "Import",
     "export": "Export",
@@ -41,6 +42,7 @@
     "hide": "Hide",
     "exit": "Exit",
     "reset": "Reset",
+    "undo": "Undo",
     "done": "Done",
     "decline": "Decline",
     "agree": "Agree",
@@ -102,15 +104,102 @@
       "title": "Home",
       "quickSettings": "Quick setting options"
     },
+    "groups": {
+      "title": "Group",
+      "create": "Create group",
+      "empty": "Empty group",
+      "nodeCount": "$n Proxies",
+      "name": "Group name",
+      "edit": "Edit group",
+      "settings": "Group Settings",
+      "defaultName": "Ungrouped",
+      "neverUpdated": "Not updated yet",
+      "created": "Group created",
+      "renamed": "Group renamed",
+      "deleted": "Group deleted",
+      "deleteConfirm": "Delete this group and all of its nodes?",
+      "clearNodes": "Clear nodes",
+      "clearConfirm": "Clear all nodes of this group? The group itself will be kept.",
+      "cleared": "Group cleared"
+    },
     "proxies": {
-      "title": "Proxies",
+      "title": "Profiles",
       "sort": "Sort proxies",
       "testDelay": "Test delay",
       "search": "Search",
       "testAll": "Test all delays",
+      "clearTestResults": "Clear test results",
+      "deleteUnavailable": "Clear unavailable",
+      "removeDuplicate": "Remove duplicate servers",
+      "tcpPing": "TCP ping",
+      "updateSubscriptions": "Update subscriptions",
       "testAfterConnect": "Connect first to test delays",
       "preselect": "Not connected · selected",
       "empty": "No proxies available",
+      "msg": {
+        "nodeRemoved": "Node removed",
+        "exportToClipboard": "Copy nodes to clipboard",
+        "exportToFile": "Export nodes to file",
+        "noDuplicates": "No duplicate servers found",
+        "noUnavailable": "No unavailable servers found",
+        "testRefused": "Connection refused",
+        "testTimeout": "Timeout",
+        "testUnreachable": "Unreachable",
+        "testDomainNotFound": "Domain not found"
+      },
+      "form": {
+        "title": "Edit Node",
+        "saved": "Node updated",
+        "unsupported": "This protocol has no edit form",
+        "jsonInvalid": "This node's outbound JSON cannot be parsed",
+        "required": "Required",
+        "invalidNumber": "Enter a number",
+        "createTitle": "New Node",
+        "created": "Node created",
+        "profileName": "Profile Name",
+        "manual": "Manual Settings",
+        "selectProtocol": "Select protocol",
+        "section": {
+          "proxy": "Server Settings",
+          "security": "TLS Security Settings",
+          "ws": "WebSocket Settings",
+          "plugin": "Plugin"
+        },
+        "serverAddress": "Server",
+        "serverPort": "Remote Port",
+        "password": "Password",
+        "sni": "Server Name Indication",
+        "allowInsecure": "Allow Insecure",
+        "alpn": "Application-Layer Protocol Negotiation",
+        "certificates": "Certificates",
+        "utlsFingerprint": "uTLS fingerprint",
+        "method": "Encrypt Method",
+        "pluginName": "Plugin",
+        "pluginConfig": "Configure…",
+        "uuid": "User ID",
+        "flow": "Flow",
+        "packetEncoding": "Packet Encoding",
+        "transport": "Network",
+        "host": "HTTP Host",
+        "path": "HTTP Path",
+        "wsMaxEarlyData": "Max Early Data",
+        "earlyDataHeaderName": "Early Data Header Name",
+        "security": "Transport layer encryption",
+        "realityPubKey": "Reality Public Key",
+        "realityShortId": "Reality ShortId",
+        "serverPorts": "Remote Port",
+        "serverPassword": "Password",
+        "serverSNI": "Server Name Indication",
+        "serverAllowInsecure": "Allow Insecure",
+        "serverALPN": "Application-Layer Protocol Negotiation",
+        "serverCertificates": "Certificates",
+        "serverObfs": "Obfuscation Password",
+        "serverUploadSpeed": "Max Upload Speed (in Mbps)",
+        "serverDownloadSpeed": "Max Download Speed (in Mbps)",
+        "serverStreamReceiveWindow": "QUIC Stream Receive Window",
+        "serverConnectionReceiveWindow": "QUIC Connection Receive Window",
+        "hopInterval": "Port Hopping Interval(second)"
+      },
       "activeProxy": "Active proxy",
       "unknownIp": "Unknown IP",
       "sortOptions": {
@@ -195,6 +284,9 @@
     "subscriptions": {
       "title": "Subscriptions"
     },
+    "traffic": {
+      "title": "Dashboard"
+    },
     "about": {
       "coreVersion": "Core version",
       "donate": "Donate",
@@ -211,6 +303,7 @@
     "settings": {
       "title": "Settings",
       "resetTunnel": "Reset VPN profile",
+      "misc": "Other",
       "options": {
         "import": {
           "clipboard": "Import options from clipboard",
@@ -234,6 +327,7 @@
           "light": "Light mode",
           "black": "Black mode"
         },
+        "themePalette": "Theme color",
         "enableAnalytics": "Enable analytics",
         "enableAnalyticsMsg": "Give permission to collect analytics and send crash reports to improve the app",
         "autoIpCheck": "Automatically check connection IP",
@@ -251,6 +345,7 @@
         "logLevel": "Log level",
         "connectionTestUrl": "Connection test URL",
         "urlTestInterval": "URL test interval",
+        "allowInsecureOnRequest": "Allow insecure when updating subscriptions",
         "clashApiPort": "Clash API port",
         "useXrayCoreWhenPossible": "Use xray-core when possible",
         "useXrayCoreWhenPossibleMsg": "Use xray-core during parsing sub links. You need to reimport the sub link to enable this option."
@@ -357,6 +452,7 @@
             "stickySession": "Sticky session"
           },
           "resolveDestination": "Resolve destination",
+          "bypassLanInCore": "Bypass LAN in Core",
           "ipv6Route": "IPv6 route",
           "ipv6Modes": {
             "disable": "Disable",
@@ -648,6 +744,14 @@
           "msg": "Are you sure you want to delete the \"$rulename\" rule?"
         }
       },
+      "deduplicate": {
+        "title": "Remove duplicate servers?",
+        "msg": "The following duplicate servers will be deleted:"
+      },
+      "deleteUnavailable": {
+        "title": "Confirm",
+        "msg": "Are you sure you want to remove this profile?"
+      },
       "addProfileByDeepLinkWarning": {
         "title": "Add profile?",
         "message": "An external link from \"${host}\" is requesting to add a new profile. Do you want to import it?"
@@ -707,6 +811,7 @@
     "connect": "Connect",
     "connecting": "Connecting...",
     "connected": "Connected",
+    "disconnected": "Not connected",
     "disconnect": "Disconnect",
     "disconnecting": "Disconnecting...",
     "reconnect": "Reconnect",

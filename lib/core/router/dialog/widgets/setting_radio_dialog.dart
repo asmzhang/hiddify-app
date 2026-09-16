@@ -33,19 +33,16 @@ class SettingRadioDialog<T> extends ConsumerWidget {
       content: ConstrainedBox(
         constraints: AlertDialogConst.boxConstraints,
         child: SingleChildScrollView(
+        child: RadioGroup<T>(
+          groupValue: value,
+          onChanged: (v) => context.pop(v),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: values
-                .map(
-                  (e) => RadioListTile<T>(
-                    title: Text(textWithTranslation(e)),
-                    value: e,
-                    groupValue: value,
-                    onChanged: (_) => context.pop(e),
-                  ),
-                )
+                .map((e) => RadioListTile<T>(title: Text(textWithTranslation(e)), value: e))
                 .toList(),
           ),
+        ),
         ),
       ),
       actions: [

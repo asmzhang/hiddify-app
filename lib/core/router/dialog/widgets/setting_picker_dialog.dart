@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
-import 'package:hiddify/features/settings/widget/preference_tile.dart';
+import 'package:hiddify/core/widget/country_flag.dart';
 import 'package:hiddify/utils/custom_loggers.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -30,18 +30,20 @@ class SettingPickerDialog<T> extends HookConsumerWidget with PresLogger {
     return AlertDialog(
       title: Text(title),
       content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: options.map((e) {
-            final title = getTitle(e);
-            return RadioListTile(
-              title: Text(title),
-              secondary: showFlag ? ChoicePreferenceWidget.flagByTitle(title) : null,
-              value: e,
-              groupValue: selected,
-              onChanged: (value) => context.pop(e),
-            );
-          }).toList(),
+        child: RadioGroup<T>(
+          groupValue: selected,
+          onChanged: (value) => context.pop(value),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: options.map((e) {
+              final title = getTitle(e);
+              return RadioListTile(
+                title: Text(title),
+                secondary: showFlag ? countryFlagByTitle(title) : null,
+                value: e,
+              );
+            }).toList(),
+          ),
         ),
       ),
       actions: [
