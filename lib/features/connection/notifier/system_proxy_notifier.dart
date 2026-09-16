@@ -27,8 +27,10 @@ final coreRunningProvider = StreamProvider<bool>(
 /// **流量被接管了吗** —— 这才是「连接」这个词的落点。
 ///
 /// - **TUN**：只能在启动时决定，所以内核在跑就等于接管中
-/// - **系统代理**：内核在跑 **且** `captureEnabled`（app 自己的开关）
-/// - **仅代理**：从不接管系统流量（用户自己把程序指向入站端口）
+/// - **系统代理**：内核在跑 **且** `captureEnabled`（app 自己的开关），运行时可切
+/// - **仅代理**：没有"接管"这回事（内核只是等着被程序连），所以「服务中」= 内核在跑。
+///   这里若恒为 false，FAB 就会永远显示"未连接"，点它还会白重启一次内核
+///   （`setCapture` 走到重启路径但状态永远不变）—— 那是审计出来的坏行为。
 ///
 /// 于是「只跑内核、不接管流量」这条路成立了：关掉 `captureEnabled` 再启动，
 /// 内核对齐、延迟可测、节点可选，而流量没被接管 —— 这正是 nekoray 的体验。
@@ -39,6 +41,6 @@ final capturingProvider = Provider<bool>((ref) {
   return switch (mode) {
     ServiceMode.tun => coreUp,
     ServiceMode.systemProxy => coreUp && capture,
-    ServiceMode.proxy => false,
+    ServiceMode.proxy => coreUp,
   };
 });

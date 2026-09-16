@@ -23,6 +23,7 @@ import 'package:hiddify/features/log/data/log_data_providers.dart';
 import 'package:hiddify/features/profile/data/profile_data_providers.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_notifier.dart';
+import 'package:hiddify/features/proxy/entity/entity_backfill_notifier.dart';
 import 'package:hiddify/features/system_tray/notifier/system_tray_notifier.dart';
 import 'package:hiddify/features/window/notifier/window_notifier.dart';
 import 'package:hiddify/hiddifycore/hiddify_core_service_provider.dart';
@@ -103,6 +104,11 @@ Future<void> lazyBootstrap(WidgetsBinding widgetsBinding, Environment env) async
   // avoiding lazy build-phase flushes and sibling dependency collisions on the Home page.
   container.listen(activeProxyNotifierProvider, (previous, next) {});
 
+  // 实体回填：给"实体表出现之前就已导入"的订阅补一次分组+节点落库（见 parity §8.6 第 3/4 步）。
+  // 只在订阅清单首次可用时真正干活，之后仅一次 DB 读；跑在内核 init 之后，
+  // 于是它连"回落内核 Parse"那条路也有前提。fire-and-forget，不阻塞启动。
+  container.listen(entityBackfillNotifierProvider, (previous, next) {});
+
   if (!kIsWeb) {
     // await _safeInit(
     //   "deep link service",
@@ -126,6 +132,7 @@ Future<void> lazyBootstrap(WidgetsBinding widgetsBinding, Environment env) async
 
   runApp(
     ProviderScope(
+      // ignore: deprecated_member_use
       parent: container,
       observers: [RiverpodObserver()],
       child: SentryUserInteractionWidget(child: const App()),

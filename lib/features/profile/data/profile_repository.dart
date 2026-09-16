@@ -12,6 +12,7 @@ import 'package:hiddify/features/profile/data/profile_path_resolver.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
 import 'package:hiddify/features/profile/model/profile_failure.dart';
 import 'package:hiddify/features/profile/model/profile_sort_enum.dart';
+import 'package:hiddify/features/proxy/data/proxy_entity_repository.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/hiddifycore/hiddify_core_service.dart';
 import 'package:hiddify/utils/custom_loggers.dart';
@@ -43,17 +44,38 @@ class ProfileRepositoryImpl with ExceptionHandler, InfraLogger implements Profil
     required HiddifyCoreService singbox,
     required ConfigOptionRepository configOptionRepository,
     required ProfileParser profileParser,
+    required ProxyEntityRepository proxyEntityRepository,
   }) : _profileParser = profileParser,
        _configOptionRepo = configOptionRepository,
        _singbox = singbox,
        _profilePathResolver = profilePathResolver,
-       _profileDataSource = profileDataSource;
+       _profileDataSource = profileDataSource,
+       _proxyEntityRepo = proxyEntityRepository;
 
   final ProfileDataSource _profileDataSource;
   final ProfilePathResolver _profilePathResolver;
   final HiddifyCoreService _singbox;
   final ConfigOptionRepository _configOptionRepo;
   final ProfileParser _profileParser;
+  final ProxyEntityRepository _proxyEntityRepo;
+
+  /// 订阅写入（新增/更新）之后派生实体 —— **只在这一处挂钩**，覆盖所有调用方
+  /// （新增订阅、手动添加、批量更新、撤销删除的重新拉取、编辑内容保存）。
+  ///
+  /// `ProxyEntityRepository.syncFromProfile` 内部吞掉所有异常，所以这里不需要 try/catch，
+  /// 也不会让订阅导入因为实体派生失败而失败。
+  Future<void> _syncEntities(String profileId) async {
+    final profile = await _profileDataSource.getById(profileId).then((entry) => entry?.toEntity());
+    if (profile == null) {
+      loggy.warning("entity sync skipped: profile [$profileId] not found after write");
+      return;
+    }
+    await _proxyEntityRepo.syncFromProfile(
+      profileId: profile.id,
+      profileName: profile.name,
+      lastUpdate: profile.lastUpdate,
+    );
+  }
 
   @override
   TaskEither<ProfileFailure, Unit> init() {
@@ -88,7 +110,13 @@ class ProfileRepositoryImpl with ExceptionHandler, InfraLogger implements Profil
   TaskEither<ProfileFailure, Unit> deleteById(String id, bool isActive) {
     return TaskEither.tryCatch(() async {
       await _profileDataSource.deleteById(id, isActive);
-      await _profilePathResolver.file(id).delete();
+      // 文件可能不在（订阅从未被激活过就没有 `<id>.json`）——原来直接 delete 会抛，
+      // 于是"数据库删成功但整体报失败"。改成存在才删。
+      final configFile = _profilePathResolver.file(id);
+      if (configFile.existsSync()) await configFile.delete();
+      // 实体层一起删（审计 F5）：组 + 节点 + `<id>.entities.json`。
+      // 不删的话它们成为孤儿：不显示、不再更新，却会污染 `syncedProfileIds()` 之类的判断。
+      await _proxyEntityRepo.removeGroupForProfile(id);
       return unit;
     }, ProfileUnexpectedFailure.new);
   }
@@ -151,6 +179,7 @@ class ProfileRepositoryImpl with ExceptionHandler, InfraLogger implements Profil
                       ).flatMap(
                         (unit) => TaskEither.tryCatch(() async {
                           await _profileDataSource.edit(id, profEntity);
+                          await _syncEntities(id);
                           return unit;
                         }, ProfileFailure.unexpected),
                       ),
@@ -175,6 +204,7 @@ class ProfileRepositoryImpl with ExceptionHandler, InfraLogger implements Profil
                       ).flatMap(
                         (unit) => TaskEither.tryCatch(() async {
                           await _profileDataSource.insert(profEntity);
+                          await _syncEntities(id);
                           return unit;
                         }, ProfileFailure.unexpected),
                       ),
@@ -205,6 +235,7 @@ class ProfileRepositoryImpl with ExceptionHandler, InfraLogger implements Profil
                     ).flatMap(
                       (unit) => TaskEither.tryCatch(() async {
                         await _profileDataSource.insert(profEntity);
+                        await _syncEntities(id);
                         return unit;
                       }, ProfileFailure.unexpected),
                     ),
@@ -247,6 +278,7 @@ class ProfileRepositoryImpl with ExceptionHandler, InfraLogger implements Profil
                       ).flatMap(
                         (unit) => TaskEither.tryCatch(() async {
                           await _profileDataSource.edit(id, profEntity);
+                          await _syncEntities(id);
                           return unit;
                         }, ProfileFailure.unexpected),
                       ),

@@ -5,7 +5,6 @@ import 'package:hiddify/app/shell/nav_items.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/notification/in_app_notification_controller.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
-import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/custom_transition.dart';
 import 'package:hiddify/core/router/go_router/refresh_listenable.dart';
@@ -13,10 +12,12 @@ import 'package:hiddify/features/about/widget/about_page.dart';
 import 'package:hiddify/features/intro/widget/intro_page.dart';
 import 'package:hiddify/features/log/overview/logs_page.dart';
 import 'package:hiddify/features/per_app_proxy/overview/per_app_proxy_page.dart';
+import 'package:hiddify/features/profile/add/add_profile_modal.dart';
 import 'package:hiddify/features/profile/details/profile_details_page.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/overview/profiles_page.dart';
 import 'package:hiddify/features/profile/overview/subscriptions_page.dart';
+import 'package:hiddify/features/proxy/overview/groups_page.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_page.dart';
 import 'package:hiddify/features/route_rules/notifier/rule_notifier.dart';
 import 'package:hiddify/features/route_rules/overview/generic_list_page.dart';
@@ -36,9 +37,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'routing_config_notifier.g.dart';
 
 // 每个 shell 分支各有一个 FocusScope。键直接由 navMetas 推导，避免手写漏项/错位。
-final branchesScope = <String, FocusScopeNode>{
-  for (final meta in navMetas(true)) meta.key: FocusScopeNode(),
-};
+final branchesScope = <String, FocusScopeNode>{for (final meta in navMetas(true)) meta.key: FocusScopeNode()};
 
 // when the routing config is not yet initialized, this config is used
 final loadingConfig = RoutingConfig(
@@ -84,18 +83,15 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
         } else if (state.matchedLocation == '/intro') {
           // Intro is completed
           // Current page in '/intro'
-          if (url != null && Uri.parse(url).host == 'import') {
-            WidgetsBinding.instance.addPostFrameCallback(
-              (_) =>
-                  ref.read(bottomSheetsNotifierProvider.notifier).showAddProfile(url: url, triggeredByDeepLink: true),
-            );
+          final importUrl = url;
+          if (importUrl != null && Uri.parse(importUrl).host == 'import') {
+            WidgetsBinding.instance.addPostFrameCallback((_) => showAddProfileFromDeepLink(ref, url: importUrl));
           }
           return '/home';
         } else if (url != null && Uri.parse(url).host == 'import') {
           // Auto import profile from url
-          WidgetsBinding.instance.addPostFrameCallback(
-            (_) => ref.read(bottomSheetsNotifierProvider.notifier).showAddProfile(url: url, triggeredByDeepLink: true),
-          );
+          final importUrl = url;
+          WidgetsBinding.instance.addPostFrameCallback((_) => showAddProfileFromDeepLink(ref, url: importUrl));
           return '/home';
         } else if (url != null) {
           final uri = Uri.parse(url);
@@ -116,9 +112,7 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
             showProfilesAction: showProfilesAction,
           ),
           // 分支**顺序完全由 navMetas 决定**；每个分支的内容按 key 在 _branchFor 里定义。
-          branches: <StatefulShellBranch>[
-            for (final meta in navMetas(showProfilesAction)) _branchFor(meta.key),
-          ],
+          branches: <StatefulShellBranch>[for (final meta in navMetas(showProfilesAction)) _branchFor(meta.key)],
         ),
         GoRoute(name: 'intro', path: '/intro', builder: (_, _) => const IntroPage()),
       ],
@@ -157,6 +151,16 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
                   ),
                 ),
               ],
+            ),
+          ],
+        );
+      case 'groups':
+        return StatefulShellBranch(
+          routes: <GoRoute>[
+            GoRoute(
+              name: 'groups',
+              path: '/groups',
+              builder: (_, _) => FocusScope(node: branchesScope['groups'], child: const GroupsPage()),
             ),
           ],
         );
@@ -246,8 +250,7 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
                 GoRoute(
                   name: 'general',
                   path: 'general',
-                  pageBuilder: (_, state) =>
-                      customTransition(TransitionType.slide, state.pageKey, const GeneralPage()),
+                  pageBuilder: (_, state) => customTransition(TransitionType.slide, state.pageKey, const GeneralPage()),
                 ),
                 GoRoute(
                   name: 'dnsOptions',

@@ -3,9 +3,9 @@ import 'package:gap/gap.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/failures.dart';
 import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
-import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/core/utils/preferences_utils.dart' show PreferencesNotifier;
+import 'package:hiddify/features/profile/add/add_profile_modal.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
 import 'package:hiddify/features/profile/notifier/profiles_update_notifier.dart';
 import 'package:hiddify/features/profile/overview/profiles_notifier.dart';
@@ -41,7 +41,7 @@ class SubscriptionsPage extends HookConsumerWidget {
             tooltip: t.pages.profiles.updateSubscriptions,
           ),
           IconButton(
-            onPressed: () => ref.read(bottomSheetsNotifierProvider.notifier).showAddProfile(),
+            onPressed: showAddProfileSheet,
             icon: const Icon(Icons.add_rounded),
             tooltip: t.pages.profiles.add,
           ),
@@ -59,7 +59,7 @@ class SubscriptionsPage extends HookConsumerWidget {
                   Icon(Icons.rss_feed_rounded, size: 48, color: Theme.of(context).disabledColor),
                   const Gap(12),
                   ElevatedButton.icon(
-                    onPressed: () => ref.read(bottomSheetsNotifierProvider.notifier).showAddProfile(),
+                    onPressed: showAddProfileSheet,
                     icon: const Icon(Icons.add_rounded),
                     label: Text(t.pages.profiles.add),
                   ),

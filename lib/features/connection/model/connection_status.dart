@@ -41,8 +41,9 @@ sealed class ConnectionStatus with _$ConnectionStatus {
     Disconnecting() => "DISCONNECTING",
   };
 
+  /// 状态就是状态：未连接就说「未连接」，「点击连接」是动作提示、不该拿来当状态词。
   String present(TranslationsEn t) => switch (this) {
-    Disconnected() => t.connection.tapToConnect,
+    Disconnected() => t.connection.disconnected,
     Connecting() => t.connection.connecting,
     Connected() => t.connection.connected,
     Disconnecting() => t.connection.disconnecting,

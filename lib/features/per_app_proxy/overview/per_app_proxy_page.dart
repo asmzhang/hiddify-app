@@ -7,11 +7,11 @@ import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/region.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
-import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/features/per_app_proxy/model/app_package_info.dart';
 import 'package:hiddify/features/per_app_proxy/model/per_app_proxy_mode.dart';
 import 'package:hiddify/features/per_app_proxy/model/pkg_flag.dart';
+import 'package:hiddify/features/per_app_proxy/overview/auto_apps_selection_modal.dart';
 import 'package:hiddify/features/per_app_proxy/overview/per_app_proxy_loading_notifier.dart';
 import 'package:hiddify/features/per_app_proxy/overview/per_app_proxy_notifier.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
@@ -66,8 +66,9 @@ class PerAppProxyPage extends HookConsumerWidget with PresLogger {
         if (!(selectedApps.hasValue &&
             selectedApps is AsyncData &&
             asyncFilteredApps.hasData &&
-            asyncFilteredApps.connectionState == ConnectionState.done))
+            asyncFilteredApps.connectionState == ConnectionState.done)) {
           return const AsyncValue.loading();
+        }
         final appsList = asyncFilteredApps.requireData.toList();
         if (searchQuery.value.isBlank) {
           appsList.sort((a, b) {
@@ -244,8 +245,9 @@ class PerAppProxyPage extends HookConsumerWidget with PresLogger {
                         tooltip: (mode?.toPerAppProxy() ?? PerAppProxyMode.off).present(t).message,
                         initialValue: mode?.toPerAppProxy() ?? PerAppProxyMode.off,
                         onSelected: (e) async {
-                          if (ref.read(Preferences.autoAppsSelectionRegion) != null)
+                          if (ref.read(Preferences.autoAppsSelectionRegion) != null) {
                             await ref.read(PerAppProxyProvider(mode).notifier).clearAutoSelected();
+                          }
                           if (e == PerAppProxyMode.off && context.mounted) context.pop();
                           await ref.read(Preferences.perAppProxyMode.notifier).update(e);
                         },
@@ -288,8 +290,7 @@ class PerAppProxyPage extends HookConsumerWidget with PresLogger {
             )
           : (ref.watch(ConfigOptions.region) != Region.other)
           ? FloatingActionButton.extended(
-              onPressed: () async =>
-                  await ref.read(bottomSheetsNotifierProvider.notifier).showAutoAppsSelection(mode: mode!),
+              onPressed: () async => await showAutoAppsSelectionSheet(mode: mode!),
               label: Text(t.pages.settings.routing.generalOptions.perAppProxy.autoSelection.title),
               icon: Icon(
                 ref.watch(Preferences.autoAppsSelectionRegion) == null
@@ -322,7 +323,8 @@ class PerAppProxyPage extends HookConsumerWidget with PresLogger {
               subtitle: Text(
                 package.packageName,
                 style: Theme.of(context).textTheme.bodySmall,
-                maxLines: 1, overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               value: flag == null ? false : PkgFlag.checkboxValue(flag),
               tristate: true,

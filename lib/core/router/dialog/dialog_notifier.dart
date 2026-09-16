@@ -1,33 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:hiddify/core/preferences/actions_at_closing.dart';
+import 'package:hiddify/core/router/dialog/root_dialog.dart';
 import 'package:hiddify/core/router/dialog/widgets/action_at_closing_dialog.dart';
 import 'package:hiddify/core/router/dialog/widgets/chain_license_dialog.dart';
 import 'package:hiddify/core/router/dialog/widgets/confirmation_dialog.dart';
 import 'package:hiddify/core/router/dialog/widgets/custom_alert_dialog.dart';
-import 'package:hiddify/core/router/dialog/widgets/experimental_feature_notice.dart';
 import 'package:hiddify/core/router/dialog/widgets/free_profile_consent_dialog.dart';
-import 'package:hiddify/core/router/dialog/widgets/new_version_dialog.dart';
 import 'package:hiddify/core/router/dialog/widgets/no_active_profile_dialog.dart';
 import 'package:hiddify/core/router/dialog/widgets/ok_dialog.dart';
 import 'package:hiddify/core/router/dialog/widgets/proxy_info_dialog.dart';
 import 'package:hiddify/core/router/dialog/widgets/save_dialog.dart';
-import 'package:hiddify/core/router/dialog/widgets/setting_checkbox_dialog.dart';
 import 'package:hiddify/core/router/dialog/widgets/setting_input_dialog.dart';
 import 'package:hiddify/core/router/dialog/widgets/setting_picker_dialog.dart';
 import 'package:hiddify/core/router/dialog/widgets/setting_radio_dialog.dart';
 import 'package:hiddify/core/router/dialog/widgets/setting_slider_dialog.dart';
 import 'package:hiddify/core/router/dialog/widgets/setting_text_dialog.dart';
-import 'package:hiddify/core/router/dialog/widgets/sort_profiles_dialog.dart';
 import 'package:hiddify/core/router/dialog/widgets/unknown_domains_warning_dialog.dart';
-import 'package:hiddify/core/router/dialog/widgets/window_closing_dialog.dart';
-import 'package:hiddify/core/router/navigation_keys.dart';
-import 'package:hiddify/features/app_update/model/remote_version_entity.dart';
-import 'package:hiddify/features/common/qr_code_dialog.dart';
-import 'package:hiddify/features/common/qr_code_scanner_screen.dart';
-import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hiddify/singbox/model/singbox_config_enum.dart';
-import 'package:protobuf/protobuf.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'dialog_notifier.g.dart';
@@ -37,25 +27,9 @@ class DialogNotifier extends _$DialogNotifier {
   @override
   void build() {}
 
-  Future<T?> _show<T>(Widget child) async {
-    final context = rootNavKey.currentContext;
-    if (context == null) return null;
-    // ref.read(popupCountNotifierProvider.notifier).increase();
-    return await Navigator.of(context).push<T>(DialogRoute(context: context, builder: (context) => child)).then((
-      value,
-    ) {
-      // ref.read(popupCountNotifierProvider.notifier).decrease();
-      return value;
-    });
-  }
-
-  Future<String?> showQrScanner() async {
-    return await _show<String?>(const QrCodeScannerDialog());
-  }
-
-  Future<void> showSortProfiles() async {
-    return await _show<void>(const SortProfilesDialog());
-  }
+  /// 通用对话框（确认 / 输入 / 选择 / OK …）：内容由调用方给，本类不认识任何业务类型。
+  /// 业务专属对话框（排序配置、新版本、窗口关闭…）由各自 feature 用 [showRootDialog] 弹。
+  Future<T?> _show<T>(Widget child) => showRootDialog<T>(child);
 
   Future<bool> showWarpLicense() async {
     return await _show<bool?>(const ChainLicenseDialog(mode: ChainMode.warp)) ?? false;
@@ -63,10 +37,6 @@ class DialogNotifier extends _$DialogNotifier {
 
   Future<bool> showPsiphonLicense() async {
     return await _show<bool?>(const ChainLicenseDialog(mode: ChainMode.psiphon)) ?? false;
-  }
-
-  Future<void> showQrCode(String link, {String? message}) async {
-    return await _show<void>(QrCodeDialog(link, message: message));
   }
 
   Future<void> showOk(String title, String description) async {
@@ -95,14 +65,6 @@ class DialogNotifier extends _$DialogNotifier {
     );
   }
 
-  Future<void> showNewVersion({
-    required String currentVersion,
-    required RemoteVersionEntity newVersion,
-    required bool canIgnore,
-  }) async {
-    return await _show<void>(NewVersionDialog(currentVersion, newVersion, canIgnore: canIgnore));
-  }
-
   Future<bool> showConfirmation({
     required String title,
     required String message,
@@ -117,15 +79,6 @@ class DialogNotifier extends _$DialogNotifier {
 
   Future<ActionsAtClosing?> showActionAtClosing({required ActionsAtClosing selected}) async {
     return await _show<ActionsAtClosing?>(ActionsAtClosingDialog(selected: selected));
-  }
-
-  Future<bool> showExperimentalFeatureNotice() async {
-    final hasExperimental = ref.read(ConfigOptions.hasExperimentalFeatures);
-    final canShowNotice = !ref.read(disableExperimentalFeatureNoticeProvider);
-    if (hasExperimental && canShowNotice) {
-      return await _show<bool?>(const ExperimentalFeatureNoticeDialog()) ?? false;
-    }
-    return true;
   }
 
   Future<void> showNoActiveProfile() async {
@@ -152,24 +105,6 @@ class DialogNotifier extends _$DialogNotifier {
   }) async {
     return await _show<String?>(
       SettingTextDialog(lable: lable, value: value, defaultValue: defaultValue, validator: validator),
-    );
-  }
-
-  Future<List<ProtobufEnum>?> showSettingCheckbox({
-    required String title,
-    required List<ProtobufEnum> values,
-    required List<ProtobufEnum> selectedValues,
-    List<ProtobufEnum>? defaultValue,
-    Map<String, String>? t,
-  }) async {
-    return await _show<List<ProtobufEnum>?>(
-      SettingCheckboxDialog(
-        title: title,
-        values: values,
-        selectedValues: selectedValues,
-        defaultValue: defaultValue,
-        t: t,
-      ),
     );
   }
 
@@ -235,10 +170,6 @@ class DialogNotifier extends _$DialogNotifier {
 
   Future<bool?> showSave({required String title, required String description}) async {
     return await _show<bool?>(SaveDialog(title: title, description: description));
-  }
-
-  Future<void> showWindowClosing() async {
-    return await _show<void>(const WindowClosingDialog());
   }
 
   Future<void> showCustomAlert({String? title, required String message}) async {

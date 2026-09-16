@@ -1,6 +1,7 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:hiddify/core/localization/translations.dart';
+import 'package:hiddify/core/widget/country_flag.dart';
 import 'package:hiddify/core/widget/shimmer_skeleton.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_notifier.dart';
 import 'package:hiddify/features/proxy/active/ip_widget.dart';
@@ -32,14 +33,14 @@ class ConnectionStatsCard extends HookConsumerWidget {
           AsyncData(value: final proxy) when proxy.ipinfo.ip.isNotEmpty => (
             label: Row(
               children: [
-                IPCountryFlag(countryCode: proxy.ipinfo.countryCode, size: 16),
+                IPCountryFlag(countryCode: proxy.ipinfo.countryCode),
                 // const Gap(4),
                 // OrganisationFlag(organization: proxy.ipinfo.org, size: 16),
               ],
             ),
             data: IPText(
               ip: proxy.ipinfo.ip,
-              onLongPress: () async {
+              onLongPress: () {
                 ref.read(ipInfoNotifierProvider.notifier).refresh();
               },
               constrained: true,

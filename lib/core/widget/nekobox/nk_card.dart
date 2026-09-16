@@ -67,20 +67,23 @@ class NkCardAction extends StatelessWidget {
 
   final IconData icon;
   final String tooltip;
-  final VoidCallback onTap;
+
+  /// 为 null 表示**禁用**（照 NekoBox `editButton.isEnabled = !started`）：
+  /// 置灰且不响应点击，而不是把按钮藏起来 —— 用户要知道"有这个东西、但现在不能用"。
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final color = onTap == null
+        ? theme.colorScheme.onSurfaceVariant.withValues(alpha: .38)
+        : theme.colorScheme.onSurfaceVariant;
     return Tooltip(
       message: tooltip,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(NkMetrics.radiusSmall),
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
-        ),
+        child: Padding(padding: const EdgeInsets.all(6), child: Icon(icon, size: 18, color: color)),
       ),
     );
   }

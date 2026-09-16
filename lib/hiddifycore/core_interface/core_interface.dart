@@ -45,7 +45,9 @@ class CoreInterface {
 
   bool isInitialized() {
     try {
-      bgClient; // touch it
+      // touch bgClient — it throws if not initialized yet
+      // ignore: unnecessary_statements
+      bgClient;
       return true;
     } catch (_) {
       return false;

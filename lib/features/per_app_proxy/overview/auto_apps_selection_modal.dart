@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/constants.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
+import 'package:hiddify/core/router/bottom_sheets/root_bottom_sheet.dart';
 import 'package:hiddify/features/per_app_proxy/model/per_app_proxy_mode.dart';
 import 'package:hiddify/features/per_app_proxy/overview/per_app_proxy_loading_notifier.dart';
 import 'package:hiddify/features/per_app_proxy/overview/per_app_proxy_notifier.dart';
@@ -131,7 +132,9 @@ class AutoAppsSelectionModal extends HookConsumerWidget {
                                               .read(appProxyLoadingProvider.notifier)
                                               .doAsync(ref.read(PerAppProxyProvider(mode).notifier).applyAutoSelection);
                                         },
-                                  child: Text(t.pages.settings.routing.generalOptions.perAppProxy.autoSelection.performNow),
+                                  child: Text(
+                                    t.pages.settings.routing.generalOptions.perAppProxy.autoSelection.performNow,
+                                  ),
                                 ),
                               ),
                               const Gap(8),
@@ -145,7 +148,9 @@ class AutoAppsSelectionModal extends HookConsumerWidget {
                                               ref.read(PerAppProxyProvider(mode).notifier).revertForceDeselection,
                                             );
                                       },
-                                child: Text(t.pages.settings.routing.generalOptions.perAppProxy.autoSelection.resetToDefault),
+                                child: Text(
+                                  t.pages.settings.routing.generalOptions.perAppProxy.autoSelection.resetToDefault,
+                                ),
                               ),
                             ],
                           ),
@@ -160,3 +165,7 @@ class AutoAppsSelectionModal extends HookConsumerWidget {
     );
   }
 }
+
+/// 弹出"自动选择应用"底部弹窗（业务入口留在 feature 侧）。
+Future<void> showAutoAppsSelectionSheet({required AppProxyMode mode}) =>
+    showRootBottomSheet<void>(child: AutoAppsSelectionModal(mode: mode));

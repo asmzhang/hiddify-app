@@ -7,6 +7,9 @@ analyzer:
     - "hiddify-core/**"
     - "**.g.dart"
     - "lib/gen/**"
+    - "lib/hiddifycore/generated/**"
+    - "lib/features/profile/details/json_editor.dart"
+    - "tool/riverpod_repro_test.dart"
     - build/**
     - android/**
     - ios/**

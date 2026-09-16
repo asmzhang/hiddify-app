@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/preferences/actions_at_closing.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
+import 'package:hiddify/core/router/dialog/root_dialog.dart';
 import 'package:hiddify/features/window/notifier/window_notifier.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -65,3 +66,6 @@ class _WindowClosingDialogState extends ConsumerState<WindowClosingDialog> {
     );
   }
 }
+
+/// 弹出"关窗时怎么办"对话框（业务入口留在 feature 侧）。
+Future<void> showWindowClosingDialog() => showRootDialog<void>(const WindowClosingDialog());

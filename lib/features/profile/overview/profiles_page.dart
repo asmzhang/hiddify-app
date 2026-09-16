@@ -4,13 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/failures.dart';
 import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
-import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
-import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
+import 'package:hiddify/features/profile/add/add_profile_modal.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/notifier/profiles_update_notifier.dart';
 import 'package:hiddify/features/profile/overview/profiles_notifier.dart';
 import 'package:hiddify/features/profile/widget/nk_profile_tile.dart';
+import 'package:hiddify/features/profile/widget/sort_profiles_dialog.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 class ProfilesPage extends HookConsumerWidget {
@@ -39,7 +39,7 @@ class ProfilesPage extends HookConsumerWidget {
             tooltip: t.pages.profiles.updateSubscriptions,
           ),
           IconButton(
-            onPressed: () => ref.read(dialogNotifierProvider.notifier).showSortProfiles(),
+            onPressed: () => showSortProfilesDialog(),
             icon: const Icon(Icons.sort_rounded),
             tooltip: t.common.sort,
           ),
@@ -47,7 +47,7 @@ class ProfilesPage extends HookConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async => await ref.read(bottomSheetsNotifierProvider.notifier).showAddProfile(),
+        onPressed: showAddProfileSheet,
         label: Text(t.pages.profiles.add),
         icon: const Icon(Icons.add_rounded),
       ),

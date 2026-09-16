@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
+import 'package:hiddify/core/router/bottom_sheets/root_bottom_sheet.dart';
 import 'package:hiddify/features/route_rules/notifier/rules_notifier.dart';
 import 'package:hiddify/hiddifycore/generated/v2/config/route_rule.pb.dart';
 import 'package:hiddify/utils/utils.dart';
@@ -85,3 +86,7 @@ class PredefinedRulesModal extends HookConsumerWidget {
     ),
   ];
 }
+
+/// 弹出"预设规则"底部弹窗（业务入口留在 feature 侧）。
+Future<void> showPredefinedRulesSheet() =>
+    showRootBottomSheet<void>(child: const PredefinedRulesModal(), isScrollControlled: true);

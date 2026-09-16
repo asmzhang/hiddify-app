@@ -69,6 +69,16 @@ List<NavMeta> navMetas(bool showProfilesAction) => [
       navVisible: false,
       group: NkNavGroup.configs,
     ),
+  // NekoBox 抽屉第 2 项 `nav_group`（`main_drawer_menu.xml`）：分组管理页。
+  // 顺序照它放在"配置"之后、"路由"之前。
+  const NavMeta(
+    key: 'groups',
+    routeName: 'groups',
+    path: '/groups',
+    icon: Icons.folder_copy_rounded,
+    label: _groupsLabel,
+    group: NkNavGroup.configs,
+  ),
   const NavMeta(
     key: 'subscriptions',
     routeName: 'subscriptions',
@@ -130,6 +140,7 @@ List<NavMeta> navMetas(bool showProfilesAction) => [
 String _homeLabel(Translations t) => t.pages.proxies.title;
 String _profilesLabel(Translations t) => t.pages.profiles.title;
 String _subscriptionsLabel(Translations t) => t.pages.subscriptions.title;
+String _groupsLabel(Translations t) => t.pages.groups.title;
 String _routeLabel(Translations t) => t.pages.settings.routing.title;
 String _settingsLabel(Translations t) => t.pages.settings.title;
 String _trafficLabel(Translations t) => t.pages.traffic.title;
