@@ -116,19 +116,35 @@ git checkout-index -a -f -u
 
 ---
 
-## 5. 后续缺口（按影响排序，来源：`nekobox-gap-2026-09-16.md` + `nekobox-priority.md`）
+## 5. 后续缺口
 
-1. **代理页 ⋮ 菜单**：更新订阅 / 清流量统计 / 去重 / tcp ping / 删不可用 / 清结果
-   —— 实体线已写 `check_dedup` / `check_tcp_ping` / `check_unavailable`，需确认接线状态
-2. **分组页补齐**：单组更新 / 分享订阅 / 导出节点 / 清空分组 / 订阅流量三态 / 更新中进度条
-   （拖拽排序、分享/导出/清空 在实体线文档里标 ✅，需以代码复核）
-3. **协议表单 4 → 12**：缺 socks / ssh / tuic / shadowtls / mieru / naive / trojan_go / wireguard
-   （框架已就位，按 `nekobox-priority.md` 批次 2 补规格数据即可）
-4. **节点级分享**（QR standard/SN、链接导出）
-5. **设置项 ~12 键缺**：通知/速度显示类（speedInterval / showDirectSpeed / showGroupInNotification /
-   alwaysShowAddress）、DNS server 策略、重置连接类
-6. **连接测试进度对话框**（并发 / 可取消 / 最小化为通知）
-7. **FAQ 入口**
+> **重要**：`nekobox-gap-2026-09-16.md`（写于 09-16 10:52）**已过时** —— 它成文时实体线还有两项没做完，
+> 之后被补齐了。下面每一项都经**代码复核**（非引用文档），复核命令写在每项里。
+
+### 5.1 已确认做完（不必再做）
+
+| 项 | 复核证据 |
+|---|---|
+| **代理页 ⋮ 菜单 6 项全接线** | `proxies_overview_page.dart:123-257`：`clearResults` / `dedup` / `tcpPing` / `updateSubscriptions` / 删不可用 / 排序 + urlTest，均有 `PopupMenuItem` 与处理分支；`tcpPingNodes` 落在 `proxies_overview_notifier.dart:571` |
+| **分组页 ⋮ 动作菜单** | `groups_page.dart:230-266`：分享订阅链接（订阅组限定，子菜单 URL 到剪贴板 / 二维码）/ 导出节点（剪贴板 / 文件）/ 清空分组 |
+| **分组拖拽排序** | `groups_page.dart:78` `ReorderableListView.builder` + `:171` `moveGroups`；repo `:378` |
+
+### 5.2 仍缺（按影响排序）
+
+1. **协议表单 4 → 12**（最明确的一块）
+   现仅 `kManualCreatableProtocols = ['shadowsocks','vless','hysteria2','anytls']`（`protocol_form.dart:323`）。
+   缺 8 份：`socks` / `ssh` / `tuic` / `shadowtls` / `mieru` / `naive` / `trojan_go` / `wireguard`。
+   框架已就位（`ProtocolFormSpec` + `containers` 分节），**按 `nekobox-priority.md` 批次 2 补规格数据即可**，
+   每份都能独立交付并配 `check_protocol_form.dart` 断言。
+2. **设置项缺**：`speedInterval` / `showDirectSpeed` / `showGroupInNotification` / `alwaysShowAddress`
+   （通知与速度显示类）、`domain_strategy_for_server` / `enableDnsRouting`（DNS 策略）、
+   `networkChangeResetConnections` / `wakeResetConnections`（重置连接类）。
+   > 注：其中通知类多数在 `nekobox-parity.md §4.7` 已用 nekoray 对照判为"桌面用托盘 tooltip 已够用，不做独立开关"，
+   > 落地前先看该节的结论文档，别重复劳动。
+3. **连接测试进度对话框**：NekoBox `TestDialog`（nowTesting + N/M 进度 + 最小化为通知 + 可取消）。
+   本项目有 urltest/tcpPing 但无进度与取消。
+4. **节点级分享**：QR（standard / SN）+ 链接导出。分组级已有，节点级缺。
+5. **FAQ 入口**（`nekobox-parity.md` 记录 `nav_faq` 缺；`nav_tuiguang` 已定为🅝不移植）。
 
 ### 待拍板项
 - **SN Link 需逆向转换**（出站 → 分享链接）。本项目只有正向 `ray2sing`，没有反向
