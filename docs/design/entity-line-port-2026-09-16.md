@@ -146,10 +146,7 @@ git checkout-index -a -f -u
 4. **节点级分享**：QR（standard / SN）+ 链接导出。分组级已有，节点级缺。
 5. **FAQ 入口**（`nekobox-parity.md` 记录 `nav_faq` 缺；`nav_tuiguang` 已定为🅝不移植）。
 
-### 待拍板项
-- **SN Link 需逆向转换**（出站 → 分享链接）。本项目只有正向 `ray2sing`，没有反向
-  → 要么新写，要么该功能退化为"导出标准链接 + JSON"。
-- **路由：补 NekoBox 规则集管线 vs 保留 hiddify 规则模型 + 补编辑 UI**。这是两边差异最大的一块。
+### 待拍板项 → 已按参考优先级定案（2026-09-17，见 §5.3）
 
 ---
 
@@ -159,3 +156,52 @@ git checkout-index -a -f -u
 - [ ] 跑 12 个 `check_*.dart` 回归
 - [ ] 语义化提交
 - [ ] 按 §5 顺序分批次推进（每批一提交，改前先核对 `nekobox-parity.md` 原版行为）
+
+---
+
+## 5.3 两个"待拍板项"按参考优先级定案（2026-09-17）
+
+> 用户指出：参考优先级（NekoBox 规格 → 复用已有机制 → 参考 Throne → 自己实现）本身就是决策规则。
+> 以下每步给源码依据。
+
+### ① SN Link：第 1 优先级（NekoBox 规格）直接否掉 —— 它是 Kryo 专有格式，不该复刻
+
+规格源 `fmt/UniversalFmt.kt:21-34`：
+```kotlin
+fun AbstractBean.toUniversalLink(): String {
+    var link = "sn://"
+    link += TypeMap.reversed[ProxyEntity().putBean(this).type]
+    link += "?"
+    link += Util.b64EncodeUrlSafe(Util.zlibCompress(KryoConverters.serialize(this), 9))
+    return link
+}
+```
+机制：`sn://<type>?<b64url(zlib(Kryo 序列化 bean))>`。载荷不是 URI 字段，是
+**Kryo 5.2.1 二进制 Java 对象序列化**（`KryoConverters.java:29-39`，`bean.serializeToBuffer`），
+字段顺序 = 各 `*Bean.serializeToBuffer` 的写入序。
+
+**判定**：
+- 该格式**只有 NekoBox 全家（SagerNet/NekoBox/edndo 等）能解析**——解析端必须有同一套 Bean 类定义 + 同版本 Kryo。
+- Dart 侧没有 Kryo；用 Flutter 重写一个 Kryo 编码器属于"自己实现"里的下下策，产出还是一个**生态内无人消费**的格式（hiddify 系订阅/分享根本不认 `sn://`）。
+- 这正属于 NekoBox 里"实现栈绑死"的部分——与"推广位"同类，**1:1 复刻没有收益**。
+
+**结论：SN Link 🅝 不移植。** 分享菜单的 SN 子项用**标准分享链接**顶上（这才是跨客户端通用格式）：
+- NekoBox 自己也给标准链接：`ShadowsocksFmt.kt:77-91`（`ss://` + SIP002）、`V2RayFmt.kt:520`（vless/trojan）、`TuicFmt.kt:68`、`HysteriaFmt.kt:164`（hy2）、`SOCKSFmt.kt:46` 等。
+- 已有机制（第 2 优先级）：ray2sing（内核子模块 `hiddify-core/ray2sing/ray2sing/`）是**链接→sing-box 出站**的正向解析，24 个协议文件，反向（出站→链接）确认不存在（全库 grep `Export|Sing2|sing2` 仅 `ParseUrl` 正向）。
+- **实现方案**：出站 → 分享链接的**反向转换器在 Dart 侧自己写**（`lib/features/proxy/data/outbound_to_link.dart`，纯 Dart 可校验）。不做 Kryo，只做标准链接：ss(SIP002) / vless / vmess(base64 JSON) / trojan / hysteria2(hy2) / tuic / socks / http 八种起步，字段映射直接对照 NekoBox 各 `*Fmt.toUri()` + ray2sing 各 `*.go` 的解析逻辑（解析逻辑反过来写就是生成逻辑，两份源码互为规格）。每个转换配 `check_outbound_to_link.dart` 断言：**自己生成 → ray2sing 解析 → 出站等价**（往返幂等，同 protocol_form 的验收模式）。
+
+### ② 路由：保留 hiddify 规则模型 + 补 NekoBox 的编辑 UI（不做规则集管线）
+
+按优先级逐级推导：
+- **第 1 优先级（NekoBox 规格）**：`route_preferences.xml` 是 9 字段的**单条规则**表单（routeName/domain/ip/port/source/sourcePort/network/protocol/outbound）。注意：NekoBox 的"规则集/Assets 管线"是**另一块**（`AssetsActivity` + `rulesProvider`），不在 route 表单里。
+- **第 2 优先级（已有机制）**：hiddify 的 `RuleEntity` 模型**已具备全部 9 个字段**（`nekobox-function-matrix.md` §2.1 判定 Route 页 1:1，含预设规则）。缺的只是"新建/编辑规则的表单 UI"——是**暴露层缺口**，不是模型缺口。
+- **第 3 优先级（Throne 参考）**：`src/database/entities/RouteRule.cpp` + `RouteProfile.cpp` 与 hiddify 的规则模型同构（实体即规则），印证 hiddify 方向没错——Throne 同样没有把 NekoBox Android 的 Assets 管线搬进桌面。
+
+**结论：**
+1. **本轮做**：按 `route_preferences.xml` 9 字段补"新建/编辑规则表单"（`ProtocolFormSpec` 框架直接复用，一个 spec + 一个 modal），1:1 对照，工作量小、收益直接。
+2. **不做**：NekoBox 的 geo Assets 下载/更新管线（`AssetsActivity`）。hiddify 已有独立的 geo/路由资源机制（`docs/BUILD.md`、内核侧 assets），重复建设违反归一原则。若后续真需要"多套 geosite 源切换"，作为独立需求重新立项。
+3. **后置**：`global_preferences.xml` 的 `rulesProvider` 键（它是 Assets 管线的设置项）——管线都不做，设置键自然悬置。
+
+### 执行顺序更新（§5.2 之前加一条）
+- **批次 2.5（新增，插在协议表单之后）**：路由规则新建/编辑表单（9 字段，复用 ProtocolFormSpec）。
+- **SN Link 从缺口清单移除**；节点级分享 = QR(标准链接) + 复制标准链接 + 导出 JSON，全部依赖 `outbound_to_link.dart`。
