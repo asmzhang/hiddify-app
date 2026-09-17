@@ -198,7 +198,14 @@
         "serverDownloadSpeed": "Max Download Speed (in Mbps)",
         "serverStreamReceiveWindow": "QUIC Stream Receive Window",
         "serverConnectionReceiveWindow": "QUIC Connection Receive Window",
-        "hopInterval": "Port Hopping Interval(second)"
+        "hopInterval": "Port Hopping Interval(second)",
+        "serverProtocol": "Protocol",
+        "serverUsername": "Username",
+        "serverPrivateKey": "Private Key",
+        "serverPassword1": "Private Key Passphrase",
+        "version": "Protocol Version",
+        "serverInsecureConcurrency": "Insecure Concurrency",
+        "serverMTU": "MTU"
       },
       "activeProxy": "Active proxy",
       "unknownIp": "Unknown IP",

@@ -446,6 +446,13 @@ String _fieldLabel(TranslationsEn t, String id) {
     'serverStreamReceiveWindow' => f.serverStreamReceiveWindow,
     'serverConnectionReceiveWindow' => f.serverConnectionReceiveWindow,
     'hopInterval' => f.hopInterval,
+    'serverProtocol' => f.serverProtocol,
+    'serverUsername' => f.serverUsername,
+    'serverPrivateKey' => f.serverPrivateKey,
+    'serverPassword1' => f.serverPassword1,
+    'version' => f.version,
+    'serverInsecureConcurrency' => f.serverInsecureConcurrency,
+    'serverMTU' => f.serverMTU,
     _ => id,
   };
 }

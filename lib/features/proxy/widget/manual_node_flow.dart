@@ -12,7 +12,8 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 /// 保存时 `ProfileSettingsActivity.saveAndExit` 的 `editingId == 0` 分支。
 ///
 /// 三步（与 NekoBox 一一对应）：
-/// 1. **选协议** —— NekoBox 是二级子菜单 17 项；我们只有 4 项有表单（[kManualCreatableProtocols]），
+/// 1. **选协议** —— NekoBox 是二级子菜单 17 项；我们有表单的见 [kManualCreatableProtocols]
+///    （批次 2 后 10 项；trojan_go 不移植、wg 待 endpoint 通路，理由见该常量注释），
 ///    所以用一个对话框列出来代替子菜单（平台差异，已记档）。
 /// 2. **定归属组** —— 照 `DataStore.selectedGroupForImport()`：
 ///    当前分组是手动组（`type = BASIC`）就用它，否则用第一个手动组；

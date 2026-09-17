@@ -205,3 +205,71 @@ fun AbstractBean.toUniversalLink(): String {
 ### 执行顺序更新（§5.2 之前加一条）
 - **批次 2.5（新增，插在协议表单之后）**：路由规则新建/编辑表单（9 字段，复用 ProtocolFormSpec）。
 - **SN Link 从缺口清单移除**；节点级分享 = QR(标准链接) + 复制标准链接 + 导出 JSON，全部依赖 `outbound_to_link.dart`。
+
+## 6. 批次 2 执行记录：协议表单 4 → 10（2026-09-17）
+
+### 6.1 内核支持矩阵（决定"哪些做、哪些不做"的依据）
+
+逐协议查证 `hiddify-core/hiddify-sing-box/include/registry.go`（出站注册）+
+`option/*.go`（JSON 选项结构）+ `ray2sing/ray2sing/`（链接解析）后的结论：
+
+| 协议 | 内核支持 | 决定 |
+|---|---|---|
+| socks | 原生出站 `SOCKSOutboundOptions` | ✅ |
+| ssh | 原生出站 `SSHOutboundOptions` | ✅ |
+| tuic | 原生出站 `TUICOutboundOptions` | ✅ |
+| shadowtls | 原生出站 `ShadowTLSOutboundOptions` | ✅ |
+| mieru | **fork 专有** `MieruOutboundOptions`（上游没有） | ✅ |
+| naive | 原生出站（`with_naive_outbound` 恒开，`Makefile:14`） | ✅ |
+| trojan_go | **无出站注册**（NekoBox 靠外部二进制） | ❌ 不移植 |
+| wireguard | outbound 已是 stub（1.13 移除，须走 endpoints）；手动节点 payload 只进 `outbounds` 通道 | ❌ 暂缓 |
+
+**trojan_go 不移植的原理**：sing-box 从未实现过 trojan-go 协议（ trojan-go 的 ws/
+shadowsocks 层与 trojan 是不同栈）；NekoBox 用独立二进制进程跑它，hiddify 没有
+"外部二进制出站"机制。表单做了 payload 也无消费方，做=死代码。
+
+**wireguard 暂缓的原理**：内核 1.13 起 WireGuard outbound 报错指向 endpoint
+（`registry.go:200-202`）；`AWGSingbox` 产出的 endpoint 只在**链接解析**通路生效，
+而手动节点实体 payload 走 `config_assembly` 的 `outbounds` 数组——两条通路尚未接通。
+等 endpoint 通路打通后按 `WireGuardEndpointOptions` 补表单。
+
+### 6.2 框架扩展（protocol_form.dart）
+
+1. **路径元素从 `String` 扩成 `Object`**（`List<Object>`，int = 数组下标）：
+   mieru 的端口/协议落 `portBindings[0]`（内核 `validateMieruOptions`：bindings
+   非空即合法，`server_port` 留 0）。`_get/_set/_remove/_pruneEmptyMaps` 相应支持。
+2. **新增 `ProtocolField.writeValues`**（表单取值 → JSON 值映射，null=删键）：
+   - shadowtls `version`：内核是 **int**，"2"/"3" 必须写成 2/3（严格解析拒字符串）；
+   - naive `serverProtocol`：内核 `quic` 是 **bool**，https→删键（内核默认非 QUIC）、
+     quic→true；读回时缺键反查为 "https"（不显示"未设置"）。
+
+### 6.3 六份新 spec 的字段来源（全部交叉核对 XML + Fmt + 内核选项）
+
+- **socks**：版本直接列 `"4"/"4a"/"5"`（内核 `socks.ParseVersion` 只认这三个串，
+  跳过 NekoBox 的整数中间层，同 `kPacketEncodings` 的处理）。
+- **ssh**：`private_key` 用 **text** 不用 stringList——PEM 含换行，按行/逗号拆会
+  毁掉密钥；`serverCertificates`(标题 ssh_public_key) → 内核 `host_key`；
+  `serverAuthType` 下拉不移植（sing-box 先试公钥再试密码，无需 UI 分支）。
+- **tuic**：恒用 TLS（`TuicFmt.kt:84-97` 写死 enabled），种子带 `tls.enabled`；
+  v4 被 `TuicFmt.kt:72` 显式拒绝 → `protocolVersion` 不进表单。
+- **shadowtls**：`version` int 化（writeValues）；恒用 TLS（Bean security="tls" 写死）。
+- **mieru**：fork 专有选项结构；**`serverMTU` 不纳入**——内核 `MieruOutboundOptions`
+  没有 mtu 键（sing-box 严格解析，未知键直接拒）。
+- **naive**：`serverHeaders`/`sUoT` 不纳入——内核 `extra_headers` 是
+  `map[string][]string`、`udp_over_tcp` 是对象，文本/布尔写不出正确形状；
+  恒用 TLS（ray2sing security 缺省置 "tls"）。
+
+### 6.4 校验
+
+- `check_protocol_form.dart` 从 81 → **134 项断言**（+53）：六个协议各配往返幂等 +
+  读值 + 改写 + 容器/种子断言；ssh 数组私钥归一成单串有专门断言（内核
+  `Listable[string]` 等价，形状归一是有意的）。
+- `dart analyze`（4 个改动文件）0 issue；12 个 check 脚本全 PASS 无回归。
+
+### 6.5 菜单与文案
+
+- `kManualCreatableProtocols`：4 → 10（socks / shadowsocks / vless / mieru / naive /
+  hysteria2 / tuic / shadowtls / anytls / ssh），顺序照 `add_profile_menu.xml`。
+- 显示名照 NekoBox `strings.xml` 的 `action_*`（SOCKS / SSH / TUIC / ShadowTLS /
+  Mieru / Naïve）。
+- 新增 7 个字段文案键（en / zh-CN / zh-TW 三份 `.i18n.json` + slang 重新生成）。
