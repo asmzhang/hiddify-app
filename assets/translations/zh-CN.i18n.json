@@ -198,7 +198,14 @@
         "serverDownloadSpeed": "最大下行 (Mbps)",
         "serverStreamReceiveWindow": "QUIC 流接收窗口",
         "serverConnectionReceiveWindow": "QUIC 连接接收窗口",
-        "hopInterval": "端口跳跃间隔(秒)"
+        "hopInterval": "端口跳跃间隔(秒)",
+        "serverProtocol": "协议",
+        "serverUsername": "用户名",
+        "serverPrivateKey": "私钥",
+        "serverPassword1": "私钥口令",
+        "version": "协议版本",
+        "serverInsecureConcurrency": "并发连接数（不安全）",
+        "serverMTU": "MTU"
       },
       "activeProxy": "当前代理",
       "unknownIp": "未知 IP",

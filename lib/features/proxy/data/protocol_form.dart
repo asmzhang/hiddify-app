@@ -27,6 +27,7 @@ class ProtocolField {
     required this.path,
     this.choices = const [],
     this.pathByChoice = const {},
+    this.writeValues = const {},
     this.pathControllerId,
     this.siblings = const {},
     this.required = false,
@@ -39,15 +40,28 @@ class ProtocolField {
   final ProtocolFieldKind kind;
 
   /// JSON 路径（出站 payload 内）。[pathByChoice] 命中时会被覆盖。
-  final List<String> path;
+  /// 元素是 String（对象键）或 int（数组下标）—— int 用于 mieru 的
+  /// `portBindings[0]`（内核 `MieruOutboundOptions.PortBindings` 是数组，
+  /// NekoBox 表单的 serverPort/serverProtocol 落在第 0 个元素）。
+  final List<Object> path;
 
   /// [ProtocolFieldKind.choice] 的可选值（空字符串 = "不设置"）。
   final List<String> choices;
 
+  /// [ProtocolFieldKind.choice] 的「表单取值 → 写入 JSON 的值」映射。
+  /// 典型用例（都取自内核选项类型，不自创）：
+  /// - shadowtls `version`：内核 `ShadowTLSOutboundOptions.Version` 是 **int**，
+  ///   下拉值 "2"/"3" 必须写成 2/3（写 "3" 字符串内核会拒）；
+  /// - naive `serverProtocol`：内核 `NaiveOutboundOptions.QUIC` 是 **bool**，
+  ///   https→false / quic→true（false 用 `omitempty` 等价于不写，但显式 false
+  ///   能让读回时正确显示 "https"）。
+  /// 未列出的取值按原字符串写入；值为 null ⇒ 删键。
+  final Map<String, Object?> writeValues;
+
   /// 同一字段在不同取值下路径不同 —— 照 NekoBox `buildSingBoxOutboundStreamSettings`：
   /// `host` 在 ws 下进 `headers.Host`、在 http/httpupgrade 下进 `host`，`path` 在 grpc 下是 `service_name`。
   /// 键取 [pathControllerId] 对应字段的表单值；未命中 ⇒ 该取值下这个字段无意义，**跳过写入**。
-  final Map<String, List<String>> pathByChoice;
+  final Map<String, List<Object>> pathByChoice;
   final String? pathControllerId;
 
   /// 非空时一并写入的固定键 —— 用法同 NekoBox：`obfs` 非空则 `{type:"salamander", password}`；
@@ -73,7 +87,7 @@ class ProtocolField {
 class ProtocolContainerRule {
   const ProtocolContainerRule({required this.path, this.controllerId, this.dropWhen = const {}});
 
-  final List<String> path;
+  final List<Object> path;
   final String? controllerId;
   final Set<String> dropWhen;
 }
@@ -86,6 +100,16 @@ class ProtocolFormSpec {
   final List<ProtocolField> fields;
   final List<ProtocolContainerRule> containers;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 路径工具：`List<Object>`（String 键 + int 下标）⇄  `String`（"a.0.b" 点分形式）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// 点分字符串 → 路径。数字段转 int（数组下标），其余原样。
+/// 只在测试/检查代码里用到；spec 内的路径一律直接写 `List<Object>`。
+List<Object> parseFieldPath(String dotted) => [
+  for (final part in dotted.split('.')) int.tryParse(part) ?? part,
+];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 下拉数组：全部照 `res/values/arrays.xml` 的 `<string-array>` 原样抄（不增不减）
@@ -302,12 +326,190 @@ const _shadowsocksSpec = ProtocolFormSpec(
   ],
 );
 
+/// socks —— `res/xml/socks_preferences.xml` + `fmt/socks/SOCKSFmt.kt` +
+/// 内核 `SOCKSOutboundOptions`（`option/simple.go:22`）。
+///
+/// 版本下拉：NekoBox 表单存整数（0/1/2），`SOCKSFmt.kt` 构建时经
+/// `protocolVersionName()` 转成 sing-box 的字符串 `"4"/"4a"/"5"`
+/// （内核 `socks.ParseVersion` 只认这三个串）。这里直接列**最终取值**，
+/// 跳过中间那层整数编码（同 [kPacketEncodings] 的处理）。
+/// `sUoT` 未纳入 —— 理由同 shadowsocks（`udp_over_tcp` 是对象、表单只有布尔）。
+const _socksSpec = ProtocolFormSpec(
+  type: 'socks',
+  fields: [
+    ProtocolField(id: 'serverAddress', kind: ProtocolFieldKind.text, path: ['server'], required: true, section: 'proxy'),
+    ProtocolField(id: 'serverPort', kind: ProtocolFieldKind.integer, path: ['server_port']),
+    ProtocolField(id: 'serverProtocol', kind: ProtocolFieldKind.choice, path: ['version'], choices: ['4', '4a', '5']),
+    ProtocolField(id: 'serverUsername', kind: ProtocolFieldKind.text, path: ['username']),
+    ProtocolField(id: 'serverPassword', kind: ProtocolFieldKind.text, path: ['password']),
+  ],
+);
+
+/// ssh —— `res/xml/ssh_preferences.xml` + `fmt/ssh/SSHFmt.kt` +
+/// 内核 `SSHOutboundOptions`（`option/ssh.go:5`）。
+///
+/// 三处对齐：
+/// - `private_key` 用 **text** 而非 stringList：NekoBox 的 `SSHFmt.kt` 写
+///   `private_key = bean.privateKey`（单字符串，含 PEM 换行），拆行会毁掉密钥；
+///   内核 `Listable[string]` 收单串等价于单元素数组。若来源是链接解析（ray2sing）
+///   产出的数组形状，保存时会**归一成单串** —— 内核语义不变，这是有意的归一；
+/// - 表单 `serverCertificates`（标题 ssh_public_key）→ 内核 **`host_key`**
+///   （SSHFmt：`host_key: publicKey.listByLineOrComma()`），这个才是列表；
+/// - NekoBox 的 `serverAuthType` 下拉只决定 UI 里哪个字段生效（有 key 不写 password），
+///   sing-box 自身会先试公钥再试密码，所以这里**不移植**该下拉 —— 两个都给，填了就写。
+const _sshSpec = ProtocolFormSpec(
+  type: 'ssh',
+  fields: [
+    ProtocolField(id: 'serverAddress', kind: ProtocolFieldKind.text, path: ['server'], required: true, section: 'proxy'),
+    ProtocolField(id: 'serverPort', kind: ProtocolFieldKind.integer, path: ['server_port']),
+    ProtocolField(id: 'serverUsername', kind: ProtocolFieldKind.text, path: ['user']),
+    ProtocolField(id: 'serverPassword', kind: ProtocolFieldKind.text, path: ['password']),
+    ProtocolField(id: 'serverPrivateKey', kind: ProtocolFieldKind.text, path: ['private_key']),
+    ProtocolField(id: 'serverPassword1', kind: ProtocolFieldKind.text, path: ['private_key_passphrase']),
+    ProtocolField(id: 'serverCertificates', kind: ProtocolFieldKind.stringList, path: ['host_key']),
+  ],
+);
+
+/// tuic —— `res/xml/tuic_preferences.xml` + `fmt/tuic/TuicFmt.kt` +
+/// 内核 `TUICOutboundOptions`。
+///
+/// 恒用 TLS（`TuicFmt.kt:84-97` 写死 `tls.enabled = true`），种子给 `tls.enabled`
+/// （同 anytls/hysteria2）；表单不设 tls 容器规则，否则会连根拔掉。
+/// `protocolVersion` / `customJSON` / `fastConnect` / `mtu` 未纳入：v4 已被
+/// `TuicFmt.kt:72` 显式拒绝，后三者 NekoBox 表单里也没有。
+const _tuicSpec = ProtocolFormSpec(
+  type: 'tuic',
+  fields: [
+    ProtocolField(id: 'serverAddress', kind: ProtocolFieldKind.text, path: ['server'], required: true, section: 'proxy'),
+    ProtocolField(id: 'serverPort', kind: ProtocolFieldKind.integer, path: ['server_port']),
+    ProtocolField(id: 'serverUsername', kind: ProtocolFieldKind.text, path: ['uuid']),
+    ProtocolField(id: 'serverPassword', kind: ProtocolFieldKind.text, path: ['password']),
+    ProtocolField(id: 'serverALPN', kind: ProtocolFieldKind.stringList, path: ['tls', 'alpn']),
+    ProtocolField(id: 'serverCertificates', kind: ProtocolFieldKind.text, path: ['tls', 'certificate']),
+    ProtocolField(
+      id: 'serverUDPRelayMode',
+      kind: ProtocolFieldKind.choice,
+      path: ['udp_relay_mode'],
+      choices: ['', 'native', 'quic'],
+    ),
+    ProtocolField(
+      id: 'serverCongestionController',
+      kind: ProtocolFieldKind.choice,
+      path: ['congestion_control'],
+      choices: ['', 'cubic', 'new_reno', 'bbr'],
+    ),
+    ProtocolField(id: 'serverDisableSNI', kind: ProtocolFieldKind.boolean, path: ['tls', 'disable_sni']),
+    ProtocolField(id: 'serverSNI', kind: ProtocolFieldKind.text, path: ['tls', 'server_name']),
+    ProtocolField(id: 'serverReduceRTT', kind: ProtocolFieldKind.boolean, path: ['zero_rtt_handshake']),
+    ProtocolField(id: 'serverAllowInsecure', kind: ProtocolFieldKind.boolean, path: ['tls', 'insecure']),
+  ],
+);
+
+/// shadowtls —— `res/xml/shadowtls_preferences.xml` + `ShadowTLSFmt.kt` +
+/// 内核 `ShadowTLSOutboundOptions`（`option/shadowtls.go:75`）。
+///
+/// 两处要点：
+/// - `version` 内核是 **int**（下拉值 "2"/"3" 必须经 [ProtocolField.writeValues]
+///   写成 2/3，写 "3" 字符串内核会拒）；
+/// - 恒用 TLS（Bean `security="tls"` 写死 → `buildSingBoxOutboundTLS` 恒有对象），
+///   种子给 `tls.enabled`。
+const _shadowtlsSpec = ProtocolFormSpec(
+  type: 'shadowtls',
+  fields: [
+    ProtocolField(id: 'serverAddress', kind: ProtocolFieldKind.text, path: ['server'], required: true, section: 'proxy'),
+    ProtocolField(id: 'serverPort', kind: ProtocolFieldKind.integer, path: ['server_port']),
+    ProtocolField(
+      id: 'version',
+      kind: ProtocolFieldKind.choice,
+      path: ['version'],
+      choices: ['', '2', '3'],
+      writeValues: {'2': 2, '3': 3},
+    ),
+    ProtocolField(id: 'password', kind: ProtocolFieldKind.text, path: ['password']),
+    ProtocolField(id: 'sni', kind: ProtocolFieldKind.text, path: ['tls', 'server_name'], section: 'security'),
+    ProtocolField(id: 'alpn', kind: ProtocolFieldKind.stringList, path: ['tls', 'alpn']),
+    ProtocolField(id: 'certificates', kind: ProtocolFieldKind.text, path: ['tls', 'certificate']),
+    ProtocolField(id: 'allowInsecure', kind: ProtocolFieldKind.boolean, path: ['tls', 'insecure']),
+    ProtocolField(
+      id: 'utlsFingerprint',
+      kind: ProtocolFieldKind.choice,
+      path: ['tls', 'utls', 'fingerprint'],
+      choices: kUtlsFingerprints,
+      siblings: {'enabled': 'true'},
+    ),
+  ],
+  containers: [
+    ProtocolContainerRule(path: ['tls', 'utls']),
+  ],
+);
+
+/// mieru —— `res/xml/mieru_preferences.xml` + `MieruBean.java` +
+/// 内核 **fork 专有** `MieruOutboundOptions`（`option/mieru.go:3`）。
+///
+/// 与 NekoBox 的结构差异（已记档）：NekoBox 把 mieru 交给独立二进制，表单的
+/// serverPort/serverProtocol 是平级字段；hiddify 内核是 sing-box 原生出站，
+/// 端口与传输协议落在 **`portBindings[0]`**（`validateMieruOptions`：`server_port`
+/// 留 0 且 bindings 非空即合法）。`portBindings` 是数组 ⇒ 路径用 int 下标。
+/// `serverMTU` 未纳入：内核选项结构里没有 mtu（sing-box 严格解析，写了未知键直接拒）。
+const _mieruSpec = ProtocolFormSpec(
+  type: 'mieru',
+  fields: [
+    ProtocolField(id: 'serverAddress', kind: ProtocolFieldKind.text, path: ['server'], required: true, section: 'proxy'),
+    ProtocolField(id: 'serverPort', kind: ProtocolFieldKind.integer, path: ['portBindings', 0, 'port'], required: true),
+    ProtocolField(
+      id: 'serverProtocol',
+      kind: ProtocolFieldKind.choice,
+      path: ['portBindings', 0, 'protocol'],
+      choices: ['TCP', 'UDP'],
+    ),
+    ProtocolField(id: 'serverUsername', kind: ProtocolFieldKind.text, path: ['username'], required: true),
+    ProtocolField(id: 'serverPassword', kind: ProtocolFieldKind.text, path: ['password'], required: true),
+  ],
+);
+
+/// naive —— `res/xml/naive_preferences.xml` + `NaiveFmt.kt`（链接侧）+
+/// 内核 `NaiveOutboundOptions`（`option/naive.go:27`）。
+///
+/// 三处要点：
+/// - `serverProtocol`（https/quic）在内核是 **`quic` 布尔**。经 [ProtocolField.writeValues]
+///   映射：https → 删键（内核默认非 QUIC，omitempty 语义一致）、quic → true；
+///   读回时缺键反查为 "https"（内核默认值，不显示"未设置"）。
+/// - 恒用 TLS（`NaiveSingbox`：security 缺省置 "tls" → enabled），种子给 `tls.enabled`。
+/// - `serverHeaders` / `sUoT` 未纳入：内核 `extra_headers` 是 `HTTPHeader`
+///   （`map[string][]string`）、`udp_over_tcp` 是对象 —— 表单的文本/布尔都写不出
+///   正确形状（sing-box 严格解析）。链接里带的这两项编辑时原样保留。
+const _naiveSpec = ProtocolFormSpec(
+  type: 'naive',
+  fields: [
+    ProtocolField(id: 'serverAddress', kind: ProtocolFieldKind.text, path: ['server'], required: true, section: 'proxy'),
+    ProtocolField(id: 'serverPort', kind: ProtocolFieldKind.integer, path: ['server_port']),
+    ProtocolField(id: 'serverUsername', kind: ProtocolFieldKind.text, path: ['username']),
+    ProtocolField(id: 'serverPassword', kind: ProtocolFieldKind.text, path: ['password']),
+    ProtocolField(
+      id: 'serverProtocol',
+      kind: ProtocolFieldKind.choice,
+      path: ['quic'],
+      choices: ['', 'https', 'quic'],
+      writeValues: {'https': null, 'quic': true},
+    ),
+    ProtocolField(id: 'serverSNI', kind: ProtocolFieldKind.text, path: ['tls', 'server_name'], section: 'security'),
+    ProtocolField(id: 'serverCertificates', kind: ProtocolFieldKind.text, path: ['tls', 'certificate']),
+    ProtocolField(id: 'serverInsecureConcurrency', kind: ProtocolFieldKind.integer, path: ['insecure_concurrency']),
+  ],
+);
+
 const _specs = <String, ProtocolFormSpec>{
   'anytls': _anytlsSpec,
   'vless': _vlessSpec,
   'vmess': _vlessSpec,
   'hysteria2': _hysteria2Spec,
   'shadowsocks': _shadowsocksSpec,
+  'socks': _socksSpec,
+  'ssh': _sshSpec,
+  'tuic': _tuicSpec,
+  'shadowtls': _shadowtlsSpec,
+  'mieru': _mieruSpec,
+  'naive': _naiveSpec,
 };
 
 /// 这个出站类型有没有表单。返回 null ⇒ 调用方不要给 ✎ 入口（照 NekoBox：没写表单的协议就没有编辑页）。
@@ -317,20 +519,46 @@ ProtocolFormSpec? protocolFormSpecFor(String type) => _specs[type.trim().toLower
 ///
 /// 顺序照 NekoBox `res/menu/add_profile_menu.xml` 的 Manual Settings 子菜单
 /// （17 项：socks / http / ss / vmess / **vless** / trojan / trojan_go / mieru / naive /
-/// **hysteria** / tuic / shadowtls / **anytls** / ssh / wg / config / chain）——
-/// 我们目前有表单的是其中的第 3 / 5 / 10 / 13 项，所以这里是 ss / vless / hysteria2 / anytls。
-/// 其余 13 项等批次 2 补齐表单后再进来。
-const kManualCreatableProtocols = <String>['shadowsocks', 'vless', 'hysteria2', 'anytls'];
+/// **hysteria** / tuic / shadowtls / **anytls** / ssh / wg / config / chain）。
+///
+/// 批次 2 后的缺席项及理由：
+/// - `http`：内核有出站，但 NekoBox 没有独立 http 表单 XML（复用 socks 的旧版做法），
+///   批次 3 视需求补；
+/// - `trojan`：内核有 trojan 出站，表单待补（批次 3）；
+/// - `trojan_go`：**不移植** —— hiddify 内核（sing-box fork）没有 trojan-go 出站
+///   注册（`include/registry.go` 无 TypeTrojanGo），NekoBox 靠外部二进制运行，
+///   hiddify 无此机制，表单做了也连不上；
+/// - `wg`：内核 1.13 起 WireGuard outbound 已是 stub（报错指向 endpoint），
+///   手动节点 payload 只进 `outbounds` 通道，`endpoints` 通路未打通，暂缓；
+/// - `config` / `chain`：NekoBox 的「从配置文件导入」「链式代理」，不属于协议表单。
+const kManualCreatableProtocols = <String>[
+  'socks',
+  'shadowsocks',
+  'vless',
+  'mieru',
+  'naive',
+  'hysteria2',
+  'tuic',
+  'shadowtls',
+  'anytls',
+  'ssh',
+];
 
-/// 协议在菜单里的显示名 —— 照 NekoBox：`action_shadowsocks` = "Shadowsocks"、
-/// `action_hysteria` = "Hysteria"、`action_anytls` = "AnyTLS"、VLESS 是字面量 "VLESS"。
-/// NekoBox 的中文包里没有这几条的翻译（`values-zh-rCN` 里查不到），所以这里也不翻译。
+/// 协议在菜单里的显示名 —— 照 NekoBox `strings.xml` 的 `action_*`
+/// （`action_socks`="SOCKS"、`action_ssh`="SSH"、`action_tuic`="TUIC"、
+/// `action_shadowtls`="ShadowTLS"、`action_mieru`="Mieru"、`action_naive`="Naïve"）。
 String protocolDisplayName(String type) => switch (type.trim().toLowerCase()) {
   'shadowsocks' => 'Shadowsocks',
   'vless' => 'VLESS',
   'vmess' => 'VMess',
   'hysteria2' => 'Hysteria',
   'anytls' => 'AnyTLS',
+  'socks' => 'SOCKS',
+  'ssh' => 'SSH',
+  'tuic' => 'TUIC',
+  'shadowtls' => 'ShadowTLS',
+  'mieru' => 'Mieru',
+  'naive' => 'Naïve',
   _ => type,
 };
 
@@ -383,6 +611,18 @@ Map<String, String> readProtocolFormValues({
     }
     out[field.id] = _stringify(_get(payload, path));
   }
+  // 带 writeValues 的 choice 字段：读出 JSON 值后要**反查**回表单取值
+  // （如 naive `quic:false` → "https"、`quic:true` → "quic"）。
+  for (final field in spec.fields) {
+    if (field.writeValues.isEmpty) continue;
+    final jsonValue = _get(payload, field.path);
+    for (final entry in field.writeValues.entries) {
+      if (_reprScalar(entry.value) == _reprScalar(jsonValue)) {
+        out[field.id] = entry.key;
+        break;
+      }
+    }
+  }
   return out;
 }
 
@@ -431,7 +671,11 @@ String? applyProtocolForm({
     switch (field.kind) {
       case ProtocolFieldKind.text:
       case ProtocolFieldKind.choice:
-        value = raw;
+        // choice + writeValues：表单取值映射成 JSON 值（int/bool/null），
+        // 未映射的取值按原字符串写入（向后兼容普通下拉）。
+        value = field.kind == ProtocolFieldKind.choice && field.writeValues.containsKey(raw)
+            ? field.writeValues[raw]
+            : raw;
       case ProtocolFieldKind.stringList:
         value = [for (final part in raw.split(RegExp(r'[\n,]'))) if (part.trim().isNotEmpty) part.trim()];
       case ProtocolFieldKind.integer:
@@ -440,6 +684,10 @@ String? applyProtocolForm({
         value = parsed;
       case ProtocolFieldKind.boolean:
         value = true;
+    }
+    if (value == null) {
+      _remove(root, path);
+      continue;
     }
     _set(root, path, value);
 
@@ -472,7 +720,7 @@ String? applyProtocolForm({
 /// 解析字段在当前表单取值下的 JSON 路径。
 ///
 /// 有 [ProtocolField.pathByChoice] 时，取控制器字段的值去查表；查不到 ⇒ 返回 null（该取值下无意义）。
-List<String>? resolveProtocolFieldPath(ProtocolField field, {required Map<String, String> values}) {
+List<Object>? resolveProtocolFieldPath(ProtocolField field, {required Map<String, String> values}) {
   if (field.pathByChoice.isEmpty) return field.path;
   final controller = field.pathControllerId;
   if (controller == null) return field.path;
@@ -512,15 +760,24 @@ List<String> validateProtocolForm({required ProtocolFormSpec spec, required Map<
 /// 为什么需要它（编辑模式不需要）：编辑时 `tls.enabled` 这类键是靠"原样保留"活下来的
 /// （表单没有对应字段）；新建时没有"原样"可保留 ⇒ 不显式给，建出来的节点内核会拒。
 ///
-/// 取值只取自 NekoBox 的构建函数里**写死或默认**的部分，不自创：
+/// 取值只取自 NekoBox 的构建函数 / 内核选项里**写死或默认**的部分，不自创：
 /// - `anytls`：`AnyTLSFmt.kt:19` 写死 `tls.enabled = true`
 /// - `hysteria2`：`HysteriaFmt.kt:351` 写死 `tls.enabled = true`
+/// - `tuic`：`TuicFmt.kt:84-97` 写死 `tls.enabled = true`
+/// - `shadowtls`：Bean `security="tls"` 写死 → `buildSingBoxOutboundTLS` 恒有对象
+/// - `naive`：ray2sing `NaiveSingbox` security 缺省置 "tls" → enabled
+/// - `mieru`：`portBindings[0]` 的 protocol 由表单写入，port 也由表单写入
+///   （`portBindings[0].port`）—— 但内核 `MieruPortBinding` 反序列化要求元素是
+///   对象，种子先把数组占位，避免"端口填了、协议下拉没动"时写不出对象形状
 /// - `vless`：`V2RayFmt.kt:593` —— 只有 `security == "tls"` 才有 tls 对象，
 ///   而 `StandardV2RayBean` 的 `security` 默认是空 ⇒ 种子里**不带** tls
-/// - `shadowsocks`：没有 tls
+/// - `shadowsocks` / `socks` / `ssh`：没有 tls
 Map<String, dynamic> protocolSeedPayload(ProtocolFormSpec spec) => switch (spec.type) {
-  'anytls' || 'hysteria2' => {
+  'anytls' || 'hysteria2' || 'tuic' || 'shadowtls' || 'naive' => {
     'tls': {'enabled': true},
+  },
+  'mieru' => {
+    'portBindings': <dynamic>[<String, dynamic>{}],
   },
   _ => const <String, dynamic>{},
 };
@@ -543,53 +800,92 @@ String? buildProtocolPayload({
 // JSON 路径小工具（只处理 Map/List 的嵌套，不做别的）
 // ─────────────────────────────────────────────────────────────────────────────
 
-Object? _get(Object? node, List<String> path) {
+Object? _get(Object? node, List<Object> path) {
   Object? cur = node;
   for (final key in path) {
-    if (cur is! Map) return null;
-    cur = cur[key];
+    if (key is int) {
+      if (cur is! List || key >= cur.length) return null;
+      cur = cur[key];
+    } else if (cur is! Map) {
+      return null;
+    } else {
+      cur = cur[key];
+    }
   }
   return cur;
 }
 
-void _set(Map<String, dynamic> root, List<String> path, Object? value) {
-  var cur = root;
+void _set(Map<String, dynamic> root, List<Object> path, Object? value) {
+  Object? child(Object? existing, Object key) {
+    if (key is int) {
+      // 数组下标：容器必须是 List；不存在/类型不对就造一个定长 null 列表。
+      // mieru 的 portBindings 只会写到 [0]，无需扩容语义。
+      if (existing is List && existing.length > key) return existing;
+      return List<dynamic>.filled(key + 1, null);
+    }
+    if (existing is Map<String, dynamic>) return existing;
+    if (existing is Map) return Map<String, dynamic>.from(existing);
+    return <String, dynamic>{};
+  }
+
+  Object cur = root;
   for (var i = 0; i < path.length - 1; i++) {
-    final next = cur[path[i]];
-    if (next is Map<String, dynamic>) {
-      cur = next;
-    } else if (next is Map) {
-      final copy = Map<String, dynamic>.from(next);
-      cur[path[i]] = copy;
-      cur = copy;
+    final key = path[i];
+    final nextKey = path[i + 1];
+    if (key is int) {
+      final list = cur as List<dynamic>;
+      final existing = list[key] as Object?;
+      if (existing == null || _isEmptyContainerFor(existing, nextKey)) {
+        list[key] = child(existing, nextKey);
+      }
+      cur = list[key] as Object;
     } else {
-      final fresh = <String, dynamic>{};
-      cur[path[i]] = fresh;
-      cur = fresh;
+      final map = cur as Map<String, dynamic>;
+      final existing = map[key] as Object?;
+      if (existing == null || _isEmptyContainerFor(existing, nextKey)) {
+        map[key as String] = child(existing, nextKey);
+      }
+      cur = map[key] as Object;
     }
   }
-  cur[path.last] = value;
+  final last = path.last;
+  if (last is int) {
+    (cur as List<dynamic>)[last] = value;
+  } else {
+    (cur as Map<String, dynamic>)[last as String] = value;
+  }
 }
 
-void _remove(Map<String, dynamic> root, List<String> path) {
-  var cur = root;
+/// [existing] 是中间节点、[nextKey] 是下一个键：判断 existing 是不是"没内容"，
+/// 需要被 child 重建（mieru 的 null 数组元素、旧空对象等）。
+bool _isEmptyContainerFor(Object existing, Object nextKey) {
+  if (nextKey is int) return existing is! List || (existing.length <= nextKey && existing.isEmpty);
+  return existing is! Map;
+}
+
+void _remove(Map<String, dynamic> root, List<Object> path) {
+  Object? cur = root;
   for (var i = 0; i < path.length - 1; i++) {
-    final next = cur[path[i]];
-    if (next is Map<String, dynamic>) {
-      cur = next;
-    } else if (next is Map) {
-      final copy = Map<String, dynamic>.from(next);
-      cur[path[i]] = copy;
-      cur = copy;
-    } else {
+    final key = path[i];
+    if (key is int) {
+      if (cur is! List || key >= cur.length) return;
+      cur = cur[key];
+    } else if (cur is! Map) {
       return;
+    } else {
+      cur = cur[key];
     }
   }
-  cur.remove(path.last);
+  final last = path.last;
+  if (last is int) {
+    if (cur is List && last < cur.length) cur[last] = null;
+  } else if (cur is Map) {
+    cur.remove(last);
+  }
 }
 
 /// 递归删掉 [root] 在 [container] 之下的空 Map（保留容器自身）。
-void _pruneEmptyMaps(Map<String, dynamic> root, List<String> container) {
+void _pruneEmptyMaps(Map<String, dynamic> root, List<Object> container) {
   final node = container.isEmpty ? root : _get(root, container);
   if (node is! Map<String, dynamic>) return;
   _pruneEmptyMapsIn(node);
@@ -609,13 +905,20 @@ void _pruneEmptyMapsIn(Map<String, dynamic> node) {
   }
 }
 
-bool _startsWith(List<String> path, String container) {
+bool _startsWith(List<Object> path, String container) {
   final parts = container.split('.');
   if (path.length < parts.length) return false;
   for (var i = 0; i < parts.length; i++) {
-    if (path[i] != parts[i]) return false;
+    if (path[i].toString() != parts[i]) return false;
   }
   return true;
+}
+
+/// 标量（String/int/bool/null）的比较表示 —— writeValues 反查用。
+String _reprScalar(Object? value) {
+  if (value == null) return 'null';
+  if (value is String) return value;
+  return value.toString();
 }
 
 String _stringify(Object? value) {

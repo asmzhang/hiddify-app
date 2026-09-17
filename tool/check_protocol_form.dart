@@ -118,12 +118,26 @@ void main() {
 
   // ── 0. 规格查表 ────────────────────────────────────────────────────────────
   check('规格 · 未知类型无表单', protocolFormSpecFor('wireguard'), null);
+  check('规格 · trojan_go 不移植（内核无出站）', protocolFormSpecFor('trojan_go'), null);
   check('规格 · 大小写/空格归一', protocolFormSpecFor(' AnyTLS '), anytls);
   check('规格 · vmess 复用 v2ray 表单', protocolFormSpecFor('vmess'), vless);
   check('规格 · anytls 字段数', protocolFormFieldIds(anytls).length, 8);
   check('规格 · vless 字段数', protocolFormFieldIds(vless).length, 18);
   check('规格 · hysteria2 字段数', protocolFormFieldIds(hysteria2).length, 13);
   check('规格 · shadowsocks 字段数', protocolFormFieldIds(ss).length, 6);
+
+  final socks = protocolFormSpecFor('socks')!;
+  final ssh = protocolFormSpecFor('ssh')!;
+  final tuic = protocolFormSpecFor('tuic')!;
+  final shadowtls = protocolFormSpecFor('shadowtls')!;
+  final mieru = protocolFormSpecFor('mieru')!;
+  final naive = protocolFormSpecFor('naive')!;
+  check('规格 · socks 字段数', protocolFormFieldIds(socks).length, 5);
+  check('规格 · ssh 字段数', protocolFormFieldIds(ssh).length, 7);
+  check('规格 · tuic 字段数', protocolFormFieldIds(tuic).length, 12);
+  check('规格 · shadowtls 字段数', protocolFormFieldIds(shadowtls).length, 9);
+  check('规格 · mieru 字段数', protocolFormFieldIds(mieru).length, 5);
+  check('规格 · naive 字段数', protocolFormFieldIds(naive).length, 8);
 
   // ── 1. 读值 ───────────────────────────────────────────────────────────────
   final av = readProtocolFormValues(payload: decode(_anytlsReal), spec: anytls);
@@ -296,6 +310,133 @@ void main() {
   check('校验 · 全部合法 ⇒ 空', validateProtocolForm(spec: vless, values: vv), <String>[]);
   check('校验 · 数字类非端口字段可以越界（照 NekoBox 只校验端口）', validateProtocolForm(spec: hysteria2, values: {...hv, 'serverStreamReceiveWindow': '99999999'}), <String>[]);
 
+  // ── 6.5 批次 2：socks / ssh / tuic / shadowtls / mieru / naive ────────────
+  const socksReal =
+      '{"type":"socks","tag":"s","server":"127.0.0.1","server_port":1080,'
+      '"version":"5","username":"u","password":"p"}';
+  checkRoundTrip('socks', socks, socksReal);
+  final socksV = readProtocolFormValues(payload: decode(socksReal), spec: socks);
+  check('读 · socks 版本', socksV['serverProtocol'], '5');
+  check('读 · socks 用户名', socksV['serverUsername'], 'u');
+  const socksNoAuth =
+      '{"type":"socks","tag":"s2","server":"10.0.0.1","server_port":1080}';
+  checkRoundTrip('socks(无认证)', socks, socksNoAuth);
+  check('读 · socks 无认证全空', [
+    for (final id in ['serverProtocol', 'serverUsername', 'serverPassword'])
+      readProtocolFormValues(payload: decode(socksNoAuth), spec: socks)[id],
+  ], ['', '', '']);
+
+  // private_key 是 text（PEM 含换行，拆行会毁掉密钥）。NekoBox Bean 存单串，
+  // 表单写出单串；ray2sing 链接解析产出的是单元素数组 —— 内核 Listable[string]
+  // 两者等价，表单会把它**归一成单串**（形状变化是有意的，见 protocol_form.dart 文档）。
+  const sshReal =
+      '{"type":"ssh","tag":"ssh-1","server":"host.example.com","server_port":22,'
+      '"user":"root","private_key":"-----BEGIN OPENSSH PRIVATE KEY-----\\nabc\\n-----END OPENSSH PRIVATE KEY-----",'
+      '"host_key":["ssh-ed25519 AAAA"],"password":"pw"}';
+  checkRoundTrip('ssh', ssh, sshReal);
+  final sshV = readProtocolFormValues(payload: decode(sshReal), spec: ssh);
+  check('读 · ssh 用户', sshV['serverUsername'], 'root');
+  check('读 · ssh 私钥含 PEM 头', (sshV['serverPrivateKey'] ?? '').startsWith('-----BEGIN OPENSSH PRIVATE KEY-----'), true);
+  check('读 · ssh host_key', sshV['serverCertificates'], 'ssh-ed25519 AAAA');
+  // 数组形状的 private_key（ray2sing 产出）：读得回来，写出归一成单串
+  const sshArrayKey =
+      '{"type":"ssh","tag":"ssh-2","server":"h","server_port":22,"private_key":["KEY"]}';
+  final sshArrayRead = readProtocolFormValues(payload: decode(sshArrayKey), spec: ssh);
+  check('读 · ssh 数组私钥读回', sshArrayRead['serverPrivateKey'], 'KEY');
+  check('改 · ssh 数组私钥归一成单串(内核等价)', decode(applyOk(ssh, sshArrayKey, sshArrayRead))['private_key'], 'KEY');
+  check('读 · ssh host_key', sshV['serverCertificates'], 'ssh-ed25519 AAAA');
+  // 清空私钥 ⇒ 键删除（stringList 空串语义与文本一致）
+  final sshKeyCleared = decode(applyOk(ssh, sshReal, {...sshV, 'serverPrivateKey': ''}));
+  check('改 · ssh 清私钥 ⇒ 键删除', sshKeyCleared.containsKey('private_key'), false);
+  check('改 · ssh 清私钥 ⇒ host_key 仍在', sshKeyCleared['host_key'], ['ssh-ed25519 AAAA']);
+
+  const tuicReal =
+      '{"type":"tuic","tag":"t","server":"t.example.com","server_port":443,'
+      '"uuid":"u1","password":"p1","congestion_control":"bbr","udp_relay_mode":"quic",'
+      '"zero_rtt_handshake":true,'
+      '"tls":{"enabled":true,"server_name":"sni.example.com","alpn":["h3"],"disable_sni":true}}';
+  checkRoundTrip('tuic', tuic, tuicReal);
+  final tuicV = readProtocolFormValues(payload: decode(tuicReal), spec: tuic);
+  check('读 · tuic uuid', tuicV['serverUsername'], 'u1');
+  check('读 · tuic 拥塞控制', tuicV['serverCongestionController'], 'bbr');
+  check('读 · tuic udp 模式', tuicV['serverUDPRelayMode'], 'quic');
+  check('读 · tuic 0rtt', tuicV['serverReduceRTT'], 'true');
+  check('读 · tuic disable_sni', tuicV['serverDisableSNI'], 'true');
+  check('读 · tuic alpn 数组', tuicV['serverALPN'], 'h3');
+  final tuicEdited = decode(applyOk(tuic, tuicReal, {...tuicV, 'serverCongestionController': 'cubic', 'serverUDPRelayMode': ''}));
+  check('改 · tuic 拥塞切换', tuicEdited['congestion_control'], 'cubic');
+  check('改 · tuic udp 模式清空 ⇒ 删键', tuicEdited.containsKey('udp_relay_mode'), false);
+  check('改 · tuic 其余 tls 不动', (tuicEdited['tls'] as Map)['server_name'], 'sni.example.com');
+
+  const shadowtlsReal =
+      '{"type":"shadowtls","tag":"st","server":"st.example.com","server_port":443,'
+      '"version":3,"password":"p",'
+      '"tls":{"enabled":true,"server_name":"sni.example.com","utls":{"enabled":true,"fingerprint":"chrome"}}}';
+  checkRoundTrip('shadowtls', shadowtls, shadowtlsReal);
+  final stV = readProtocolFormValues(payload: decode(shadowtlsReal), spec: shadowtls);
+  check('读 · shadowtls 版本(int→串)', stV['version'], '3');
+  check('读 · shadowtls uTLS', stV['utlsFingerprint'], 'chrome');
+  // 关键：version 经 writeValues 必须写回 int（内核 ShadowTLSOutboundOptions.Version 是 int）
+  final stEdited = decode(applyOk(shadowtls, shadowtlsReal, {...stV, 'version': '2'}));
+  check('改 · shadowtls 版本写回 int 而非字符串', stEdited['version'], 2);
+  final stCreated = decode(buildProtocolPayload(
+    spec: shadowtls,
+    tag: 'n',
+    values: {'serverAddress': 'a.com', 'serverPort': '443', 'version': '3', 'password': 'p', 'sni': 'a.com'},
+  )!);
+  check('新建 · shadowtls 种子带 tls.enabled', (stCreated['tls'] as Map)['enabled'], true);
+  check('新建 · shadowtls 版本是 int', stCreated['version'], 3);
+  check('新建 · shadowtls 未填 uTLS ⇒ 无空壳', (stCreated['tls'] as Map).containsKey('utls'), false);
+
+  // mieru：端口/协议落 portBindings[0]（数组下标路径）
+  const mieruReal =
+      '{"type":"mieru","tag":"m","server":"m.example.com",'
+      '"portBindings":[{"protocol":"TCP","port":6666}],'
+      '"username":"user","password":"pass"}';
+  checkRoundTrip('mieru', mieru, mieruReal);
+  final mieruV = readProtocolFormValues(payload: decode(mieruReal), spec: mieru);
+  check('读 · mieru 端口(数组内)', mieruV['serverPort'], '6666');
+  check('读 · mieru 协议(数组内)', mieruV['serverProtocol'], 'TCP');
+  final mieruEdited = decode(applyOk(mieru, mieruReal, {...mieruV, 'serverPort': '8888', 'serverProtocol': 'UDP'}));
+  check('改 · mieru 端口写回数组', mieruEdited['portBindings'], [
+    {'protocol': 'UDP', 'port': 8888},
+  ]);
+  final mieruCreated = decode(buildProtocolPayload(
+    spec: mieru,
+    tag: 'n',
+    values: {'serverAddress': 'a.com', 'serverPort': '6666', 'serverProtocol': 'TCP', 'serverUsername': 'u', 'serverPassword': 'p'},
+  )!);
+  check('新建 · mieru portBindings 形状', mieruCreated['portBindings'], [
+    {'protocol': 'TCP', 'port': 6666},
+  ]);
+  check('校验 · mieru 必填(用户/密码/端口)', validateProtocolForm(spec: mieru, values: {
+    'serverAddress': 'a.com',
+    'serverPort': '',
+    'serverUsername': '',
+    'serverPassword': '',
+  }).toSet(), {'serverPort', 'serverUsername', 'serverPassword'}.toSet());
+
+  // naive：proto → quic 布尔（writeValues 映射）
+  const naiveReal =
+      '{"type":"naive","tag":"n","server":"n.example.com","server_port":443,'
+      '"username":"u","password":"p","quic":true,'
+      '"tls":{"enabled":true,"server_name":"sni.example.com"}}';
+  checkRoundTrip('naive', naive, naiveReal);
+  final naiveV = readProtocolFormValues(payload: decode(naiveReal), spec: naive);
+  check('读 · naive quic:true → quic', naiveV['serverProtocol'], 'quic');
+  final naiveHttps = decode(applyOk(naive, naiveReal, {...naiveV, 'serverProtocol': 'https'}));
+  check('改 · naive 选 https ⇒ quic 键删除(默认非quic)', naiveHttps.containsKey('quic'), false);
+  check('读 · naive 缺 quic 键 → https(内核默认)', readProtocolFormValues(payload: naiveHttps, spec: naive)['serverProtocol'], 'https');
+  final naiveEdited = decode(applyOk(naive, naiveReal, {...naiveV, 'serverInsecureConcurrency': '4'}));
+  check('改 · naive 并发写入', naiveEdited['insecure_concurrency'], 4);
+  final naiveCreated = decode(buildProtocolPayload(
+    spec: naive,
+    tag: 'n',
+    values: {'serverAddress': 'a.com', 'serverPort': '443', 'serverProtocol': 'quic', 'serverUsername': 'u', 'serverPassword': 'p'},
+  )!);
+  check('新建 · naive 种子带 tls.enabled', (naiveCreated['tls'] as Map)['enabled'], true);
+  check('新建 · naive quic → true', naiveCreated['quic'], true);
+
   // ── 7. 从零新建（NekoBox Manual Settings 的保存）────────────────────────
   //
   // 这一节证明"新建"与"编辑"共用同一套写入语义 —— 区别只在原文的起点
@@ -308,6 +449,22 @@ void main() {
   });
   check('新建 · vless 种子不带 tls（security 默认 none）', protocolSeedPayload(vless), <String, dynamic>{});
   check('新建 · shadowsocks 种子为空', protocolSeedPayload(ss), <String, dynamic>{});
+  check('新建 · tuic/shadowtls/naive 种子带 tls.enabled', [
+    protocolSeedPayload(tuic),
+    protocolSeedPayload(shadowtls),
+    protocolSeedPayload(naive),
+  ], [
+    {
+      'tls': {'enabled': true},
+    },
+    {
+      'tls': {'enabled': true},
+    },
+    {
+      'tls': {'enabled': true},
+    },
+  ]);
+  check('新建 · mieru 种子占位 portBindings[0]', jsonEncode(_canon(protocolSeedPayload(mieru))), '{"portBindings":[{}]}');
 
   final created = decode(
     buildProtocolPayload(
@@ -358,17 +515,31 @@ void main() {
   }), ['uuid']);
 
   check('新建 · 手动菜单顺序照 NekoBox add_profile_menu', kManualCreatableProtocols, [
+    'socks',
     'shadowsocks',
     'vless',
+    'mieru',
+    'naive',
     'hysteria2',
+    'tuic',
+    'shadowtls',
     'anytls',
+    'ssh',
   ]);
   check('新建 · 协议显示名照 NekoBox strings', [
-    protocolDisplayName('shadowsocks'),
-    protocolDisplayName('vless'),
-    protocolDisplayName('hysteria2'),
-    protocolDisplayName('anytls'),
-  ], ['Shadowsocks', 'VLESS', 'Hysteria', 'AnyTLS']);
+    for (final p in kManualCreatableProtocols) protocolDisplayName(p),
+  ], [
+    'SOCKS',
+    'Shadowsocks',
+    'VLESS',
+    'Mieru',
+    'Naïve',
+    'Hysteria',
+    'TUIC',
+    'ShadowTLS',
+    'AnyTLS',
+    'SSH',
+  ]);
 
   print('');
   print('passed: $_passed   failed: $_failed');
