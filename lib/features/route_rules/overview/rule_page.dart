@@ -3,6 +3,7 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/features/route_rules/notifier/rule_notifier.dart';
+import 'package:hiddify/features/route_rules/overview/android_apps_page.dart';
 import 'package:hiddify/features/route_rules/widget/setting_checkbox.dart';
 import 'package:hiddify/features/route_rules/widget/setting_divider.dart';
 import 'package:hiddify/features/route_rules/widget/setting_generic_list.dart';
@@ -70,18 +71,18 @@ class RulePage extends HookConsumerWidget {
               ),
             ),
             SettingDivider(title: t.pages.settings.routing.routeRule.rule.onlyTunMode),
-            // SettingGenericList<String>(
-            //   title: RuleEnum.packageName.present(t),
-            //   values: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.packageNames)),
-            //   onTap: () => Navigator.of(context).push(
-            //     MaterialPageRoute(
-            //       builder: (context) => AndroidAppsPage(ruleListOrder: ruleListOrder),
-            //       fullscreenDialog: true,
-            //     ),
-            //   ),
-            //   isPackageName: true,
-            //   showPlatformWarning: !PlatformUtils.isAndroid,
-            // ),
+            SettingGenericList<String>(
+              title: RuleEnum.packageName.present(t),
+              values: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.packageNames)),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => AndroidAppsPage(ruleListOrder: ruleListOrder),
+                  fullscreenDialog: true,
+                ),
+              ),
+              isPackageName: true,
+              showPlatformWarning: !PlatformUtils.isAndroid,
+            ),
             SettingGenericList<String>(
               title: RuleEnum.processName.present(t),
               values: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.processNames)),

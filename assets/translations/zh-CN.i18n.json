@@ -437,6 +437,13 @@
             "update": "更新值",
             "clearList": "清空列表",
             "clearListMsg": "所有项目已删除"
+          },
+          "androidApps": {
+            "pageTitle": "安卓应用",
+            "showSystemApps": "显示系统应用",
+            "hideSystemApps": "隐藏系统应用",
+            "clearSelection": "清除选择",
+            "uninstalled": "已卸载"
           }
         },
         "generalOptions": {
