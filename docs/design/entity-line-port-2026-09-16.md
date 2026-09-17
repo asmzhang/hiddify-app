@@ -273,3 +273,59 @@ shadowsocks 层与 trojan 是不同栈）；NekoBox 用独立二进制进程跑�
 - 显示名照 NekoBox `strings.xml` 的 `action_*`（SOCKS / SSH / TUIC / ShadowTLS /
   Mieru / Naïve）。
 - 新增 7 个字段文案键（en / zh-CN / zh-TW 三份 `.i18n.json` + slang 重新生成）。
+
+## 7. 批次 2.5 执行记录：路由规则表单核查 + 恢复应用分流（2026-09-17）
+
+### 7.1 核查结论：§5.3 的"缺表单"判定已过时
+
+§5.3（及 `nekobox-function-matrix.md` §2.1）判定"缺新建/编辑规则的表单 UI"，实际
+核查后 **RulePage 编辑页在上游就是完整实现**（证据链）：
+
+- `lib/features/route_rules/overview/rule_page.dart`：18 字段中 16 个已有控件
+  （name/outbound/ruleSet/process×2/network/port×2/protocol/ipCidr×2/domain×4），
+  多选/列表/单选/文本四类控件齐备；
+- 路由已接线：FAB 新建 → `rule/new`，`RuleTile` 点击 → 编辑，`onExit` 自动保存
+  （`routing_config_notifier.dart:196,204`）；
+- 模型是 **protobuf `Rule`**（`route_rule.pb.dart`，18 tag）+ `RuleNotifier`
+  （riverpod，字段级 update + validator），不是 drift `RuleEntity`——
+  **比 NekoBox 的 9 字段更丰富**（domain 拆 exact/suffix/keyword/regex，process 拆
+  name/path，多 ruleSet、protocol 枚举集）；
+- `dart analyze lib/features/route_rules` 0 issue。
+
+对 NekoBox 9 字段逐项对照后，**唯一真实缺口 = routePackages（规则级应用分流）**：
+
+| NekoBox | hiddify 现状 | 处置 |
+|---|---|---|
+| routeName/domain/ip/port/source/sourcePort/network/protocol/outbound | 全有且更细 | 无需改动 |
+| routePackages | **整链路被注释**（commit `205316b6`"replaced by per-app proxy"） | 本轮恢复 |
+| serverConfig（规则级自定义配置） | 无对应模型 | 后置（见 §7.3） |
+
+### 7.2 恢复 routePackages 的依据与改动
+
+**依据**：NekoBox 自身就是"全局 per-app proxy 与规则级 packages 并存"
+（`RuleEntity.packages: Set<String>` 与 per-app 设置互不替代）；hiddify 上游简化成
+只有全局 per-app proxy 属功能裁剪，按 1:1 对照原则恢复。`installed_apps` 依赖仍在
+`pubspec.yaml`（git 依赖 VB10/installed_apps），恢复成本仅取消注释 + 补 i18n。
+
+改动（commit `8bc2228b`）：
+- `android_apps_notifier.dart` / `android_apps_page.dart` 取消整文件注释；
+  `Ref` 从 `hooks_riverpod` 来（项目惯例，`flutter_riverpod` 非直接依赖）、删
+  `dio` 死导入；搜索框文案键 `t.common.search` → `t.pages.proxies.search`（键位
+  在上游 i18n 重构中迁移过）；
+- `rule_page.dart` 恢复 packageName 的 `SettingGenericList` 控件
+  （`isPackageName: true` + `showPlatformWarning`）；
+- 三个 i18n 文件补回 `androidApps` 5 键（pageTitle/showSystemApps/hideSystemApps/
+  clearSelection/uninstalled），en/zh 值从 git 历史 `58ec2dcd` 恢复；
+- build_runner 重新生成 `android_apps_notifier.g.dart`。
+
+### 7.3 serverConfig 后置的理由
+
+NekoBox 的 `serverConfig`（`EditConfigPreference`，规则级绑定一份自定义配置）要求
+"规则 → 具体配置实体"的引用模型；hiddify 的 `Rule` protobuf 无此字段，Throne 同样
+没有（其 `RouteRule.cpp` 只有 9 个匹配字段）。三方对照后本轮不做，避免为对齐而
+发明模型。
+
+### 7.4 校验
+
+- `dart analyze` 全项目 **0 issue**；
+- `check_protocol_form.dart` 134 项断言全 PASS（无回归）。
