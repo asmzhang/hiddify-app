@@ -437,6 +437,13 @@
             "update": "Update value",
             "clearList": "Clear list",
             "clearListMsg": "All items are deleted"
+          },
+          "androidApps": {
+            "pageTitle": "Android apps",
+            "showSystemApps": "Show system apps",
+            "hideSystemApps": "Hide system apps",
+            "clearSelection": "Clear selection",
+            "uninstalled": "Uninstalled"
           }
         },
         "generalOptions": {
