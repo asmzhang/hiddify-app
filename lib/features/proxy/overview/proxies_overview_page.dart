@@ -161,6 +161,20 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
                   ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
                 }
               }(),
+              'clearTraffic' => () async {
+                final tab0 = activeTab;
+                // NekoBox `ConfigurationFragment.kt:460-475`：无确认框静默执行，
+                // 失败也不弹（本项目失败时提示一次，超出规格的防御性）。
+                final ok = await ref
+                    .read(proxiesOverviewNotifierProvider.notifier)
+                    .clearTrafficStats(
+                      profileId: tab0 == null || tab0.profileId.isEmpty ? null : tab0.profileId,
+                      groupId: tab0?.groupId,
+                    );
+                if (!ok) {
+                  ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
+                }
+              }(),
               'removeDuplicate' => () async {
                 final tab0 = activeTab;
                 // NekoBox `ConfigurationFragment.kt:545-559`：先列重复者名单确认（上限 20 条），
@@ -285,6 +299,7 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
             itemBuilder: (context) => [
               PopupMenuItem(value: 'urltest', child: Text(t.pages.proxies.testAll)),
               PopupMenuItem(value: 'clearResults', child: Text(t.pages.proxies.clearTestResults)),
+              PopupMenuItem(value: 'clearTraffic', child: Text(t.pages.proxies.clearTrafficStats)),
               PopupMenuItem(value: 'deleteUnavailable', child: Text(t.pages.proxies.deleteUnavailable)),
               PopupMenuItem(value: 'removeDuplicate', child: Text(t.pages.proxies.removeDuplicate)),
               PopupMenuItem(value: 'tcpPing', child: Text(t.pages.proxies.tcpPing)),

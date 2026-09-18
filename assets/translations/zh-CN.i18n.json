@@ -129,6 +129,7 @@
       "search": "搜索",
       "testAll": "全部测速",
       "clearTestResults": "清除测试结果",
+      "clearTrafficStats": "清空流量统计数据",
       "deleteUnavailable": "清理不可用配置",
       "removeDuplicate": "删除重复的服务器",
       "tcpPing": "TCP 测速",

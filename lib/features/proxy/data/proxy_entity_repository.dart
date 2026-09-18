@@ -493,6 +493,32 @@ class ProxyEntityRepository with InfraLogger {
     }
   }
 
+  /// 清空流量统计（NekoBox `ConfigurationFragment.kt:460-475`
+  /// `action_clear_traffic_statistics`）。
+  ///
+  /// 规格原文：遍历组内节点，`tx != 0 || rx != 0` 者清零后 `ProfileManager.updateProfile`
+  /// 落库——**无确认框、无 toast、不碰内核**。NekoBox 的节点流量增量由
+  /// `TrafficMonitor` 贴回实体，故实体列即流量真相；本项目 tx/rx 列暂无写入方
+  /// （未来接流量统计时用），先照规格把动作补齐。
+  /// 范围约定同 [clearTestResults]：[profileId]（订阅组）或 [groupId]（手动组）。
+  /// 返回受影响行数；失败返回 -1（调用方提示）。
+  Future<int> clearTrafficStats({String? profileId, int? groupId}) async {
+    try {
+      final nodes = await _nodesOf(profileId: profileId, groupId: groupId);
+      // 照 NekoBox：只碰 tx/rx 非零者，零值行不进 update（节省写放大）。
+      final toClear = nodes.where((e) => e.tx != 0 || e.rx != 0).toList();
+      if (toClear.isEmpty) return 0;
+      final count = await (_db.update(_db.proxyEntities)..where((t) => t.id.isIn(toClear.map((e) => e.id)))).write(
+        const ProxyEntitiesCompanion(tx: Value(0), rx: Value(0)),
+      );
+      loggy.info("traffic stats cleared for $count nodes");
+      return count;
+    } catch (e, stackTrace) {
+      loggy.warning("failed to clear traffic stats", e, stackTrace);
+      return -1;
+    }
+  }
+
   // ───────────────────────────────────────────────────────────────────────────
   // 去重（NekoBox `ConfigurationFragment.kt:534-580` 的 `action_remove_duplicate`
   // + `Protocols.Deduplication`）。
