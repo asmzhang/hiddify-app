@@ -8,56 +8,79 @@
 //     `PopScope(canPop: false)` 等价实现（必须显式点取消）
 //   · 取消语义：dialogStatus=2 → 测试停下 → **已测结果照常落库** → 复位 runningTest
 //   · 对话框关闭时机：NekoBox 测完也走 `test.cancel()`（dismiss + 落库）——
-//     本项目由 [showConnectionTestDialogWithCount] 在测试收尾时 pop 对话框。
+//     本项目由 [runConnectionTest] 在测试收尾时关框。
+//
+// 关框纪律（审计修正）：**pop 只允许发生一次，且只移除本对话框自己的路由**。
+// 旧实现用"读 state.cancelled 猜对话框还在不在"，存在竞态——用户点取消（框已 pop）
+// 之后 body 抛错，收尾路径的无脑 pop 会把**底层页面**顶掉。
+// 修法：取消按钮 pop(route: true) 上报"用户取消"；收尾统一走
+// [_safeRemoveDialog]（removeRoute 只删自己 + isActive 防重）。
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/widget/nekobox/nk_theme.dart';
 import 'package:hiddify/features/proxy/notifier/connection_test_notifier.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
-/// 弹出连接测试进度对话框并驱动一轮测试（⋮ 菜单入口）。
+/// ⋮ 菜单入口：弹框 → 开测 → 收尾关框 → 透传节点数。
 ///
 /// 流程照 NekoBox `pingTest` / `urlTest`（`ConfigurationFragment.kt:694-901`）：
-/// 先弹对话框 → 调 [start] 开测 → 测试收尾（成功/失败/取消）后关框。
-/// [start] 返回 null = 防重入拒绝（已有测试在跑，NekoBox `if (runningTest) return`
-/// ——此时立即退回刚弹出的框）；其非空值（测过的节点数）原样透传给调用方，
-/// 供错误提示判断（-1 = 落库失败）。
+/// 先弹对话框（`test.builder.show()`）→ 调 [start] 开测 → 测试收尾关框。
 ///
-/// 测试本体抛错时同样关框后 rethrow，错误提示由调用方 toast。
-Future<int?> showConnectionTestDialogWithCount(
+/// [start] 返回值语义：
+///   · null = 防重入拒绝（已有测试在跑，NekoBox `if (runningTest) return`）
+///     —— 对话框随即退回；
+///   · 非空 = 测过的节点数（-1 = 落库失败，调用方提示）。
+///
+/// 关框的三个来源互斥（`_safeRemoveDialog` 的 isActive 保证只生效一次）：
+///   1. 用户点取消 → 按钮 pop(true)，本函数**不等待测试**直接返回 null
+///      （NekoBox 的 cancel 也是立即 dismiss，落库在后台协程完成）；
+///   2. 测试正常收尾 → 本函数关框后返回计数；
+///   3. 测试抛错 → 关框后 rethrow（提示交给调用方 toast）。
+Future<int?> runConnectionTest(
   BuildContext context,
   WidgetRef ref, {
   required Future<int?> Function() start,
 }) async {
-  // 先弹框（NekoBox：`val dialog = test.builder.show()` 在测试逻辑之前）。
   final navigator = Navigator.of(context, rootNavigator: true);
-  navigator.push(
-    DialogRoute<int?>(
+  ModalRoute<Object?>? dialogRoute;
+
+  // 用户取消 → push 返回 true（按钮 pop 带的值）。
+  final userCancelled = await navigator.push<bool>(
+    DialogRoute<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const _ConnectionTestDialog(),
+      builder: (routeContext) {
+        dialogRoute ??= ModalRoute.of(routeContext);
+        return const _ConnectionTestDialog();
+      },
     ),
   );
+  if (userCancelled == true) {
+    // 框已被取消按钮关掉；测试在后台收尾落库（worker 池的 isCancelled 链路）。
+    // NekoBox 的 cancel 同样立即返回，不阻塞在 mainJob.joinAll() 上。
+    return null;
+  }
+
+  // 走到这里 = 对话框不是被取消按钮关的（正常收尾 / 抛错 / 防重入拒绝）。
+  // 测试本体跑完后由这里关框；框已不在栈上时 removeRoute 是空操作。
   try {
     final count = await start();
-    if (count == null) {
-      // 防重入拒绝：没有新测试在跑，对话框没有存在意义——退回刚弹的框。
-      navigator.pop();
-    } else {
-      // 测试结束（含取消路径——取消在对话框里 pop 过一次，这里再 pop 会把
-      // 下面的页面顶掉，所以取消场景下 start 的 count 也能正常返回，
-      // 但框已关，须防双重 pop）。
-      // _ConnectionTestDialog 的取消按钮自己 pop 过了；此处只在没有取消时关。
-      final cancelled = ref.read(connectionTestNotifierProvider).cancelled;
-      if (!cancelled) navigator.pop();
-    }
+    _safeRemoveDialog(navigator, dialogRoute);
     return count;
   } catch (e) {
-    // 测试抛错：关框，错误提示交给调用方 toast。
-    navigator.pop();
+    _safeRemoveDialog(navigator, dialogRoute);
     rethrow;
   }
+}
+
+/// 只移除本对话框自己的路由；已离栈（用户取消路径）时是空操作。
+///
+/// 为什么用 removeRoute 而不是 pop：pop 作用于**栈顶**——收尾时栈顶未必还是
+/// 本对话框（理论上用户可以取消后立刻打开别的对话框）；removeRoute 精确指定路由，
+/// `isActive` 同时充当"是否已经关过"的防重标记。
+void _safeRemoveDialog(NavigatorState navigator, ModalRoute<Object?>? route) {
+  if (route == null || !route.isActive) return;
+  navigator.removeRoute(route);
 }
 
 class _ConnectionTestDialog extends ConsumerWidget {
@@ -116,9 +139,9 @@ class _ConnectionTestDialog extends ConsumerWidget {
           TextButton(
             onPressed: () {
               // 照 test.cancel：置取消标记 → worker 池停下 → 已测结果照落库（notifier 侧）→
-              // 关框（pop 根 Navigator 上的 DialogRoute）。
+              // 关框（pop(true) 上报"用户取消"，runConnectionTest 据此不等待收尾）。
               ref.read(connectionTestNotifierProvider.notifier).requestCancel();
-              context.pop();
+              Navigator.of(context).pop(true);
             },
             child: Text(t.common.cancel),
           ),

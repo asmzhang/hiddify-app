@@ -131,7 +131,7 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
                 // NekoBox `urlTest()`（ConfigurationFragment.kt:834-901）：先弹进度框
                 // 再开测。本项目的内核 RPC 拿不到逐条进度，对话框只有转圈 + 文案。
                 try {
-                  await showConnectionTestDialogWithCount(
+                  await runConnectionTest(
                     context,
                     ref,
                     // runUrlTest：null = 防重入拒绝（对话框随即退回），true = 完成。
@@ -207,7 +207,7 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
                 // 取消时已测结果照落库。无确认框，结果写实体列。
                 final tab0 = activeTab;
                 try {
-                  final count = await showConnectionTestDialogWithCount(
+                  final count = await runConnectionTest(
                     context,
                     ref,
                     start: () => ref
