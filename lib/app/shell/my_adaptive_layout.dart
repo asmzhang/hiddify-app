@@ -13,6 +13,7 @@ import 'package:hiddify/core/theme/nk_palette_preferences.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/connection_summary.dart';
 import 'package:hiddify/features/stats/widget/side_bar_stats_overview.dart';
+import 'package:hiddify/utils/utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 class MyAdaptiveLayout extends HookConsumerWidget {
@@ -73,6 +74,14 @@ class MyAdaptiveLayout extends HookConsumerWidget {
                 child: NavigationDrawer(
                   selectedIndex: navSel < 0 ? null : navSel,
                   onDestinationSelected: (index) {
+                    // NekoBox 复刻 · 抽屉尾部的 FAQ 项（`main_drawer_menu.xml` 的
+                    // nav_faq，`MainActivity.kt:343` → launchCustomTab）。
+                    // 它是**动作**不是路由分支，索引固定排在全部可见导航项之后。
+                    if (index == navVisibleMetas(showProfilesAction).length) {
+                      rootDrawerScaffoldKey.currentState?.closeDrawer();
+                      UriUtils.tryLaunch(Uri.parse(Constants.faqUrl));
+                      return;
+                    }
                     final branch = branchIndexForNav(showProfilesAction, index);
                     if (branch >= 0) _onTap(context, branch);
                     rootDrawerScaffoldKey.currentState?.closeDrawer();
@@ -138,6 +147,16 @@ class MyAdaptiveLayout extends HookConsumerWidget {
       final e = actions[i];
       children.add(NavigationDrawerDestination(icon: Icon(e.icon), label: Text(e.title)));
     }
+    // NekoBox 复刻 · 抽屉尾部的「文档」项（`main_drawer_menu.xml` 第三段的 nav_faq，
+    // 在 nav_about 之后）。它是动作（外部浏览器打开文档站），不是路由分支 ——
+    // 选中索引由 onDestinationSelected 里的特判处理（= 可见导航项数量）。
+    // NekoBox 第三段还有 nav_tuiguang（推广）—— 广告位不移植。
+    children.add(
+      NavigationDrawerDestination(
+        icon: const Icon(Icons.menu_book_rounded),
+        label: Text(t.pages.about.faq),
+      ),
+    );
     return children;
   }
 

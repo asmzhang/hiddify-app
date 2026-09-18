@@ -20,7 +20,9 @@ import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/notifier/profiles_update_notifier.dart';
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/data/protocol_form.dart';
+import 'package:hiddify/features/proxy/notifier/connection_test_notifier.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
+import 'package:hiddify/features/proxy/widget/connection_test_dialog.dart';
 import 'package:hiddify/features/proxy/widget/protocol_form_modal.dart';
 import 'package:hiddify/features/proxy/widget/proxy_tile.dart';
 import 'package:hiddify/features/settings/overview/quick_settings_modal.dart';
@@ -125,7 +127,28 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
           // 余项（清流量统计）待后续批次。
           PopupMenuButton<String>(
             onSelected: (value) => switch (value) {
-              'urltest' => ref.read(proxiesOverviewNotifierProvider.notifier).urlTest(),
+              'urltest' => () async {
+                // NekoBox `urlTest()`（ConfigurationFragment.kt:834-901）：先弹进度框
+                // 再开测。本项目的内核 RPC 拿不到逐条进度，对话框只有转圈 + 文案。
+                try {
+                  await showConnectionTestDialogWithCount(
+                    context,
+                    ref,
+                    // runUrlTest：null = 防重入拒绝（对话框随即退回），true = 完成。
+                    // 包成 int?：urlTest 无计数语义，完成即 0（对话框不显示计数）。
+                    start: () async {
+                      final ok = await ref
+                          .read(connectionTestNotifierProvider.notifier)
+                          .runUrlTest(body: () => ref.read(proxiesOverviewNotifierProvider.notifier).urlTest());
+                      return ok == true ? 0 : null;
+                    },
+                  );
+                } catch (_) {
+                  if (context.mounted) {
+                    ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
+                  }
+                }
+              }(),
               'clearResults' => () async {
                 final tab0 = activeTab;
                 final ok = await ref
@@ -179,17 +202,28 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
                 }
               }(),
               'tcpPing' => () async {
-                // NekoBox `pingTest(false)`：应用侧直连测速，无确认框
-                // （它的 tcp ping 也是点菜单直接开测）。结果写实体列。
+                // NekoBox `pingTest(false)`（ConfigurationFragment.kt:694-832）：
+                // 先弹进度框再开测，逐条回报（转圈 + 节点名 + n/N 计数），
+                // 取消时已测结果照落库。无确认框，结果写实体列。
                 final tab0 = activeTab;
-                final count = await ref
-                    .read(proxiesOverviewNotifierProvider.notifier)
-                    .tcpPingNodes(
-                      profileId: tab0 == null || tab0.profileId.isEmpty ? null : tab0.profileId,
-                      groupId: tab0?.groupId,
-                    );
-                if (count < 0 && context.mounted) {
-                  ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
+                try {
+                  final count = await showConnectionTestDialogWithCount(
+                    context,
+                    ref,
+                    start: () => ref
+                        .read(proxiesOverviewNotifierProvider.notifier)
+                        .tcpPingNodes(
+                          profileId: tab0 == null || tab0.profileId.isEmpty ? null : tab0.profileId,
+                          groupId: tab0?.groupId,
+                        ),
+                  );
+                  if (count != null && count < 0 && context.mounted) {
+                    ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
+                  }
+                } catch (_) {
+                  if (context.mounted) {
+                    ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
+                  }
                 }
               }(),
               'deleteUnavailable' => () async {

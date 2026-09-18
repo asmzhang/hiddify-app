@@ -136,6 +136,10 @@
       "testAfterConnect": "连接后才能测速",
       "preselect": "未连接 · 已选",
       "empty": "无可用代理",
+      "connectionTest": {
+        "title": "连接测试",
+        "testing": "测试中…"
+      },
       "msg": {
         "nodeRemoved": "已删除节点",
         "exportToClipboard": "复制节点到剪贴板",
@@ -299,6 +303,7 @@
       "donate": "捐赠",
       "license": "许可证",
       "title": "关于",
+      "faq": "文档",
       "notAvailableMsg": "已是最新版本",
       "checkForUpdate": "检查更新",
       "openWorkingDir": "打开工作目录",
