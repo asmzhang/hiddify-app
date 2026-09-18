@@ -428,6 +428,8 @@ String _fieldLabel(TranslationsEn t, String id) {
     'packetEncoding' => f.packetEncoding,
     'transport' => f.transport,
     'host' => f.host,
+    // trojan 的 NekoBox 表单里 host/path 的标题随传输方式切换
+    // （StandardV2RaySettingsActivity.updateView），这里保持统一标题。
     'path' => f.path,
     'wsMaxEarlyData' => f.wsMaxEarlyData,
     'earlyDataHeaderName' => f.earlyDataHeaderName,
@@ -448,6 +450,8 @@ String _fieldLabel(TranslationsEn t, String id) {
     'hopInterval' => f.hopInterval,
     'serverProtocol' => f.serverProtocol,
     'serverUsername' => f.serverUsername,
+    'serverAuthString' => f.serverAuthString,
+    'serverAuthBase64' => f.serverAuthBase64,
     'serverPrivateKey' => f.serverPrivateKey,
     'serverPassword1' => f.serverPassword1,
     'version' => f.version,

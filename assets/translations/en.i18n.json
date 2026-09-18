@@ -206,6 +206,8 @@
         "hopInterval": "Port Hopping Interval(second)",
         "serverProtocol": "Protocol",
         "serverUsername": "Username",
+        "serverAuthString": "Authentication Payload (string)",
+        "serverAuthBase64": "Authentication Payload (base64)",
         "serverPrivateKey": "Private Key",
         "serverPassword1": "Private Key Passphrase",
         "version": "Protocol Version",

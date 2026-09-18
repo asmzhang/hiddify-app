@@ -125,19 +125,22 @@ void main() {
   check('规格 · vless 字段数', protocolFormFieldIds(vless).length, 18);
   check('规格 · hysteria2 字段数', protocolFormFieldIds(hysteria2).length, 13);
   check('规格 · shadowsocks 字段数', protocolFormFieldIds(ss).length, 6);
-
   final socks = protocolFormSpecFor('socks')!;
   final ssh = protocolFormSpecFor('ssh')!;
   final tuic = protocolFormSpecFor('tuic')!;
   final shadowtls = protocolFormSpecFor('shadowtls')!;
   final mieru = protocolFormSpecFor('mieru')!;
   final naive = protocolFormSpecFor('naive')!;
+  final trojan = protocolFormSpecFor('trojan')!;
+  final hysteria = protocolFormSpecFor('hysteria')!;
   check('规格 · socks 字段数', protocolFormFieldIds(socks).length, 5);
   check('规格 · ssh 字段数', protocolFormFieldIds(ssh).length, 7);
   check('规格 · tuic 字段数', protocolFormFieldIds(tuic).length, 12);
   check('规格 · shadowtls 字段数', protocolFormFieldIds(shadowtls).length, 9);
   check('规格 · mieru 字段数', protocolFormFieldIds(mieru).length, 5);
   check('规格 · naive 字段数', protocolFormFieldIds(naive).length, 8);
+  check('规格 · trojan 字段数（vless 18 - flow - packetEncoding = 16）', protocolFormFieldIds(trojan).length, 16);
+  check('规格 · hysteria v1 字段数', protocolFormFieldIds(hysteria).length, 14);
 
   // ── 1. 读值 ───────────────────────────────────────────────────────────────
   final av = readProtocolFormValues(payload: decode(_anytlsReal), spec: anytls);
@@ -309,6 +312,129 @@ void main() {
   check('校验 · 端口非数字', validateProtocolForm(spec: anytls, values: {...av, 'serverPort': 'x'}), ['serverPort']);
   check('校验 · 全部合法 ⇒ 空', validateProtocolForm(spec: vless, values: vv), <String>[]);
   check('校验 · 数字类非端口字段可以越界（照 NekoBox 只校验端口）', validateProtocolForm(spec: hysteria2, values: {...hv, 'serverStreamReceiveWindow': '99999999'}), <String>[]);
+
+  // ── 6.6 批次 6：trojan / hysteria v1 / hop_interval 后缀 ──────────────────
+  // trojan = vless 减 flow/packetEncoding（NekoBox TrojanSettingsActivity 复用
+  // standard_v2ray_preferences，uuid 字段改绑 bean.password）。
+  const trojanWsReal =
+      '{"type":"trojan","tag":"tj-ws","server":"t.example.com","server_port":443,'
+      '"password":"pw8","transport":{"type":"ws","path":"/tj","headers":{"Host":"tj.example.com"}},'
+      '"tls":{"enabled":true,"server_name":"sni.example.com","alpn":["h2","http/1.1"]}}';
+  checkRoundTrip('trojan(ws)', trojan, trojanWsReal);
+  final tjV = readProtocolFormValues(payload: decode(trojanWsReal), spec: trojan);
+  check('读 · trojan 密码', tjV['password'], 'pw8');
+  check('读 · trojan 传输方式', tjV['transport'], 'ws');
+  check('读 · trojan ws host', tjV['host'], 'tj.example.com');
+  check('读 · trojan 无 flow/packetEncoding 字段（与 vless 差异）', [
+    tjV.containsKey('flow'),
+    tjV.containsKey('packetEncoding'),
+  ], [false, false]);
+
+  const trojanReal = '{"type":"trojan","tag":"tj","server":"t2.example.com","server_port":443,"password":"pw","tls":{"enabled":true}}';
+  checkRoundTrip('trojan(裸 tls)', trojan, trojanReal);
+  // reality 语义与 vless 完全同构
+  final tjRealitySet = decode(applyOk(trojan, trojanReal, {
+    ...readProtocolFormValues(payload: decode(trojanReal), spec: trojan),
+    'realityPubKey': 'PUB',
+    'realityShortId': 'SID',
+    'utlsFingerprint': 'chrome',
+  }));
+  check('改 · trojan reality/uTLS 与 vless 同构', (tjRealitySet['tls'] as Map)['reality'], {
+    'enabled': true,
+    'public_key': 'PUB',
+    'short_id': 'SID',
+  });
+  // security 关 ⇒ 整个 tls 摘掉
+  final tjTlsOff = decode(applyOk(trojan, trojanWsReal, {...tjV, 'security': 'false'}));
+  check('改 · trojan security=false ⇒ 没有 tls', tjTlsOff.containsKey('tls'), false);
+  check('改 · trojan transport 保留', tjTlsOff.containsKey('transport'), true);
+  // 传输切 tcp ⇒ transport 消失
+  final tjTcp = decode(applyOk(trojan, trojanWsReal, {...tjV, 'transport': 'tcp'}));
+  check('改 · trojan 传输 tcp ⇒ 无 transport', tjTcp.containsKey('transport'), false);
+
+  // 新建：种子不带 tls（security 默认关，与 vless 一致）
+  check('新建 · trojan 种子为空', protocolSeedPayload(trojan), <String, dynamic>{});
+  final tjCreated = decode(buildProtocolPayload(
+    spec: trojan,
+    tag: 'n',
+    values: {'serverAddress': 'a.com', 'serverPort': '443', 'password': 'pw', 'security': 'true', 'sni': 'a.com'},
+  )!);
+  check('新建 · trojan 开 security ⇒ tls.enabled', (tjCreated['tls'] as Map)['enabled'], true);
+  check('新建 · trojan 必填校验', validateProtocolForm(spec: trojan, values: {'serverAddress': '', 'password': ''}).toSet(), {
+    'serverAddress',
+    'password',
+  }.toSet());
+
+  // hysteria v1：auth 双框（顶替 NekoBox TYPE 下拉）、恒用 TLS、窗口键各归各位
+  const hysteriaReal =
+      '{"type":"hysteria","tag":"h1","server":"h.example.com","server_port":443,'
+      '"auth_str":"pass123","up_mbps":100,"down_mbps":50,'
+      '"obfs":"obfsPass","hop_interval":"30s",'
+      '"tls":{"enabled":true,"server_name":"sni.example.com","insecure":true}}';
+  checkRoundTrip('hysteria(v1)', hysteria, hysteriaReal);
+  final h1V = readProtocolFormValues(payload: decode(hysteriaReal), spec: hysteria);
+  check('读 · hysteria auth_str', h1V['serverAuthString'], 'pass123');
+  check('读 · hysteria auth(base64) 缺键 ⇒ 空', h1V['serverAuthBase64'], '');
+  check('读 · hysteria hop_interval 剥掉 s 后缀', h1V['hopInterval'], '30');
+
+  // BASE64 认证走 auth 键
+  const hysteriaB64 =
+      '{"type":"hysteria","tag":"h1b","server":"h.example.com","server_port":443,"auth":"cGFzczEyMw=="}';
+  checkRoundTrip('hysteria(base64 auth)', hysteria, hysteriaB64);
+  check('读 · hysteria base64 auth', readProtocolFormValues(payload: decode(hysteriaB64), spec: hysteria)['serverAuthBase64'], 'cGFzczEyMw==');
+
+  // 改字段：两窗口各写各键（修复 NekoBox HysteriaFmt.kt:299 的抄写 bug）
+  final h1Edited = decode(applyOk(hysteria, hysteriaReal, {
+    ...h1V,
+    'serverStreamReceiveWindow': '65536',
+    'serverConnectionReceiveWindow': '8388608',
+  }));
+  check('改 · hysteria recv_window_conn(流窗口)', h1Edited['recv_window_conn'], 65536);
+  check('改 · hysteria recv_window(连接窗口)', h1Edited['recv_window'], 8388608);
+
+  // hop_interval：裸数字自动补 "s"（内核 badoption.Duration 必须带单位）
+  final h1Hop = decode(applyOk(hysteria, hysteriaReal, {...h1V, 'hopInterval': '45'}));
+  check('改 · hysteria 裸数字 hop ⇒ 补 s', h1Hop['hop_interval'], '45s');
+  // 已带单位的原文原样保留
+  final h1HopUnit = decode(applyOk(hysteria, hysteriaReal, {...h1V, 'hopInterval': '2m'}));
+  check('改 · hysteria 带单位 hop 原样', h1HopUnit['hop_interval'], '2m');
+  // 清空 ⇒ 删键
+  final h1HopCleared = decode(applyOk(hysteria, hysteriaReal, {...h1V, 'hopInterval': ''}));
+  check('改 · hysteria 空 hop ⇒ 删键', h1HopCleared.containsKey('hop_interval'), false);
+
+  // obfs（v1 明文串，非 salamander 容器）
+  final h1ObfsCleared = decode(applyOk(hysteria, hysteriaReal, {...h1V, 'serverObfs': ''}));
+  check('改 · hysteria 清混淆 ⇒ 删键', h1ObfsCleared.containsKey('obfs'), false);
+
+  // 新建：种子带 tls.enabled（v1 恒用 TLS）
+  check('新建 · hysteria 种子带 tls.enabled（构建期写死）', protocolSeedPayload(hysteria), {
+    'tls': {'enabled': true},
+  });
+  final h1Created = decode(buildProtocolPayload(
+    spec: hysteria,
+    tag: 'n',
+    values: {'serverAddress': 'a.com', 'serverPort': '443', 'serverAuthString': 'pw', 'hopInterval': '30'},
+  )!);
+  check('新建 · hysteria tls 来自种子', (h1Created['tls'] as Map)['enabled'], true);
+  check('新建 · hysteria hop 补 s', h1Created['hop_interval'], '30s');
+  check('新建 · hysteria 未填键不产生', h1Created.containsKey('obfs'), false);
+  // 与 vless/trojan/ss 的 serverPort 同口径：地址必填，端口非必填但填了必须合法
+  check('校验 · hysteria 必填(地址)', validateProtocolForm(spec: hysteria, values: {
+    'serverAddress': '',
+    'serverPorts': '443',
+  }), ['serverAddress']);
+  check('校验 · hysteria 端口非法要拦', validateProtocolForm(spec: hysteria, values: {
+    'serverAddress': 'a.com',
+    'serverPorts': '99999',
+  }), ['serverPorts']);
+
+  // hysteria2 的 hop_interval 同样获得后缀能力（批次 6 修复既有缺陷）
+  check('规格 · hysteria2 hopInterval 带 valueSuffix', hysteria2.fields.firstWhere((f) => f.id == 'hopInterval').valueSuffix, 's');
+  const hy2Hop =
+      '{"type":"hysteria2","tag":"h2","server":"h.example.com","server_port":443,"hop_interval":"30s"}';
+  final hy2V = readProtocolFormValues(payload: decode(hy2Hop), spec: hysteria2);
+  check('读 · hysteria2 hop 剥 s', hy2V['hopInterval'], '30');
+  check('改 · hysteria2 裸数字补 s', decode(applyOk(hysteria2, hy2Hop, {...hy2V, 'hopInterval': '60'}))['hop_interval'], '60s');
 
   // ── 6.5 批次 2：socks / ssh / tuic / shadowtls / mieru / naive ────────────
   const socksReal =
@@ -518,8 +644,10 @@ void main() {
     'socks',
     'shadowsocks',
     'vless',
+    'trojan',
     'mieru',
     'naive',
+    'hysteria',
     'hysteria2',
     'tuic',
     'shadowtls',
@@ -532,8 +660,10 @@ void main() {
     'SOCKS',
     'Shadowsocks',
     'VLESS',
+    'Trojan',
     'Mieru',
     'Naïve',
+    'Hysteria',
     'Hysteria',
     'TUIC',
     'ShadowTLS',
