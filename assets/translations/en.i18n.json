@@ -129,6 +129,7 @@
       "search": "Search",
       "testAll": "Test all delays",
       "clearTestResults": "Clear test results",
+      "clearTrafficStats": "Clear traffic statistics",
       "deleteUnavailable": "Clear unavailable",
       "removeDuplicate": "Remove duplicate servers",
       "tcpPing": "TCP ping",

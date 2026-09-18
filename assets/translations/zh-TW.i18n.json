@@ -128,6 +128,7 @@
       "search": "搜尋",
       "testAll": "全部測速",
       "clearTestResults": "清除測試結果",
+      "clearTrafficStats": "清空流量統計資料",
       "deleteUnavailable": "清理不可用配置",
       "removeDuplicate": "刪除重複的伺服器",
       "tcpPing": "TCP 測速",

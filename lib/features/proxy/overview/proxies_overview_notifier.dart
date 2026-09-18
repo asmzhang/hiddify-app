@@ -527,6 +527,26 @@ class ProxiesOverviewNotifier extends _$ProxiesOverviewNotifier with AppLogger {
     return false;
   }
 
+  /// 清空流量统计（NekoBox ⋮ 菜单 `Clear traffic statistics`，
+  /// `ConfigurationFragment.kt:460-475`）。
+  ///
+  /// 清的是**实体列**（`tx`/`rx`）——与 [clearTestResults] 同理，连接中的实时流量
+  /// 来自内核贴值，不受此影响。NekoBox 对此动作**无确认框也无 toast**，静默执行；
+  /// 失败时才由调用方提示。
+  /// 归属组照 [removeNode] 的约定：`profileId`（订阅组）或 `groupId`（手动组）。
+  Future<bool> clearTrafficStats({String? profileId, int? groupId}) async {
+    final count = await ref
+        .read(proxyEntityRepositoryProvider)
+        .clearTrafficStats(profileId: profileId, groupId: groupId);
+    if (count >= 0) {
+      // 节点卡当前不读实体 tx/rx（流量显示走内核实时值），但照 [clearTestResults]
+      // 的同一逻辑 invalidate：未来实体列上屏时这里已经是对的。
+      ref.invalidate(proxyGroupTabsProvider);
+      return true;
+    }
+    return false;
+  }
+
   /// 删除重复的服务器（NekoBox ⋮ 菜单 `action_remove_duplicate`，
   /// `ConfigurationFragment.kt:534-580`）。
   ///
