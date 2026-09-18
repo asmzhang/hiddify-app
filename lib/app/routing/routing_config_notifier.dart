@@ -23,6 +23,7 @@ import 'package:hiddify/features/route_rules/notifier/rule_notifier.dart';
 import 'package:hiddify/features/route_rules/overview/generic_list_page.dart';
 import 'package:hiddify/features/route_rules/overview/rule_page.dart';
 import 'package:hiddify/features/settings/overview/sections/chain_options_page.dart';
+import 'package:hiddify/features/settings/overview/sections/custom_config_page.dart';
 import 'package:hiddify/features/settings/overview/sections/general_page.dart';
 import 'package:hiddify/features/settings/overview/sections/inbound_options_page.dart';
 import 'package:hiddify/features/settings/overview/sections/routing_options_page.dart';
@@ -268,6 +269,12 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
                   path: 'chain-options',
                   pageBuilder: (_, state) =>
                       customTransition(TransitionType.slide, state.pageKey, const ChainOptionsPage()),
+                ),
+                GoRoute(
+                  name: 'customConfig',
+                  path: 'custom-config',
+                  pageBuilder: (_, state) =>
+                      customTransition(TransitionType.slide, state.pageKey, const CustomConfigPage()),
                 ),
               ],
             ),

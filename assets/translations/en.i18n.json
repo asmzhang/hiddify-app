@@ -683,6 +683,14 @@
           "selectProfile": "Select profile",
           "conduitPairingId": "Conduit pairing ID"
         }
+      },
+      "customConfig": {
+        "title": "Custom Config",
+        "subtitle": "Merge custom JSON into the final config",
+        "hint": "sing-box JSON merged into the final config after the core builds it (NekoBox globalCustomConfig). Map: deep merge; \"key+\": append to list; \"+key\": prepend to list; plain key: replace. Leave empty to disable.",
+        "invalidJson": "Invalid JSON: the value must be a single JSON object.",
+        "saved": "Custom config saved",
+        "cleared": "Custom config cleared"
       }
     }
   },

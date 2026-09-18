@@ -1,8 +1,12 @@
+import 'dart:convert';
+
+import 'package:dartx/dartx.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:hiddify/core/model/directories.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/utils/exception_handler.dart';
+import 'package:hiddify/core/utils/json_merge.dart';
 import 'package:hiddify/features/connection/model/connection_failure.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/profile/data/profile_path_resolver.dart';
@@ -95,6 +99,18 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
   /// 状态被复位，第二次 start 不会被判成 ALREADY_STARTED。
   ///
   /// 只动节点：组由内核重建（`builder.go:130-371` 会丢弃输入里的组），本层不代劳。
+  ///
+  /// **custom_config 两阶段启动**（`docs/design/custom-config-2026-09-18.md` §8.3）：
+  /// `ConfigOptions.customConfig` 非空时（NekoBox `globalCustomConfig`）：
+  /// 1. 先照常组装 entities 文件（失败回落订阅，与现状一致）——得到"合并基准路径"
+  /// 2. `generateFullConfigByPath`：内核（raw=false）拼出**完整最终 JSON**
+  ///    （HiddifyOptions patch 全部完成：DNS/路由/入站/链式...）
+  /// 3. Dart 侧 `deepMergeJson(完整JSON, customConfig)` —— NekoBox `Util.mergeMap`
+  ///    同构语义（Map 深合并 / `key+` 追加 / `+key` 前插 / 裸键替换）
+  /// 4. `startRawContent`：`EnableRawConfig=true` + 合并结果启动 —— 内核只 unmarshal 不拼装
+  /// 5. 任一步失败 ⇒ 记日志回落现状路径（保证「不会比原来更差」）
+  ///
+  /// customConfig 为空 ⇒ 与改动前逐字节同路径，零行为变化。
   TaskEither<ConnectionFailure, Unit> _start(ProfileEntity profile, bool disableMemoryLimit) =>
       TaskEither(() async {
         final subscriptionPath = profilePathResolver.file(profile.id).path;
@@ -111,6 +127,16 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
           loggy.warning("entity config assembly failed, starting from the subscription config instead", e, stackTrace);
         }
 
+        // 合并基准 = 实体组装产物，失败回落订阅基准（与现状一致）
+        final basePath = entityPath ?? subscriptionPath;
+
+        final customConfig = ref.read(ConfigOptions.customConfig);
+        if (customConfig.isNotBlank) {
+          final rawResult = await _startWithCustomConfig(customConfig, basePath, profile.name, disableMemoryLimit).run();
+          if (rawResult.isRight()) return rawResult;
+          loggy.warning("custom_config raw start failed, falling back to the normal path: $rawResult");
+        }
+
         if (entityPath != null) {
           final result = await singbox.start(entityPath, profile.name, disableMemoryLimit).run();
           if (result.isRight()) return result;
@@ -119,6 +145,33 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
 
         return singbox.start(subscriptionPath, profile.name, disableMemoryLimit).run();
       });
+
+  /// 两阶段 raw 启动（设计文档 §8.3 b-d）：内核拼装 → Dart 深合并 → raw 通道启动。
+  /// 任何一步失败都返回 Left，由调用方回落现状路径。
+  ///
+  /// 合并基准是**内核拼装的完整最终 JSON**（含全部 patch），不是订阅/实体文件原文——
+  /// 否则 `EnableRawConfig=true` 会跳过内核 patch（WARP/静态 IP/DNS/路由构建），
+  /// 与 ChangeHiddifySettings 驱动的配置不一致。
+  TaskEither<ConnectionFailure, Unit> _startWithCustomConfig(
+    String customConfig,
+    String basePath,
+    String name,
+    bool disableMemoryLimit,
+  ) => TaskEither(() async {
+    // b. 内核正常拼装（raw=false），产出完整最终 JSON
+    final fullConfig = await singbox.generateFullConfigByPath(basePath).run();
+    final content = fullConfig.fold(
+      (err) => throw StateError("generate full config failed: $err"),
+      (c) => c,
+    );
+
+    // c. Dart 侧 NekoBox 语义深合并（最后改卷权）
+    final base = jsonDecode(content) as Map<String, dynamic>;
+    final merged = deepMergeJson(base, parseCustomConfig(customConfig));
+
+    // d. raw 通道启动
+    return singbox.startRawContent(jsonEncode(merged), basePath, name, disableMemoryLimit).run();
+  });
 
   @override
   TaskEither<ConnectionFailure, Unit> disconnect() => singbox.stop().mapLeft(UnexpectedConnectionFailure.new);

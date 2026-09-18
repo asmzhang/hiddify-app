@@ -683,6 +683,14 @@
           "selectProfile": "选择配置",
           "conduitPairingId": "Conduit 配对 ID"
         }
+      },
+      "customConfig": {
+        "title": "自定义配置",
+        "subtitle": "将自定义 JSON 合并进最终配置",
+        "hint": "sing-box JSON，在内核拼装完成后深合并进最终配置（对应 NekoBox globalCustomConfig）。Map：递归深合并；\"key+\"：追加到列表末尾；\"+key\"：前插到列表头部；普通键：整体替换。留空表示停用。",
+        "invalidJson": "JSON 无效：必须是一个 JSON 对象。",
+        "saved": "自定义配置已保存",
+        "cleared": "自定义配置已清空"
       }
     }
   },

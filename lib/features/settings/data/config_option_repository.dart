@@ -197,6 +197,11 @@ abstract class ConfigOptions {
 
   static final enableFakeDns = PreferencesNotifier.create<bool, bool>("enable-fake-dns", false);
 
+  /// 全局自定义配置（NekoBox `globalCustomConfig`）：一段 sing-box 原生 JSON，
+  /// 在内核拼装完成后深合并进最终配置。语义见 docs/design/custom-config-2026-09-18.md。
+  /// 不进 SingboxConfigOption 模型（schema 不同构），只在启动管线 raw 通道消费。
+  static final customConfig = PreferencesNotifier.create<String, String>("custom-config", "");
+
   // static final enableDnsRouting = PreferencesNotifier.create<bool, bool>("enable-dns-routing", true);
 
   static final independentDnsCache = PreferencesNotifier.create<bool, bool>("independent-dns-cache", true);
@@ -397,6 +402,7 @@ abstract class ConfigOptions {
     "allow-connection-from-lan": allowConnectionFromLan,
     "lan-sharing-password": lanSharingPassword,
     // "enable-dns-routing": enableDnsRouting,
+    "custom-config": customConfig,
 
     // mux
     // "mux.enable": enableMux,
