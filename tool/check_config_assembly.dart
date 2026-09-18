@@ -41,6 +41,16 @@ ImportedProxyEntity _entity(String tag, String type, Map<String, dynamic> payloa
   displayName: tag,
 );
 
+/// 递归排序 Map 的键 —— 只用于**比较**（canonical 形式）。
+Object? _canon(Object? node) {
+  if (node is Map) {
+    final keys = node.keys.map((k) => k.toString()).toList()..sort();
+    return {for (final k in keys) k: _canon(node[k])};
+  }
+  if (node is List) return [for (final item in node) _canon(item)];
+  return node;
+}
+
 void main() {
   var failures = 0;
 
@@ -183,6 +193,113 @@ void main() {
     sorted(staleNodeTags(baselineConfigJson: '{oops', entityTags: const [])),
     <String>[],
   );
+
+  // ── 10. 批次 9：endpoints 段（wireguard endpoint）─────────────────────────
+  // 内核 1.13 起 wireguard outbound 是 stub（include/registry.go:200-201），
+  // endpoint 是唯一合法形态；实体按 isNodeEndpoint 拆桶进 config['endpoints']。
+  final wgEndpoint = <String, dynamic>{
+    'type': 'wireguard',
+    'tag': 'WG-01',
+    'address': ['172.16.0.2/32'],
+    'private_key': 'KEY=',
+    'mtu': 1420,
+    'peers': [
+      {'address': 'a.example.com', 'port': 51820, 'public_key': 'PUB='},
+    ],
+  };
+  ImportedProxyEntity wgEntity(String tag, Map<String, dynamic> payload) => ImportedProxyEntity(
+    tag: tag,
+    type: 'wireguard',
+    payload: jsonEncode(payload),
+    displayName: tag,
+  );
+
+  // 混合基准：legacy wireguard outbound（必炸形态）+ 已有 endpoint + 普通节点
+  const baselineWithEndpoints =
+      '{"outbounds":[{"type":"selector","tag":"select","outbounds":["N1","WG-OLD"]},'
+      '{"type":"wireguard","tag":"WG-LEGACY","server":"old.example.com","server_port":51820,"private_key":"k"},'
+      '{"type":"vless","tag":"N1","server":"s"}],'
+      '"endpoints":[{"type":"wireguard","tag":"WG-OLD","address":["10.0.0.2/32"],"private_key":"k","peers":[{"address":"old.example.com","port":51820}]}]}';
+
+  final r9 = applyEntitiesToOutbounds(
+    baselineConfigJson: baselineWithEndpoints,
+    entities: [
+      ...entities,
+      wgEntity('WG-OLD', {...wgEndpoint, 'tag': 'WG-OLD', 'peers': [
+        {'address': 'updated.example.com', 'port': 1234, 'public_key': 'PUB='},
+      ]}),
+      wgEntity('WG-01', wgEndpoint),
+    ],
+    staleTags: staleNodeTags(baselineConfigJson: baselineWithEndpoints, entityTags: const ['HK-01', 'JP-02', 'US-04', 'WG-OLD', 'WG-01']),
+  );
+  check('endpoints · 组装成功', r9 != null, true);
+  final a9 = jsonDecode(r9!.configJson) as Map<String, dynamic>;
+  final out9 = (a9['outbounds'] as List).cast<Map<String, dynamic>>();
+  final eps9 = (a9['endpoints'] as List).cast<Map<String, dynamic>>();
+
+  // legacy wireguard outbound 被剔除（内核 stub 启动即报错，留着整份配置连不上）
+  check('endpoints · legacy wireguard outbound 被剔除', out9.any((o) => o['tag'] == 'WG-LEGACY'), false);
+  // removed = WG-LEGACY（legacy 剔除）+ N1（该基准里唯一的节点，不在实体集合、被 stale 点名）
+  check('endpoints · 剔除计入 removed', r9.removed, 2);
+
+  // endpoint 实体进 endpoints 段：覆盖同名 + 追加新 tag
+  check('endpoints · 段数量', eps9.length, 2);
+  final wgOld = eps9.firstWhere((e) => e['tag'] == 'WG-OLD');
+  final wgOldPeer0 = (wgOld['peers'] as List).first as Map<String, dynamic>;
+  check('endpoints · 同名 endpoint 被实体覆盖', wgOldPeer0['address'], 'updated.example.com');
+  final wg01 = eps9.firstWhere((e) => e['tag'] == 'WG-01');
+  final wg01Peer0 = (wg01['peers'] as List).first as Map<String, dynamic>;
+  check('endpoints · 新 endpoint 追加', wg01Peer0['address'], 'a.example.com');
+  // replaced = WG-OLD（endpoint 覆盖）；HK-01/JP-02 不在这个基准里 ⇒ 是追加不是覆盖
+  check('endpoints · 覆盖计入 replaced', r9.replaced, 1);
+  // added = HK-01/JP-02/US-04（基准里没有）+ WG-01（endpoint 追加）
+  check('endpoints · 追加计入 added', r9.added, 4);
+
+  // 组引用 endpoint tag：内核原生支持（builder 收 endpoint tag 进成员），
+  // 组本身照旧透传 —— 输入里的成员含 WG-OLD 不被改写
+  check('endpoints · 组透传不受影响', (out9.firstWhere((o) => o['tag'] == 'select')['outbounds'] as List).contains('WG-OLD'), true);
+
+  // staleNodeTags 对 endpoints 段：N1（普通节点，实体集合没有）与 WG-OLD（endpoint，
+  // 实体集合没有）都进 stale；WG-LEGACY 是 legacy outbound（isNodeOutbound 已排除 wg）
+  check(
+    'endpoints · staleNodeTags 覆盖 endpoints 段',
+    sorted(staleNodeTags(baselineConfigJson: baselineWithEndpoints, entityTags: const ['HK-01', 'JP-02', 'WG-01'])),
+    ['N1', 'WG-OLD'],
+  );
+
+  // 基准无 endpoints 段 + 有 endpoint 实体 ⇒ 新建 endpoints 数组
+  final r10 = applyEntitiesToOutbounds(
+    baselineConfigJson: baseline,
+    entities: [...entities, wgEntity('WG-01', wgEndpoint)],
+    staleTags: const ['GONE-03'],
+  );
+  final a10 = jsonDecode(r10!.configJson) as Map<String, dynamic>;
+  check('endpoints · 基准无段 ⇒ 新建数组', (a10['endpoints'] as List).length, 1);
+
+  // 无 endpoint 实体 + 基准也无 endpoints 段 ⇒ 输出里不凭空造段
+  final r11 = applyEntitiesToOutbounds(baselineConfigJson: baseline, entities: entities, staleTags: const ['GONE-03']);
+  check('endpoints · 无实体无段 ⇒ 不造段', (jsonDecode(r11!.configJson) as Map<String, dynamic>).containsKey('endpoints'), false);
+
+  // 只有 endpoint 实体、无普通节点实体 ⇒ 也能组装（原来 payloadByTag.isEmpty 直接 return null）
+  final r12 = applyEntitiesToOutbounds(
+    baselineConfigJson: baseline,
+    entities: [wgEntity('WG-01', wgEndpoint)],
+  );
+  check('endpoints · 纯 endpoint 实体也能组装', r12 != null, true);
+  check(
+    'endpoints · 纯 endpoint 组装的段',
+    jsonEncode(_canon((jsonDecode(r12!.configJson) as Map<String, dynamic>)['endpoints'] as List)),
+    jsonEncode(_canon([jsonDecode(jsonEncode(wgEndpoint))])),
+  );
+
+  // 基准 endpoints 段里的 endpoint、实体集合没有 + stale 点名 ⇒ 从段里删
+  final r13 = applyEntitiesToOutbounds(
+    baselineConfigJson: baselineWithEndpoints,
+    entities: [...entities], // 无 endpoint 实体
+    staleTags: staleNodeTags(baselineConfigJson: baselineWithEndpoints, entityTags: const ['HK-01', 'JP-02', 'US-04']),
+  );
+  final a13 = jsonDecode(r13!.configJson) as Map<String, dynamic>;
+  check('endpoints · stale 点名 ⇒ 段里的 endpoint 删除', (a13['endpoints'] as List).isEmpty, true);
 
   print('\n组装摘要: $r');
   print(failures == 0 ? '\nALL PASS' : '\n$failures FAILED');

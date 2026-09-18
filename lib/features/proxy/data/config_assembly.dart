@@ -75,6 +75,10 @@ class ConfigAssemblyResult {
 /// 用 [isNodeOutbound]（与"派生实体""解析列表"同一份，见 `runtime_outbound_tags.dart`）。
 /// 只读**基准文件**，因此天然不会碰到内核后加的出站（如 `🔒 WARP` 只存在于运行期配置里，
 /// 基准里没有）—— 这是"按判据删"与"按形状猜"的关键区别。
+///
+/// endpoints 段（批次 9）：基准里的 wireguard **endpoint** 同样要纳入点名
+///（订阅更新后下线的 wg 节点不该残留），判据用 [isNodeEndpoint]。返回的集合
+/// 与 outbounds 段的 stale 合并使用（组装函数按段分别匹配）。
 Set<String> staleNodeTags({required String baselineConfigJson, required Iterable<String> entityTags}) {
   final stale = <String>{};
   final entities = entityTags.toSet();
@@ -94,6 +98,17 @@ Set<String> staleNodeTags({required String baselineConfigJson, required Iterable
       if (tag == kRuntimeWarpTag) continue;
       if (!entities.contains(tag)) stale.add(tag);
     }
+    // endpoints 段：wireguard endpoint 的 stale（同判据思路，`isNodeEndpoint`）
+    final rawEndpoints = decoded['endpoints'];
+    if (rawEndpoints is List) {
+      for (final endpoint in rawEndpoints.whereType<Map>()) {
+        final tag = endpoint['tag'];
+        final type = endpoint['type'];
+        if (tag is! String || type is! String) continue;
+        if (!isNodeEndpoint(type)) continue;
+        if (!entities.contains(tag)) stale.add(tag);
+      }
+    }
   } catch (_) {
     // 基准不可解析 ⇒ 返回空集合（宁可少删，也不误删）
   }
@@ -106,6 +121,15 @@ Set<String> staleNodeTags({required String baselineConfigJson, required Iterable
 /// - 实体**覆盖**同名节点出站（用 `payload`，即含凭据的完整定义）；基准里没有的实体**追加**在末尾
 /// - [staleTags] 里的 tag **移除**（只按调用方给的集合，绝不按"看起来像节点"推断）
 /// - 其余出站（组、`§hide§` 内部出站、订阅自带的 helper）**原样透传**
+///
+/// ## endpoints 段（批次 9，`docs/design/wireguard-endpoint-2026-09-18.md` §3.2）
+///
+/// 实体按 [isNodeEndpoint] 拆两桶：普通节点走 outbounds 段（上述规则），
+/// endpoint 实体（type=wireguard）走 `config['endpoints']` —— 内核 1.13 起 wireguard
+/// outbound 是 stub，endpoint 是唯一合法形态，且内核 `setOutbounds` 会原样处理
+/// `input.Endpoints`（`builder.go:220-257`）。endpoint 实体的覆盖/追加/删除判据与
+/// outbounds 段完全同构。基准 outbounds 里若有 legacy `type==wireguard`（K1：留着
+/// 这份配置必炸），一律剔除（计入 removed）—— 这是"剔除救活订阅"，不是数据丢失。
 ///
 /// 解析失败返回 null —— 调用方应回落到基准文件（不因组装失败而无法连接）。
 ConfigAssemblyResult? applyEntitiesToOutbounds({
@@ -129,9 +153,21 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
     return null;
   }
 
-  // 实体的 tag → 完整出站定义
-  final payloadByTag = <String, Map<String, dynamic>>{};
+  // 实体拆两桶：普通节点 → outbounds 段；endpoint 类 → endpoints 段
+  // （判据只有一处：`runtime_outbound_tags.isNodeEndpoint`，与派生/解析同一份）
+  final nodeEntities = <ImportedProxyEntity>[];
+  final endpointEntities = <ImportedProxyEntity>[];
   for (final entity in entities) {
+    if (isNodeEndpoint(entity.type)) {
+      endpointEntities.add(entity);
+    } else {
+      nodeEntities.add(entity);
+    }
+  }
+
+  // 普通节点的 tag → 完整出站定义
+  final payloadByTag = <String, Map<String, dynamic>>{};
+  for (final entity in nodeEntities) {
     try {
       final decoded = jsonDecode(entity.payload);
       if (decoded is Map<String, dynamic>) payloadByTag[entity.tag] = decoded;
@@ -139,8 +175,20 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
       // 单条坏 payload 不该毁掉整份配置：跳过它
     }
   }
-  if (payloadByTag.isEmpty) return null;
-  final entityTags = entities.map((e) => e.tag).where(payloadByTag.containsKey).toList();
+  final entityTags = nodeEntities.map((e) => e.tag).where(payloadByTag.containsKey).toList();
+
+  // endpoint 实体的 tag → 完整 endpoint 定义（判据与 outbounds 段同构）
+  final endpointPayloadByTag = <String, Map<String, dynamic>>{};
+  for (final entity in endpointEntities) {
+    try {
+      final decoded = jsonDecode(entity.payload);
+      if (decoded is Map<String, dynamic>) endpointPayloadByTag[entity.tag] = decoded;
+    } catch (_) {}
+  }
+  final endpointEntityTags = endpointEntities.map((e) => e.tag).where(endpointPayloadByTag.containsKey).toList();
+
+  final isEndpointsOnly = payloadByTag.isEmpty && endpointPayloadByTag.isNotEmpty;
+  if (payloadByTag.isEmpty && !isEndpointsOnly) return null;
 
   final stale = staleTags.toSet();
   final result = <Map<String, dynamic>>[];
@@ -152,6 +200,12 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
     if (tag is String && kGroupOutboundTypes.contains(type)) {
       // 组由内核重建，本模块不碰
       result.add(outbound);
+      continue;
+    }
+    // legacy wireguard outbound 必剔除：内核 1.13 的 stub 启动即报错（K1），
+    // 留着 = 整份配置连不上。endpoint 实体已在 endpoints 段接管 wireguard。
+    if (tag is String && kEndpointOutboundTypes.contains(type)) {
+      removed++;
       continue;
     }
     if (tag is String && payloadByTag.containsKey(tag)) {
@@ -166,7 +220,7 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
     result.add(outbound);
   }
 
-  // 基准里没有的实体 → 追加（内核按输入顺序收集 tag，所以新节点排在末尾）
+  // 基准里没有的节点实体 → 追加（内核按输入顺序收集 tag，所以新节点排在末尾）
   final presentTags = {for (final o in result) o['tag']};
   var added = 0;
   for (final tag in entityTags) {
@@ -177,6 +231,41 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
   }
 
   config['outbounds'] = result;
+
+  // ── endpoints 段 ──
+  // 覆盖/删除按 tag（与 outbounds 段同构）；基准没有的 endpoint 实体追加在末尾。
+  // 基准无 endpoints 段且有 endpoint 实体 ⇒ 新建数组；反之基准段原样保留。
+  final rawEndpoints = config['endpoints'];
+  final existingEndpoints = rawEndpoints is List ? rawEndpoints.whereType<Map<String, dynamic>>().toList() : <Map<String, dynamic>>[];
+  final endpointResult = <Map<String, dynamic>>[];
+  for (final endpoint in existingEndpoints) {
+    final tag = endpoint['tag'];
+    final type = endpoint['type'];
+    // 删除判据与 stale 同思路：基准里的 wireguard endpoint，实体集合没有 ⇒ 删。
+    // （订阅更新后 wg endpoint 下线的对应物。）
+    if (tag is String && type is String && isNodeEndpoint(type)) {
+      if (!endpointPayloadByTag.containsKey(tag) && stale.contains(tag)) {
+        removed++;
+        continue;
+      }
+    }
+    if (tag is String && endpointPayloadByTag.containsKey(tag)) {
+      endpointResult.add(endpointPayloadByTag[tag]!);
+      replaced++;
+      continue;
+    }
+    endpointResult.add(endpoint);
+  }
+  final presentEndpointTags = {for (final e in endpointResult) e['tag']};
+  for (final tag in endpointEntityTags) {
+    if (!presentEndpointTags.contains(tag)) {
+      endpointResult.add(endpointPayloadByTag[tag]!);
+      added++;
+    }
+  }
+  if (endpointResult.isNotEmpty || rawEndpoints is List) {
+    config['endpoints'] = endpointResult;
+  }
 
   return ConfigAssemblyResult(
     configJson: jsonEncode(config),

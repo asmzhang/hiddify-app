@@ -212,7 +212,12 @@
         "serverPassword1": "Private Key Passphrase",
         "version": "Protocol Version",
         "serverInsecureConcurrency": "Insecure Concurrency",
-        "serverMTU": "MTU"
+        "serverMTU": "MTU",
+        "localAddress": "Local Address(es)",
+        "privateKey": "Private Key",
+        "peerPublicKey": "Peer Public Key",
+        "peerPreSharedKey": "Pre-Shared Key",
+        "reserved": "Reserved"
       },
       "activeProxy": "Active proxy",
       "unknownIp": "Unknown IP",
