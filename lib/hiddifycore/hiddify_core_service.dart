@@ -223,6 +223,62 @@ class HiddifyCoreService with InfraLogger {
     }));
   }
 
+  /// raw 内容启动（custom_config 模式，docs/design/custom-config-2026-09-18.md §8.3）：
+  /// `enableRawConfig=true` 时内核跳过拼装，直接用 [content]（完整 sing-box JSON，
+  /// 已由 Dart 侧完成 custom_config 深合并）unmarshal 后启动。
+  ///
+  /// [path] 仍须传真实配置文件路径（订阅/实体配置）：① `setupBackground` 在 Android
+  /// 侧只是把它记进 `Settings.activeConfigPath`，但 `BoxService.startService`
+  /// （BoxService.kt:147-151）对它有**非空校验**，空值直接 `EmptyConfiguration` 停机；
+  /// ② 内核 `ReadSingOptions` 只读 [content]（`ReadContent` 中 Content 优先于 Path），
+  /// path 不会影响启动内容。
+  /// 与 [start] 同样走 `Start`/`StartService` ⇒ 必须与 `Parse` 串行。
+  TaskEither<ConnectionFailure, Unit> startRawContent(String content, String path, String name, bool disableMemoryLimit) {
+    return TaskEither(() => _serializeRegistryAccess(() async {
+      statusController.add(currentState = const CoreStatus.starting());
+      loggy.debug("starting core from raw config content");
+      final background = await core.setupBackground(path, name);
+      if (background != const CoreStatus.started()) {
+        statusController.add(currentState = const CoreStatus.stopped());
+        return left(background.getCoreAlert() ?? const ConnectionFailure.unexpected("failed to start core"));
+      }
+      if (!core.isSingleChannel()) {
+        await startListeningLogs("bg", core.bgClient);
+        await startListeningStatus("bg", core.bgClient);
+      }
+      try {
+        final res = await core.bgClient.start(
+          StartRequest(
+            configContent: content,
+            configName: name,
+            enableRawConfig: true,
+            disableMemoryLimit: disableMemoryLimit,
+          ),
+        );
+        ref.read(coreRestartSignalProvider.notifier).restart();
+        if (res.messageType != MessageType.ALREADY_STARTED && res.messageType != MessageType.EMPTY) {
+          currentState = CoreStatus.stopped(
+            alert: res.message.contains("denied") ? CoreAlert.requestVPNPermission : CoreAlert.startFailed,
+            message: "failed to start core ${res.messageType} ${res.message}",
+          );
+          statusController.add(currentState);
+          return left(
+            currentState.getCoreAlert() ??
+                ConnectionFailure.unexpected("failed to start core ${res.messageType} ${res.message}"),
+          );
+        }
+      } on GrpcError catch (e) {
+        loggy.error("failed to start bg core from raw content: $e");
+        ref.read(coreRestartSignalProvider.notifier).restart();
+        if (e.code == StatusCode.unavailable) {
+          return left(const ConnectionFailure.unexpected("background core is not started yet!"));
+        }
+        return left(const ConnectionFailure.unexpected("failed to start background core"));
+      }
+      return right(unit);
+    }));
+  }
+
   TaskEither<String, Unit> stop() {
     return TaskEither(() async {
       loggy.debug("stopping");

@@ -401,6 +401,14 @@ class SettingsPage extends HookConsumerWidget {
                 value: ref.watch(ConfigOptions.allowInsecureOnRequest),
                 onChanged: ref.read(ConfigOptions.allowInsecureOnRequest.notifier).update,
               ),
+              // NekoBox `globalCustomConfig`（global_preferences.xml:92-96，
+              // EditConfigPreference）：sing-box 原生 JSON，内核拼装完成后深合并。
+              NkNavRow(
+                title: t.pages.settings.customConfig.title,
+                subtitle: t.pages.settings.customConfig.subtitle,
+                trailing: ref.watch(ConfigOptions.customConfig).trim().isNotEmpty ? 'JSON' : null,
+                onTap: () => context.goNamed('customConfig'),
+              ),
               if (PlatformUtils.isIOS)
                 NkNavRow(
                   title: t.pages.settings.resetTunnel,
