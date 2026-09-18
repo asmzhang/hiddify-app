@@ -347,6 +347,7 @@ class _FieldRow extends StatelessWidget {
       case ProtocolFieldKind.integer:
       case ProtocolFieldKind.text:
       case ProtocolFieldKind.stringList:
+      case ProtocolFieldKind.integerList:
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
           child: TextFormField(
@@ -457,6 +458,11 @@ String _fieldLabel(TranslationsEn t, String id) {
     'version' => f.version,
     'serverInsecureConcurrency' => f.serverInsecureConcurrency,
     'serverMTU' => f.serverMTU,
+    'localAddress' => f.localAddress,
+    'privateKey' => f.privateKey,
+    'peerPublicKey' => f.peerPublicKey,
+    'peerPreSharedKey' => f.peerPreSharedKey,
+    'reserved' => f.reserved,
     _ => id,
   };
 }

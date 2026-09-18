@@ -73,10 +73,32 @@ const kGroupOutboundTypes = {'selector', 'urltest', 'balancer'};
 /// 内置出站类型：不是订阅节点（NekoBox 的同一份过滤名单里也排除它们）。
 const kInternalOutboundTypes = {'dns', 'block', 'direct'};
 
+/// **endpoint 类出站**（批次 9，`docs/design/wireguard-endpoint-2026-09-18.md`）：
+///
+/// 内核 1.13 起 wireguard outbound 是 stub（`include/registry.go:200-201` 注册为
+/// `StubOptions`，启动即报错指向 endpoint）—— 配置里 `type=="wireguard"` 的条目
+/// **只可能活在 `endpoints` 段**（`WireGuardEndpointOptions`），不该再被当成
+/// outbounds 节点派生/透传。
+///
+/// 与 NekoBox 的差异（记档）：NekoBox 那份 `buildSingBoxOutboundWireguardBean`
+/// 产 legacy `Outbound_WireGuardOptions`（outbound 形态），pin 的是旧内核；
+/// 本项目按**内核现实**走 endpoint 形态（同 mieru `portBindings[0]` 的处理先例）。
+const kEndpointOutboundTypes = {'wireguard'};
+
 /// 这条出站**是不是订阅节点** —— 也就是"实体层该管的那一段"。
 ///
-/// 判据 = 不是组、不是内置类型、tag 不带 `§hide§`。
+/// 判据 = 不是组、不是内置类型、不是 endpoint 类、tag 不带 `§hide§`。
 /// ⚠️ 不要改用"看起来像节点"的其他启发式：内核会加 `🔒 WARP` 这类
 /// 既不是组、也不带 `§hide§` 的出站（`WARPConfigTag`），按形状猜会误删它。
 bool isNodeOutbound({required String tag, required String type}) =>
-    !isHiddenTag(tag) && !kGroupOutboundTypes.contains(type) && !kInternalOutboundTypes.contains(type);
+    !isHiddenTag(tag) &&
+    !kGroupOutboundTypes.contains(type) &&
+    !kInternalOutboundTypes.contains(type) &&
+    !kEndpointOutboundTypes.contains(type);
+
+/// 这条配置条目**是不是一个 endpoint 节点**（[isNodeOutbound] 的姊妹判据）。
+///
+/// `endpoints` 段里的条目没有 outbounds 的组/内置类型概念，判据只需 type。
+/// endpoint tag 同样能被内核的 selector/balancer 收编
+///（`adapter.Endpoint` 内嵌 `Outbound`；`outbound/manager.go:201-209` 回落 `endpoint.Get`）。
+bool isNodeEndpoint(String type) => kEndpointOutboundTypes.contains(type);

@@ -212,7 +212,12 @@
         "serverPassword1": "私钥口令",
         "version": "协议版本",
         "serverInsecureConcurrency": "并发连接数（不安全）",
-        "serverMTU": "MTU"
+        "serverMTU": "MTU",
+        "localAddress": "本地地址 (CIDR)",
+        "privateKey": "私钥",
+        "peerPublicKey": "对端公钥",
+        "peerPreSharedKey": "预共享密钥",
+        "reserved": "Reserved"
       },
       "activeProxy": "当前代理",
       "unknownIp": "未知 IP",

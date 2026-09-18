@@ -117,7 +117,7 @@ void main() {
   final ss = protocolFormSpecFor('shadowsocks')!;
 
   // ── 0. 规格查表 ────────────────────────────────────────────────────────────
-  check('规格 · 未知类型无表单', protocolFormSpecFor('wireguard'), null);
+  check('规格 · 未知类型无表单', protocolFormSpecFor('wgtoolong'), null);
   check('规格 · trojan_go 不移植（内核无出站）', protocolFormSpecFor('trojan_go'), null);
   check('规格 · 大小写/空格归一', protocolFormSpecFor(' AnyTLS '), anytls);
   check('规格 · vmess 复用 v2ray 表单', protocolFormSpecFor('vmess'), vless);
@@ -133,6 +133,7 @@ void main() {
   final naive = protocolFormSpecFor('naive')!;
   final trojan = protocolFormSpecFor('trojan')!;
   final hysteria = protocolFormSpecFor('hysteria')!;
+  final wg = protocolFormSpecFor('wireguard')!;
   check('规格 · socks 字段数', protocolFormFieldIds(socks).length, 5);
   check('规格 · ssh 字段数', protocolFormFieldIds(ssh).length, 7);
   check('规格 · tuic 字段数', protocolFormFieldIds(tuic).length, 12);
@@ -653,6 +654,7 @@ void main() {
     'shadowtls',
     'anytls',
     'ssh',
+    'wireguard',
   ]);
   check('新建 · 协议显示名照 NekoBox strings', [
     for (final p in kManualCreatableProtocols) protocolDisplayName(p),
@@ -669,7 +671,91 @@ void main() {
     'ShadowTLS',
     'AnyTLS',
     'SSH',
+    'WireGuard',
   ]);
+
+  // ── 8. 批次 9：wireguard（endpoint 形态）────────────────────────────────
+  // 字段清单照 `wireguard_preferences.xml`（proxy_cat 8 字段），产物按内核
+  // `WireGuardEndpointOptions`：地址/端口/凭据落 `peers[0]`，本地地址是 CIDR 数组。
+  check('规格 · wireguard 有表单', protocolFormSpecFor('wireguard'), wg);
+  check('规格 · wireguard 字段数', protocolFormFieldIds(wg).length, 8);
+
+  // 真机形状：内核 Parse 从 wg:// 订阅产出的 endpoint JSON
+  const wgReal =
+      '{"type":"wireguard","tag":"wg-hk","address":["172.16.0.2/32"],'
+      '"private_key":"aBcD1234=","mtu":1420,'
+      '"peers":[{"address":"hk.example.com","port":51820,"public_key":"PUBKEY=",'
+      '"pre_shared_key":"PSK=","reserved":[1,2,3]}]}';
+  checkRoundTrip('wireguard(endpoint)', wg, wgReal);
+  final wgv = readProtocolFormValues(payload: decode(wgReal), spec: wg);
+  // 取 peers[0]（显式 cast 避免 avoid_dynamic_calls）
+  Map<String, dynamic> wgPeer0(Map<String, dynamic> m) => (m['peers'] as List).first as Map<String, dynamic>;
+  check('读 · wg 地址(peers[0].address)', wgv['serverAddress'], 'hk.example.com');
+  check('读 · wg 端口(peers[0].port)', wgv['serverPort'], '51820');
+  check('读 · wg 本地地址(CIDR 数组)', wgv['localAddress'], '172.16.0.2/32');
+  check('读 · wg 私钥', wgv['privateKey'], 'aBcD1234=');
+  check('读 · wg 对端公钥', wgv['peerPublicKey'], 'PUBKEY=');
+  check('读 · wg 预共享密钥', wgv['peerPreSharedKey'], 'PSK=');
+  check('读 · wg mtu', wgv['serverMTU'], '1420');
+  check('读 · wg reserved(数字数组→逗号串)', wgv['reserved'], '1,2,3');
+
+  // 编辑：改地址/端口写回 peers[0]，其余键不动
+  final wgEdited = decode(applyOk(wg, wgReal, {...wgv, 'serverAddress': 'new.example.com', 'serverPort': '1234'}));
+  check('改 · wg peers[0] 地址端口', [wgPeer0(wgEdited)['address'], wgPeer0(wgEdited)['port']], ['new.example.com', 1234]);
+  check('改 · wg 其余键不动', [
+    wgEdited['address'],
+    wgEdited['private_key'],
+    wgPeer0(wgEdited)['public_key'],
+    wgPeer0(wgEdited)['reserved'],
+  ], [
+    ['172.16.0.2/32'],
+    'aBcD1234=',
+    'PUBKEY=',
+    [1, 2, 3],
+  ]);
+
+  // reserved：逗号/换行分隔数字 → 数组；非法值被校验器和写回双双拦截
+  final wgRes = decode(applyOk(wg, wgReal, {...wgv, 'reserved': '7, 8 ,9'}));
+  check('改 · wg reserved 逗号分隔(带空格)', wgPeer0(wgRes)['reserved'], [7, 8, 9]);
+  check('校验 · wg reserved 非数字要拦', validateProtocolForm(spec: wg, values: {...wgv, 'reserved': '1,a,3'}), ['reserved']);
+  check('校验 · wg reserved 越界要拦', validateProtocolForm(spec: wg, values: {...wgv, 'reserved': '1,256,3'}), ['reserved']);
+  check('校验 · wg reserved 合法 ⇒ 空', validateProtocolForm(spec: wg, values: {...wgv, 'reserved': '0,255'}), <String>[]);
+  check('边界 · wg reserved 非数字写回 ⇒ null', applyProtocolForm(payloadJson: wgReal, spec: wg, values: {...wgv, 'reserved': 'x'}), null);
+  final wgResCleared = decode(applyOk(wg, wgReal, {...wgv, 'reserved': ''}));
+  check('改 · wg reserved 清空 ⇒ peers[0] 删键', wgPeer0(wgResCleared).containsKey('reserved'), false);
+
+  // 新建：种子 mtu=1420 + peers[0] 占位。
+  // mtu 留空会被"空值=删键"语义拿掉 —— 内核默认 1408
+  //（transport/wireguard/endpoint.go:103-104 `if options.MTU == 0`），合法且有依据。
+  check('新建 · wireguard 种子', jsonEncode(_canon(protocolSeedPayload(wg))), '{"mtu":1420,"peers":[{}]}');
+  final wgCreated = decode(buildProtocolPayload(
+    spec: wg,
+    tag: 'n',
+    values: {
+      'serverAddress': 'a.example.com',
+      'serverPort': '51820',
+      'localAddress': '172.16.0.2/32',
+      'privateKey': 'KEY=',
+      'peerPublicKey': 'PUB=',
+      'reserved': '9,9,9',
+    },
+  )!);
+  check('新建 · wg 形状完整（mtu 留空 ⇒ 内核默认 1408）', jsonEncode(_canon(wgCreated)),
+      '{"address":["172.16.0.2/32"],"peers":[{"address":"a.example.com","port":51820,"public_key":"PUB=","reserved":[9,9,9]}],"private_key":"KEY=","tag":"n","type":"wireguard"}');
+  final wgCreatedMtu = decode(buildProtocolPayload(
+    spec: wg,
+    tag: 'n',
+    values: {
+      'serverAddress': 'a.example.com',
+      'privateKey': 'KEY=',
+      'serverMTU': '1420',
+    },
+  )!);
+  check('新建 · wg 填 mtu ⇒ 写入', wgCreatedMtu['mtu'], 1420);
+  check('新建 · wg 必填(地址/私钥)', validateProtocolForm(spec: wg, values: {
+    'serverAddress': '',
+    'privateKey': '',
+  }).toSet(), {'serverAddress', 'privateKey'}.toSet());
 
   print('');
   print('passed: $_passed   failed: $_failed');

@@ -53,6 +53,8 @@ OutboundGroup? parseSubscriptionGroup(String configJson, {required String groupN
       if (kInternalOutboundTypes.contains(type)) continue;
       // hiddify 侧的内部出站（`direct §hide§` 之类）不算节点
       if (isHiddenTag(tag)) continue;
+      // endpoint 类（wireguard）只活在 `endpoints` 段，outbounds 里的就是 legacy 残留
+      if (isNodeEndpoint(type)) continue;
       // 地址同样取自配置里的 server/server_port —— 与实体来源同一个口径
       // （节点卡第 2 行是"Bean 字段"，不是运行期，见 [displayAddress]）
       final server = outbound['server'];
@@ -66,6 +68,19 @@ OutboundGroup? parseSubscriptionGroup(String configJson, {required String groupN
           port: serverPort is int ? serverPort : 0,
         ),
       );
+    }
+
+    // endpoints 段（批次 9）：wireguard endpoint 也是节点
+    // （订阅里 `wg://` 经内核 Parse 自动产 endpoints；host/port 取 `peers[0]`）
+    final endpoints = (config['endpoints'] as List?)?.whereType<Map<String, dynamic>>();
+    // 裸 `const []` 会让 `??` 的类型推断劣化（循环变量掉成 Object?），必须带类型参数
+    for (final endpoint in endpoints ?? const <Map<String, dynamic>>[]) {
+      final tag = endpoint['tag'];
+      final type = endpoint['type'];
+      if (tag is! String || type is! String) continue;
+      if (!isNodeEndpoint(type)) continue;
+      final address = endpointAddressOfEndpointJson(endpoint);
+      group.items.add(outboundInfo(tag, type, false, host: address.host, port: address.port));
     }
 
     if (group.items.isEmpty) {
@@ -175,10 +190,27 @@ String? offlineTestErrorKey(int encodedDelay) => switch (encodedDelay) {
     if (decoded is! Map) return (host: '', port: 0);
     final host = decoded['server'];
     final port = decoded['server_port'];
-    return (host: host is String ? host : '', port: port is int ? port : 0);
+    if (host is String && host.isNotEmpty && port is int) return (host: host, port: port);
+    // endpoint payload（批次 9）：wireguard 的地址/端口在 `peers[0]`
+    if (decoded is Map<String, dynamic>) return endpointAddressOfEndpointJson(decoded);
+    return (host: '', port: 0);
   } catch (_) {
     return (host: '', port: 0);
   }
+}
+
+/// endpoint JSON（`WireGuardEndpointOptions` 形态）的地址/端口：取 `peers[0]`。
+///
+/// 单 peer 是 wg 节点的常态（NekoBox 表单、ray2sing、内核都按单 peer 产）；
+/// peers 为空时返回空地址（显示 `:0`，与"怪 payload"同待遇）。
+({String host, int port}) endpointAddressOfEndpointJson(Map<String, dynamic> endpoint) {
+  final peers = endpoint['peers'];
+  if (peers is! List || peers.isEmpty) return (host: '', port: 0);
+  final peer = peers.first;
+  if (peer is! Map) return (host: '', port: 0);
+  final address = peer['address'];
+  final port = peer['port'];
+  return (host: address is String ? address : '', port: port is int ? port : 0);
 }
 
 /// 地址行的文本 —— 镜像 NekoBox `AbstractBean.displayAddress()` + `ktx/Nets.kt` 的
@@ -228,14 +260,24 @@ OutboundGroup buildGroupFromEntityNodes({required String groupName, required Lis
 /// （ray2sing），**没有**"出站 → 分享链接"的逆向转换。硬拼一个链接出来是伪造，
 /// 所以这里给出的是可粘贴、可核对的出站定义本身。
 ///
+/// endpoints 段（批次 9）：wireguard endpoint 也在查找范围内（编辑表单的数据源
+/// 与分享同源 —— "能分享的就能编辑"）。
+///
 /// 找不到该 tag、或配置不是合法 JSON 时返回 null，由调用方决定如何提示。
 String? extractOutboundJson(String configJson, String tag) {
   try {
     final config = jsonDecode(configJson) as Map<String, dynamic>;
     final outbounds = (config['outbounds'] as List?)?.whereType<Map<String, dynamic>>();
-    if (outbounds == null) return null;
-    for (final outbound in outbounds) {
-      if (outbound['tag'] == tag) return prettyOutboundJson(outbound);
+    if (outbounds != null) {
+      for (final outbound in outbounds) {
+        if (outbound['tag'] == tag) return prettyOutboundJson(outbound);
+      }
+    }
+    final endpoints = (config['endpoints'] as List?)?.whereType<Map<String, dynamic>>();
+    if (endpoints != null) {
+      for (final endpoint in endpoints) {
+        if (endpoint['tag'] == tag) return prettyOutboundJson(endpoint);
+      }
     }
     return null;
   } catch (_) {

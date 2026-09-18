@@ -104,14 +104,27 @@ String? profileIdOfSubscription(String? subscriptionJson) {
 // ───────────────────────────────────────────────────────────────────────────
 
 /// 节点的判重键；payload 解析不出地址/端口时返回 null（判重时放行，不误删）。
+///
+/// endpoint payload（批次 9）：wireguard endpoint 无顶层 `server`/`server_port`，
+/// 对齐 NekoBox 口径取 `peers[0]` 的 address/port（单 peer 是 wg 节点常态）。
 String? dedupKeyOf({required String payload, required String type}) {
   try {
     final decoded = jsonDecode(payload);
     if (decoded is! Map<String, dynamic>) return null;
     final server = decoded['server'];
     final port = decoded['server_port'];
-    if (server is! String || server.isEmpty || port is! int) return null;
-    return "$server|$port|$type";
+    if (server is String && server.isNotEmpty && port is int) return "$server|$port|$type";
+    // endpoint 分支：`peers[0]` 是地址/端口的落点（`WireGuardEndpointOptions`）
+    final peers = decoded['peers'];
+    if (peers is List && peers.isNotEmpty) {
+      final peer = peers.first;
+      if (peer is Map) {
+        final address = peer['address'];
+        final peerPort = peer['port'];
+        if (address is String && address.isNotEmpty && peerPort is int) return "$address|$peerPort|$type";
+      }
+    }
+    return null;
   } catch (_) {
     return null;
   }
@@ -146,6 +159,10 @@ List<String> missingEntityProfileIds({required Iterable<String> allIds, required
 /// - `direct` / `block` / `dns` 不是节点
 /// - tag 含 `§hide§` 的内部出站（如 `direct §hide§`）不是节点
 ///
+/// endpoints 段（批次 9）：`config['endpoints']` 里的 wireguard endpoint 同样派生
+/// 为节点实体（`isNodeEndpoint` 判据，payload 整条留存）—— 订阅里 `wg://` 链接经
+/// 内核 Parse 自动产 endpoints 段，这批节点此前被静默丢弃。
+///
 /// 解析失败或无可用节点时返回 null（由调用方决定提示，不抛异常）。
 ImportedProxyGroup? deriveProxyGroupFromConfig({
   required String profileName,
@@ -171,6 +188,22 @@ ImportedProxyGroup? deriveProxyGroupFromConfig({
           type: type,
           // 整条出站原样留存 —— 凭据（password/uuid/private_key/TLS 等）都在里面
           payload: jsonEncode(outbound),
+          displayName: trimTagName(tag),
+        ),
+      );
+    }
+    // endpoints 段：endpoint 类条目（wireguard）也是节点实体
+    final endpoints = (config['endpoints'] as List?)?.whereType<Map<String, dynamic>>().toList() ?? const [];
+    for (final endpoint in endpoints) {
+      final tag = endpoint['tag'];
+      final type = endpoint['type'];
+      if (tag is! String || type is! String) continue;
+      if (!isNodeEndpoint(type)) continue;
+      entities.add(
+        ImportedProxyEntity(
+          tag: tag,
+          type: type,
+          payload: jsonEncode(endpoint),
           displayName: trimTagName(tag),
         ),
       );

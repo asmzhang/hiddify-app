@@ -17,8 +17,11 @@ import 'dart:convert';
 
 /// 字段类型。前四种照 NekoBox 的 `PreferenceBinding.Type`（Text / TextToInt / Bool / 下拉），
 /// 多出 [stringList] 是因为 sing-box 的 `tls.alpn` 在 JSON 里是**数组**而 NekoBox 表单里是文本
-/// （它用 `listByLineOrComma()` 在构建期转换）。
-enum ProtocolFieldKind { text, integer, boolean, choice, stringList }
+/// （它用 `listByLineOrComma()` 在构建期转换）；
+/// [integerList] 是 wireguard 的 `reserved`（内核 `[]uint8`，JSON 数字数组）——
+/// NekoBox 里它是一段文本、构建期经 `genReserved()` 转 b64 字符串（那是为适配它镜像类里
+/// `reserved: String` 的约束）；我们内核是字节数组，直接收「逗号分隔的 0-255 数字」产数组。
+enum ProtocolFieldKind { text, integer, boolean, choice, stringList, integerList }
 
 class ProtocolField {
   const ProtocolField({
@@ -608,6 +611,37 @@ const _mieruSpec = ProtocolFormSpec(
   ],
 );
 
+/// wireguard —— `res/xml/wireguard_preferences.xml`（proxy_cat 8 字段）+
+/// `fmt/wireguard/WireGuardFmt.kt`。字段清单照 NekoBox，**产物形态按内核**：
+///
+/// 内核 1.13 起 wireguard outbound 是 stub（`include/registry.go:200-201`），正确形态是
+/// **endpoint**（`WireGuardEndpointOptions`，`option/wireguard.go:11-37`）—— 手动节点落
+/// `endpoints` 段（组装层拆桶，见 config_assembly.dart）。字段映射（NekoBox → 内核）：
+/// - `serverAddress/serverPort` → `peers[0].address/port`（NekoBox 的 Bean 字段在内核
+///   选项里就是 peer 一员；单 peer 是 wg 节点的常态，NekoBox 构建的也是单 peer）；
+/// - `localAddress`（listByLineOrComma）→ `address`（`Listable[netip.Prefix]`，
+///   内核反序列化走 `netip.ParsePrefix`——**裸 IP 无掩码会被拒**，需 CIDR 形态如
+///   `172.16.0.2/32`。NekoBox 原样透传不补掩码，这里同口径，翻译 hint 说明）；
+/// - `reserved` → `peers[0].reserved`（`[]uint8` 数字数组。NekoBox 的 `genReserved()`
+///   把 3 数字转 b64 字符串是为适配它 `reserved: String`，我们直接收数字产数组，
+///   同 ray2sing `awg.go:341-349` 的原生形态）；
+/// - `mtu`（defaultValue=1420）→ `mtu`（种子给默认值，标签复用 serverMTU）。
+///
+/// 未纳入（NekoBox 表单也没有）：`listen_port`/`workers`/`system`/`noise`/`awg` 参数。
+const _wireguardSpec = ProtocolFormSpec(
+  type: 'wireguard',
+  fields: [
+    ProtocolField(id: 'serverAddress', kind: ProtocolFieldKind.text, path: ['peers', 0, 'address'], required: true, section: 'proxy'),
+    ProtocolField(id: 'serverPort', kind: ProtocolFieldKind.integer, path: ['peers', 0, 'port']),
+    ProtocolField(id: 'localAddress', kind: ProtocolFieldKind.stringList, path: ['address']),
+    ProtocolField(id: 'privateKey', kind: ProtocolFieldKind.text, path: ['private_key'], required: true),
+    ProtocolField(id: 'peerPublicKey', kind: ProtocolFieldKind.text, path: ['peers', 0, 'public_key']),
+    ProtocolField(id: 'peerPreSharedKey', kind: ProtocolFieldKind.text, path: ['peers', 0, 'pre_shared_key']),
+    ProtocolField(id: 'serverMTU', kind: ProtocolFieldKind.integer, path: ['mtu']),
+    ProtocolField(id: 'reserved', kind: ProtocolFieldKind.integerList, path: ['peers', 0, 'reserved']),
+  ],
+);
+
 /// naive —— `res/xml/naive_preferences.xml` + `NaiveFmt.kt`（链接侧）+
 /// 内核 `NaiveOutboundOptions`（`option/naive.go:27`）。
 ///
@@ -653,6 +687,7 @@ const _specs = <String, ProtocolFormSpec>{
   'shadowtls': _shadowtlsSpec,
   'mieru': _mieruSpec,
   'naive': _naiveSpec,
+  'wireguard': _wireguardSpec,
 };
 
 /// 这个出站类型有没有表单。返回 null ⇒ 调用方不要给 ✎ 入口（照 NekoBox：没写表单的协议就没有编辑页）。
@@ -664,15 +699,16 @@ ProtocolFormSpec? protocolFormSpecFor(String type) => _specs[type.trim().toLower
 /// （17 项：socks / http / ss / vmess / **vless** / trojan / trojan_go / mieru / naive /
 /// **hysteria** / tuic / shadowtls / **anytls** / ssh / wg / config / chain）。
 ///
-/// 批次 6 后的缺席项及理由：
+/// 批次 9 后的缺席项及理由：
 /// - `http`：内核有出站，但 NekoBox 没有独立 http 表单 XML（复用 socks 的旧版做法），
 ///   视需求补；
 /// - `trojan_go`：**不移植** —— hiddify 内核（sing-box fork）没有 trojan-go 出站
 ///   注册（`include/registry.go` 无 TypeTrojanGo），NekoBox 靠外部二进制运行，
 ///   hiddify 无此机制，表单做了也连不上；
-/// - `wg`：内核 1.13 起 WireGuard outbound 已是 stub（报错指向 endpoint），
-///   手动节点 payload 只进 `outbounds` 通道，`endpoints` 通路未打通，暂缓；
 /// - `config` / `chain`：NekoBox 的「从配置文件导入」「链式代理」，不属于协议表单。
+///
+/// 批次 9 补上 `wireguard`（NekoBox add_profile_menu 第 15 项 wg）：内核形态是
+/// endpoint（`_wireguardSpec` 的注释），payload 由组装层进 `endpoints` 段。
 const kManualCreatableProtocols = <String>[
   'socks',
   'shadowsocks',
@@ -686,6 +722,7 @@ const kManualCreatableProtocols = <String>[
   'shadowtls',
   'anytls',
   'ssh',
+  'wireguard',
 ];
 
 /// 协议在菜单里的显示名 —— 照 NekoBox `strings.xml` 的 `action_*`
@@ -705,6 +742,7 @@ String protocolDisplayName(String type) => switch (type.trim().toLowerCase()) {
   'shadowtls' => 'ShadowTLS',
   'mieru' => 'Mieru',
   'naive' => 'Naïve',
+  'wireguard' => 'WireGuard',
   _ => type,
 };
 
@@ -844,6 +882,23 @@ String? applyProtocolForm({
         value = v;
       case ProtocolFieldKind.stringList:
         value = [for (final part in raw.split(RegExp(r'[\n,]'))) if (part.trim().isNotEmpty) part.trim()];
+      case ProtocolFieldKind.integerList:
+        // reserved（内核 `[]uint8`）：逗号/换行分隔的 0-255 数字 → 数字数组。
+        // 任一元素不是数字 ⇒ 整个字段判非法（return null，调用方提示不落库）
+        // —— 与 integer 字段「填了非数字就拒存」同一严格度。
+        final parts = [for (final part in raw.split(RegExp(r'[\n,]'))) part.trim()];
+        final parsedList = <int>[];
+        for (final part in parts) {
+          if (part.isEmpty) continue;
+          final n = int.tryParse(part);
+          if (n == null || n < 0 || n > 255) return null;
+          parsedList.add(n);
+        }
+        if (parsedList.isEmpty) {
+          _remove(root, path);
+          continue;
+        }
+        value = parsedList;
       case ProtocolFieldKind.integer:
         final parsed = int.tryParse(raw);
         if (parsed == null) return null;
@@ -895,7 +950,8 @@ List<Object>? resolveProtocolFieldPath(ProtocolField field, {required Map<String
 
 /// 保存前的校验。返回错误信息的字段 id 列表（空列表 = 可保存）。
 ///
-/// 只校验两件（如实照 NekoBox 的最小集，不自创规则）：必填非空、端口可解析且在 1..65535。
+/// 只校验三件（如实照 NekoBox 的最小集，不自创规则）：必填非空、端口可解析且在 1..65535、
+/// integerList（reserved）每个元素都是 0-255 的数字。
 List<String> validateProtocolForm({required ProtocolFormSpec spec, required Map<String, String> values}) {
   final bad = <String>[];
   for (final field in spec.fields) {
@@ -912,6 +968,15 @@ List<String> validateProtocolForm({required ProtocolFormSpec spec, required Map<
       } else if (field.id.toLowerCase().contains('port') && (parsed < 1 || parsed > 65535)) {
         bad.add(field.id);
       }
+    } else if (field.kind == ProtocolFieldKind.integerList) {
+      // reserved：写回时才逐元素 tryParse，这里先拦住明显非法的（与写回同一判据）
+      final ok = raw.split(RegExp(r'[\n,]')).every((part) {
+        final p = part.trim();
+        if (p.isEmpty) return true;
+        final n = int.tryParse(p);
+        return n != null && n >= 0 && n <= 255;
+      });
+      if (!ok) bad.add(field.id);
     }
   }
   return bad;
@@ -940,12 +1005,19 @@ List<String> validateProtocolForm({required ProtocolFormSpec spec, required Map<
 ///   而 `StandardV2RayBean` 的 `security` 默认是空 ⇒ 种子里**不带** tls
 /// - `trojan`：同 vless（security 由表单开关决定，默认关）
 /// - `shadowsocks` / `socks` / `ssh`：没有 tls
+/// - `wireguard`：`mtu: 1420`（NekoBox `wireguard_preferences.xml` 的 defaultValue）
+///   + `peers: [{}]` 占位 —— `peers[0]` 是表单五个字段的落点，数组元素必须是对象
+///   才写得出 `peers[0].address` 等（同 mieru `portBindings[0]` 的占位逻辑）
 Map<String, dynamic> protocolSeedPayload(ProtocolFormSpec spec) => switch (spec.type) {
   'anytls' || 'hysteria' || 'hysteria2' || 'tuic' || 'shadowtls' || 'naive' => {
     'tls': {'enabled': true},
   },
   'mieru' => {
     'portBindings': <dynamic>[<String, dynamic>{}],
+  },
+  'wireguard' => {
+    'mtu': 1420,
+    'peers': <dynamic>[<String, dynamic>{}],
   },
   _ => const <String, dynamic>{},
 };
