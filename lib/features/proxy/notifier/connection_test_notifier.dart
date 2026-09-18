@@ -104,21 +104,32 @@ class ConnectionTestNotifier extends _$ConnectionTestNotifier with AppLogger {
     final cancel = Completer<void>();
     _cancel = cancel;
     state = ConnectionTestState(running: true, total: total);
+    // 本地计数（审计修正）：worker 池并发回调 onProgress 时，若用
+    // `state.finished + 1` 做递增，两个回调读到同一个 state 会互相覆盖丢计数。
+    var finished = 0;
     try {
       final result = await body(() => cancel.isCompleted, (node, result) {
-        state = state.copyWith(
-          finished: state.finished + 1,
+        finished += 1;
+        state = ConnectionTestState(
+          running: true,
+          total: total,
+          finished: finished,
           currentNode: node,
           currentResult: result,
           cancelled: cancel.isCompleted,
         );
       });
-      state = state.copyWith(running: false, cancelled: cancel.isCompleted);
+      // 收尾：复位防重入 + 保留计数（NekoBox 测完对话框关掉，但进度快照无意义，
+      // 这里保留 finished 是为了取消防重入后调用方还能读到本轮计数）。
+      // running: false 是本行的语义核心，显式写出（lint 对默认值报冗余，已豁免）。
+      // ignore: avoid_redundant_argument_values
+      state = ConnectionTestState(running: false, total: total, finished: finished, cancelled: cancel.isCompleted);
       return result;
     } catch (e, stackTrace) {
       loggy.warning("connection test failed", e, stackTrace);
       // 失败也要复位防重入——否则一次异常后测试入口永久失灵。
-      state = state.copyWith(running: false, cancelled: cancel.isCompleted);
+      // ignore: avoid_redundant_argument_values
+      state = ConnectionTestState(running: false, total: total, finished: finished, cancelled: cancel.isCompleted);
       rethrow;
     } finally {
       _cancel = null;
@@ -131,8 +142,8 @@ class ConnectionTestNotifier extends _$ConnectionTestNotifier with AppLogger {
   /// 本项目的对应实现是内核 `UrlTestActive()`（见 ProxiesOverviewNotifier.urlTest），
   /// 拿不到逐条回调。对话框对这种测试只显示转圈 + 提示文案（计数不显示）。
   ///
-  /// 返回 null = 防重入拒绝；true = 正常结束；false = 不可取消的测试照常不可取消，
-  /// 但要区分"拒绝"与"完成"两种 false 语义时以 [state.running] 为准。
+  /// 返回 null = 防重入拒绝；true = 正常结束（不存在 false 分支）。
+  /// 不可中途取消（内核侧无该 RPC）——requestCancel 对它无效。
   Future<bool?> runUrlTest({required Future<void> Function() body}) async {
     if (state.running) {
       loggy.warning("connection test already running, ignored");
