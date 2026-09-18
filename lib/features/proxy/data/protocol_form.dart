@@ -32,6 +32,7 @@ class ProtocolField {
     this.siblings = const {},
     this.required = false,
     this.section,
+    this.valueSuffix,
   });
 
   /// 稳定 id —— 同时用作翻译键后缀（`pages.proxies.form.<id>`）。
@@ -67,6 +68,14 @@ class ProtocolField {
   /// 非空时一并写入的固定键 —— 用法同 NekoBox：`obfs` 非空则 `{type:"salamander", password}`；
   /// `reality.public_key` 非空则 `{enabled:true, ...}`。写在 [path] 的**父级**。
   final Map<String, String> siblings;
+
+  /// 写入前追加的后缀（仅对**纯数字**值生效）。动机：内核 `hop_interval` 是
+  /// `badoption.Duration`，**必须带单位**（sing `my_time.ParseDuration`：裸数字报
+  /// "missing unit"）；NekoBox 构建期拼 `"${hopInterval}s"`（`HysteriaFmt.kt:286`）。
+  /// 本表单沿用该行为：用户填裸数字，写 JSON 前补后缀；读回时若剥后前缀是纯数字
+  /// 则剥掉。含字母的值（"2m"/"500ms"）是内核合法的其它单位 duration，两端都原样
+  /// 保留 —— 规则对称，往返幂等。
+  final String? valueSuffix;
 
   /// 校验用：必填字段留空时不允许保存。
   final bool required;
@@ -301,11 +310,143 @@ const _hysteria2Spec = ProtocolFormSpec(
     ProtocolField(id: 'serverDownloadSpeed', kind: ProtocolFieldKind.integer, path: ['down_mbps']),
     ProtocolField(id: 'serverStreamReceiveWindow', kind: ProtocolFieldKind.integer, path: ['stream_receive_window']),
     ProtocolField(id: 'serverConnectionReceiveWindow', kind: ProtocolFieldKind.integer, path: ['connection_receive_window']),
-    ProtocolField(id: 'hopInterval', kind: ProtocolFieldKind.text, path: ['hop_interval']),
+    // 内核是 badoption.Duration（必须带单位），NekoBox 构建期补 "s"（HysteriaFmt.kt:325）；
+    // 表单存裸数字，写入前补后缀（批次 6 修复：此前裸数字会让内核拒配）。
+    ProtocolField(id: 'hopInterval', kind: ProtocolFieldKind.text, path: ['hop_interval'], valueSuffix: 's'),
   ],
   containers: [
     ProtocolContainerRule(path: ['obfs'], controllerId: 'serverObfs', dropWhen: {''}),
   ],
+);
+
+/// trojan —— 复用 `res/xml/standard_v2ray_preferences.xml`（NekoBox 的
+/// `TrojanSettingsActivity` 就是 `StandardV2RaySettingsActivity` 的空壳子类，
+/// 仅把 `uuid` 字段改绑 `bean.password`、隐藏独立 password 字段，
+/// `StandardV2RaySettingsActivity.kt:56-59`）。
+///
+/// 内核侧 `TrojanFmt` → `buildSingBoxOutboundStandardV2RayBean` 的 TrojanBean 分支
+/// （`V2RayFmt.kt:673-682`）：`Outbound_TrojanOptions{password, tls, transport}` ——
+/// 结构上就是 vless 减去 flow / packetEncoding（trojan 无此二者，内核
+/// `TrojanOutboundOptions` 也没有对应键）。
+///
+/// trojan **恒用 TLS 吗？不是**：内核选项的 tls 是容器（可缺省），
+/// NekoBox `buildSingBoxOutboundTLS` 由 `bean.security` 决定 —— 与 vless 同一套，
+/// 所以 security 开关照 vless 保留（表单 boolean 落 `tls.enabled`）。
+const _trojanSpec = ProtocolFormSpec(
+  type: 'trojan',
+  fields: [
+    ProtocolField(id: 'serverAddress', kind: ProtocolFieldKind.text, path: ['server'], required: true, section: 'proxy'),
+    ProtocolField(id: 'serverPort', kind: ProtocolFieldKind.integer, path: ['server_port']),
+    // NekoBox 表单里 trojan 的密码就是 uuid 字段（改标题 Password、绑定 bean.password），
+    // 是出站的唯一凭据 ⇒ 必填（vless 的 uuid 同为 required）。
+    ProtocolField(id: 'password', kind: ProtocolFieldKind.text, path: ['password'], required: true),
+    // 传输方式：`tcp` ⇒ 没有 transport 对象（NekoBox 返回 null）—— 与 vless 完全同构
+    ProtocolField(
+      id: 'transport',
+      kind: ProtocolFieldKind.choice,
+      path: ['transport', 'type'],
+      choices: kNetworks,
+      pathControllerId: 'transport',
+    ),
+    ProtocolField(
+      id: 'host',
+      kind: ProtocolFieldKind.text,
+      path: ['transport', 'headers', 'Host'],
+      pathControllerId: 'transport',
+      pathByChoice: {
+        'ws': ['transport', 'headers', 'Host'],
+        'http': ['transport', 'host'],
+        'httpupgrade': ['transport', 'host'],
+      },
+    ),
+    ProtocolField(
+      id: 'path',
+      kind: ProtocolFieldKind.text,
+      path: ['transport', 'path'],
+      pathControllerId: 'transport',
+      pathByChoice: {
+        'ws': ['transport', 'path'],
+        'http': ['transport', 'path'],
+        'httpupgrade': ['transport', 'path'],
+        'grpc': ['transport', 'service_name'],
+      },
+    ),
+    ProtocolField(id: 'wsMaxEarlyData', kind: ProtocolFieldKind.integer, path: ['transport', 'max_early_data'], pathControllerId: 'transport', section: 'ws'),
+    ProtocolField(id: 'earlyDataHeaderName', kind: ProtocolFieldKind.text, path: ['transport', 'early_data_header_name'], pathControllerId: 'transport'),
+    // TLS：表单的 `security`（none/tls）在这里落成 `tls.enabled`
+    ProtocolField(id: 'security', kind: ProtocolFieldKind.boolean, path: ['tls', 'enabled'], section: 'security'),
+    ProtocolField(id: 'sni', kind: ProtocolFieldKind.text, path: ['tls', 'server_name']),
+    ProtocolField(id: 'allowInsecure', kind: ProtocolFieldKind.boolean, path: ['tls', 'insecure']),
+    ProtocolField(id: 'alpn', kind: ProtocolFieldKind.stringList, path: ['tls', 'alpn']),
+    ProtocolField(id: 'certificates', kind: ProtocolFieldKind.text, path: ['tls', 'certificate']),
+    ProtocolField(
+      id: 'utlsFingerprint',
+      kind: ProtocolFieldKind.choice,
+      path: ['tls', 'utls', 'fingerprint'],
+      choices: kUtlsFingerprints,
+      siblings: {'enabled': 'true'},
+    ),
+    // Reality：同 vless（`V2RayFmt.kt:601` —— 公钥非空才有 reality 对象）
+    ProtocolField(
+      id: 'realityPubKey',
+      kind: ProtocolFieldKind.text,
+      path: ['tls', 'reality', 'public_key'],
+      siblings: {'enabled': 'true'},
+    ),
+    ProtocolField(id: 'realityShortId', kind: ProtocolFieldKind.text, path: ['tls', 'reality', 'short_id']),
+  ],
+  containers: [
+    // tcp ⇒ 没有 transport
+    ProtocolContainerRule(path: ['transport'], controllerId: 'transport', dropWhen: {'', 'tcp'}),
+    // security 关 ⇒ 没有 tls（NekoBox `buildSingBoxOutboundTLS` 返回 null）
+    ProtocolContainerRule(path: ['tls'], controllerId: 'security', dropWhen: {'false'}),
+    // 公钥清空 ⇒ 没有 reality（与 tls 无关，reality 在 tls 之内，顺序由 _startsWith 保证）
+    ProtocolContainerRule(path: ['tls', 'reality'], controllerId: 'realityPubKey', dropWhen: {''}),
+    ProtocolContainerRule(path: ['tls', 'utls']),
+  ],
+);
+
+/// hysteria v1 —— 与 hysteria2 共用 NekoBox `res/xml/hysteria_preferences.xml`
+/// （`protocolVersion` 下拉切换 1/2，`HysteriaSettingsActivity.updateVersion`）。
+/// 本表单只收 v1 分支字段；v2 分支字段见 [_hysteria2Spec]。
+///
+/// 内核侧 `HysteriaFmt.kt:277-314`（v1 分支）→ `Outbound_HysteriaOptions`：
+/// - **auth 类型下拉不移植**（ssh 同款决策）：NekoBox 的 `serverAuthType`
+///   （NONE/STRING/BASE64，`arrays.xml:390`）决定构建时写 `auth_str` 还是 `auth`；
+///   sing-box 内核两个键都会尝试（`HysteriaOutboundOptions.Auth/AuthString`），
+///   表单直接给两个文本框，填了就写；
+/// - `serverProtocol`（UDP/FakeTCP/WeChat Video）**不移植**：NekoBox 自己的
+///   `canUseSingBox()`（`HysteriaFmt.kt:270-273`）规定非 UDP 模式不能用 sing-box
+///   （要走独立二进制）—— 本项目只有 sing-box 内核，faketcp/wechat-video 表单做了
+///   也连不上，留给 hysteria2 用户场景（v2 无此概念）；
+/// - `serverDisableMtuDiscovery` 不移植：内核标记 Deprecated（`option/hysteria.go:50`，
+///   "use QUIC fields instead"），写它只会污染新配置；
+/// - 修复 NekoBox 的抄写 bug（`HysteriaFmt.kt:299`）：
+///   `recv_window_conn = bean.connectionReceiveWindow.toLong()` 把**连接窗口**
+///   写进了**流窗口**键 —— 按字段语义各写各键（`recv_window_conn`/`recv_window`）。
+const _hysteriaSpec = ProtocolFormSpec(
+  type: 'hysteria',
+  fields: [
+    ProtocolField(id: 'serverAddress', kind: ProtocolFieldKind.text, path: ['server'], required: true, section: 'proxy'),
+    ProtocolField(id: 'serverPorts', kind: ProtocolFieldKind.integer, path: ['server_port']),
+    // 混淆（v1 是 xplus 算法明文串；NekoBox `HysteriaFmt.kt:289` 直接写 `obfs` 键）
+    ProtocolField(id: 'serverObfs', kind: ProtocolFieldKind.text, path: ['obfs']),
+    // 认证：两个文本框顶替 NekoBox 的 TYPE 下拉（见上），填了就写
+    ProtocolField(id: 'serverAuthString', kind: ProtocolFieldKind.text, path: ['auth_str']),
+    ProtocolField(id: 'serverAuthBase64', kind: ProtocolFieldKind.text, path: ['auth']),
+    ProtocolField(id: 'serverSNI', kind: ProtocolFieldKind.text, path: ['tls', 'server_name']),
+    ProtocolField(id: 'serverAllowInsecure', kind: ProtocolFieldKind.boolean, path: ['tls', 'insecure']),
+    ProtocolField(id: 'serverALPN', kind: ProtocolFieldKind.stringList, path: ['tls', 'alpn']),
+    ProtocolField(id: 'serverCertificates', kind: ProtocolFieldKind.text, path: ['tls', 'certificate']),
+    ProtocolField(id: 'serverUploadSpeed', kind: ProtocolFieldKind.integer, path: ['up_mbps']),
+    ProtocolField(id: 'serverDownloadSpeed', kind: ProtocolFieldKind.integer, path: ['down_mbps']),
+    ProtocolField(id: 'serverStreamReceiveWindow', kind: ProtocolFieldKind.integer, path: ['recv_window_conn']),
+    ProtocolField(id: 'serverConnectionReceiveWindow', kind: ProtocolFieldKind.integer, path: ['recv_window']),
+    // 内核是 badoption.Duration（必须带单位），NekoBox 构建期补 "s"（HysteriaFmt.kt:286）
+    ProtocolField(id: 'hopInterval', kind: ProtocolFieldKind.text, path: ['hop_interval'], valueSuffix: 's'),
+  ],
+  // 恒用 TLS（`HysteriaFmt.kt:301-313` v1 分支写死 `enabled = true`），
+  // 种子给 `tls.enabled`；表单不设 tls 容器规则，否则会连根拔掉。
 );
 
 /// shadowsocks —— `res/xml/shadowsocks_preferences.xml` + `ShadowsocksFmt.kt:110`。
@@ -502,6 +643,8 @@ const _specs = <String, ProtocolFormSpec>{
   'anytls': _anytlsSpec,
   'vless': _vlessSpec,
   'vmess': _vlessSpec,
+  'trojan': _trojanSpec,
+  'hysteria': _hysteriaSpec,
   'hysteria2': _hysteria2Spec,
   'shadowsocks': _shadowsocksSpec,
   'socks': _socksSpec,
@@ -521,10 +664,9 @@ ProtocolFormSpec? protocolFormSpecFor(String type) => _specs[type.trim().toLower
 /// （17 项：socks / http / ss / vmess / **vless** / trojan / trojan_go / mieru / naive /
 /// **hysteria** / tuic / shadowtls / **anytls** / ssh / wg / config / chain）。
 ///
-/// 批次 2 后的缺席项及理由：
+/// 批次 6 后的缺席项及理由：
 /// - `http`：内核有出站，但 NekoBox 没有独立 http 表单 XML（复用 socks 的旧版做法），
-///   批次 3 视需求补；
-/// - `trojan`：内核有 trojan 出站，表单待补（批次 3）；
+///   视需求补；
 /// - `trojan_go`：**不移植** —— hiddify 内核（sing-box fork）没有 trojan-go 出站
 ///   注册（`include/registry.go` 无 TypeTrojanGo），NekoBox 靠外部二进制运行，
 ///   hiddify 无此机制，表单做了也连不上；
@@ -535,8 +677,10 @@ const kManualCreatableProtocols = <String>[
   'socks',
   'shadowsocks',
   'vless',
+  'trojan',
   'mieru',
   'naive',
+  'hysteria',
   'hysteria2',
   'tuic',
   'shadowtls',
@@ -551,6 +695,8 @@ String protocolDisplayName(String type) => switch (type.trim().toLowerCase()) {
   'shadowsocks' => 'Shadowsocks',
   'vless' => 'VLESS',
   'vmess' => 'VMess',
+  'trojan' => 'Trojan',
+  'hysteria' => 'Hysteria',
   'hysteria2' => 'Hysteria',
   'anytls' => 'AnyTLS',
   'socks' => 'SOCKS',
@@ -623,6 +769,18 @@ Map<String, String> readProtocolFormValues({
       }
     }
   }
+  // 带 valueSuffix 的字段：还原成"用户填写的裸值"。剥后缀**仅当剥剩的前缀
+  // 是纯数字**（"30s" → "30"）；否则原样显示（"2m"/"2ms" 是内核合法的其它
+  // 单位 duration，剥了会破坏语义，且写回时也不会再补——两端对称）。
+  for (final field in spec.fields) {
+    final suffix = field.valueSuffix;
+    if (suffix == null || suffix.isEmpty) continue;
+    final v = out[field.id] ?? '';
+    if (v.length > suffix.length && v.endsWith(suffix)) {
+      final prefix = v.substring(0, v.length - suffix.length);
+      if (int.tryParse(prefix) != null) out[field.id] = prefix;
+    }
+  }
   return out;
 }
 
@@ -673,9 +831,17 @@ String? applyProtocolForm({
       case ProtocolFieldKind.choice:
         // choice + writeValues：表单取值映射成 JSON 值（int/bool/null），
         // 未映射的取值按原字符串写入（向后兼容普通下拉）。
-        value = field.kind == ProtocolFieldKind.choice && field.writeValues.containsKey(raw)
+        Object? v = field.kind == ProtocolFieldKind.choice && field.writeValues.containsKey(raw)
             ? field.writeValues[raw]
             : raw;
+        // valueSuffix：写入前补单位（内核 badoption.Duration 必须带单位）。
+        // 只对**纯数字**补（"30" → "30s"）；含字母的值视为用户已带单位
+        // （"2m"/"500ms" 都是内核合法取值），原样写。读回端同规则剥离。
+        final suffix = field.valueSuffix;
+        if (v is String && suffix != null && suffix.isNotEmpty && int.tryParse(v) != null) {
+          v = '$v$suffix';
+        }
+        value = v;
       case ProtocolFieldKind.stringList:
         value = [for (final part in raw.split(RegExp(r'[\n,]'))) if (part.trim().isNotEmpty) part.trim()];
       case ProtocolFieldKind.integer:
@@ -762,6 +928,7 @@ List<String> validateProtocolForm({required ProtocolFormSpec spec, required Map<
 ///
 /// 取值只取自 NekoBox 的构建函数 / 内核选项里**写死或默认**的部分，不自创：
 /// - `anytls`：`AnyTLSFmt.kt:19` 写死 `tls.enabled = true`
+/// - `hysteria` v1：`HysteriaFmt.kt:301-313` 写死 `tls.enabled = true`
 /// - `hysteria2`：`HysteriaFmt.kt:351` 写死 `tls.enabled = true`
 /// - `tuic`：`TuicFmt.kt:84-97` 写死 `tls.enabled = true`
 /// - `shadowtls`：Bean `security="tls"` 写死 → `buildSingBoxOutboundTLS` 恒有对象
@@ -771,9 +938,10 @@ List<String> validateProtocolForm({required ProtocolFormSpec spec, required Map<
 ///   对象，种子先把数组占位，避免"端口填了、协议下拉没动"时写不出对象形状
 /// - `vless`：`V2RayFmt.kt:593` —— 只有 `security == "tls"` 才有 tls 对象，
 ///   而 `StandardV2RayBean` 的 `security` 默认是空 ⇒ 种子里**不带** tls
+/// - `trojan`：同 vless（security 由表单开关决定，默认关）
 /// - `shadowsocks` / `socks` / `ssh`：没有 tls
 Map<String, dynamic> protocolSeedPayload(ProtocolFormSpec spec) => switch (spec.type) {
-  'anytls' || 'hysteria2' || 'tuic' || 'shadowtls' || 'naive' => {
+  'anytls' || 'hysteria' || 'hysteria2' || 'tuic' || 'shadowtls' || 'naive' => {
     'tls': {'enabled': true},
   },
   'mieru' => {

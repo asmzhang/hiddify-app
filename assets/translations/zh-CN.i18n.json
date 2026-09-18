@@ -206,6 +206,8 @@
         "hopInterval": "端口跳跃间隔(秒)",
         "serverProtocol": "协议",
         "serverUsername": "用户名",
+        "serverAuthString": "认证密码（字符串）",
+        "serverAuthBase64": "认证密码（base64）",
         "serverPrivateKey": "私钥",
         "serverPassword1": "私钥口令",
         "version": "协议版本",

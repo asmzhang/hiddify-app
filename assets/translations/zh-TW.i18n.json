@@ -205,6 +205,8 @@
         "hopInterval": "埠跳躍間隔(秒)",
         "serverProtocol": "協定",
         "serverUsername": "使用者名稱",
+        "serverAuthString": "認證密碼（字串）",
+        "serverAuthBase64": "認證密碼（base64）",
         "serverPrivateKey": "私鑰",
         "serverPassword1": "私鑰通行碼",
         "version": "協定版本",
