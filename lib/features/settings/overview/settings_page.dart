@@ -178,6 +178,15 @@ class SettingsPage extends HookConsumerWidget {
                 presentChoice: (value) => value.name.toUpperCase(),
               ),
               const LocalePrefTile(),
+              // NekoBox `tun_implementation` 在「基础」类（global_preferences.xml:31）。
+              if (PlatformUtils.isAndroid || PlatformUtils.isDesktop)
+                NkChoiceRow(
+                  title: t.pages.settings.inbound.tunImplementation,
+                  selected: ref.watch(ConfigOptions.tunImplementation),
+                  preferences: ref.watch(ConfigOptions.tunImplementation.notifier),
+                  choices: TunImplementation.values,
+                  presentChoice: (value) => value.name,
+                ),
               if (PlatformUtils.isDesktop) ...[
                 const ClosingPrefTile(),
                 NkSwitchRow(
@@ -198,6 +207,13 @@ class SettingsPage extends HookConsumerWidget {
                   onChanged: ref.read(hapticServiceProvider.notifier).updatePreference,
                 ),
               ],
+              // 「高级端口」子页：hiddify 独有的 tproxy/redirect/direct 端口
+              // （带 enable 开关）。NekoBox 规格无此项（只有 mixed port）。
+              NkNavRow(
+                title: t.pages.settings.inbound.title,
+                subtitle: '${t.pages.settings.inbound.tproxyPort} / ${t.pages.settings.inbound.redirectPort} / ${t.pages.settings.inbound.directPort}',
+                onTap: () => context.goNamed('inboundOptions'),
+              ),
               NkSwitchRow(
                 title: t.pages.settings.general.memoryLimit,
                 subtitle: t.pages.settings.general.memoryLimitMsg,
@@ -376,6 +392,14 @@ class SettingsPage extends HookConsumerWidget {
                 subtitle: t.pages.settings.general.useXrayCoreWhenPossibleMsg,
                 value: ref.watch(ConfigOptions.useXrayCoreWhenPossible),
                 onChanged: ref.read(ConfigOptions.useXrayCoreWhenPossible.notifier).update,
+              ),
+              // NekoBox `allowInsecureOnRequest`（global_preferences.xml:236）：
+              // 仅订阅更新跳过证书检查（RawUpdater.kt:66），纯 app 层开关，
+              // 不影响内核与其它请求。按规格放「其他」类。
+              NkSwitchRow(
+                title: t.pages.settings.general.allowInsecureOnRequest,
+                value: ref.watch(ConfigOptions.allowInsecureOnRequest),
+                onChanged: ref.read(ConfigOptions.allowInsecureOnRequest.notifier).update,
               ),
               if (PlatformUtils.isIOS)
                 NkNavRow(

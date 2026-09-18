@@ -52,6 +52,7 @@ class NkValueRow<T> extends HookConsumerWidget {
     this.inputToValue,
     this.digitsOnly = false,
     this.enabled = true,
+    this.trailing,
   });
 
   final String title;
@@ -65,6 +66,9 @@ class NkValueRow<T> extends HookConsumerWidget {
   final bool digitsOnly;
   final bool enabled;
 
+  /// 行尾附加控件（如端口启停开关）；与右侧当前值文本并存。
+  final Widget? trailing;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -74,14 +78,20 @@ class NkValueRow<T> extends HookConsumerWidget {
       enabled: enabled,
       title: Text(title, style: theme.textTheme.bodyMedium),
       subtitle: subtitle == null ? null : Text(subtitle!, style: theme.textTheme.bodySmall),
-      trailing: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 180),
-        child: Text(
-          text,
-          textAlign: TextAlign.end,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-        ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (trailing != null) trailing!,
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 180),
+            child: Text(
+              text,
+              textAlign: TextAlign.end,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ),
+        ],
       ),
       onTap: enabled
           ? () async {

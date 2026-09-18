@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:hiddify/core/localization/translations.dart';
-import 'package:hiddify/core/preferences/general_preferences.dart';
-import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
-import 'package:hiddify/features/settings/widget/lan_sharing_tile.dart';
 import 'package:hiddify/features/settings/widget/preference_tile.dart';
-import 'package:hiddify/singbox/model/singbox_config_enum.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
+/// 「高级端口」子页：只留 hiddify 独有的 PC 端口行（tproxy/redirect/direct，
+/// 带 enable 开关）。NekoBox 已覆盖的项（服务模式/严格路由/mixed port 等）
+/// 全部内联在设置主表，不再重复——归一原则。
+/// DNS 子页已退役（全项重复）；此页从主表 NkNavRow「高级端口」进入
+/// （goNamed('inboundOptions')，路由名沿用历史名避免动路由表）。
 class InboundOptionsPage extends HookConsumerWidget with AppLogger {
   const InboundOptionsPage({super.key});
   @override
@@ -19,51 +20,6 @@ class InboundOptionsPage extends HookConsumerWidget with AppLogger {
       appBar: AppBar(title: Text(t.pages.settings.inbound.title)),
       body: ListView(
         children: [
-          ChoicePreferenceWidget(
-            selected: ref.watch(ConfigOptions.serviceMode),
-            preferences: ref.watch(ConfigOptions.serviceMode.notifier),
-            choices: ServiceMode.choices,
-            title: t.pages.settings.inbound.serviceMode,
-            icon: Icons.tune_rounded,
-            presentChoice: (value) => value.present(t),
-          ),
-          // 「接管流量」：和"启停内核"**独立**的一个量（照 nekoray 的 spmode 开关）。
-          // 关掉再启动 ⇒ 内核跑起来但不接管系统流量，可以安心挑节点、测延迟。
-          // 由于它只在启动时生效，内核在跑时改它会重启内核（nekoray 切 TUN 也这么干）。
-          SwitchListTile.adaptive(
-            title: Text(t.pages.settings.inbound.captureEnabled),
-            subtitle: Text(
-              t.pages.settings.inbound.captureEnabledSubtitle,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            secondary: const Icon(Icons.swap_horiz_rounded),
-            value: ref.watch(Preferences.captureEnabled),
-            onChanged: (value) => ref.read(connectionNotifierProvider.notifier).setCapture(value),
-          ),
-          SwitchListTile.adaptive(
-            title: Text(t.pages.settings.inbound.strictRoute),
-            secondary: const Icon(Icons.merge_rounded),
-            value: ref.watch(ConfigOptions.strictRoute),
-            onChanged: ref.read(ConfigOptions.strictRoute.notifier).update,
-          ),
-          ChoicePreferenceWidget(
-            selected: ref.watch(ConfigOptions.tunImplementation),
-            preferences: ref.watch(ConfigOptions.tunImplementation.notifier),
-            choices: TunImplementation.values,
-            title: t.pages.settings.inbound.tunImplementation,
-            icon: Icons.trip_origin_rounded,
-            presentChoice: (value) => value.name,
-          ),
-          ValuePreferenceWidget(
-            value: ref.watch(ConfigOptions.mixedPort),
-            preferences: ref.watch(ConfigOptions.mixedPort.notifier),
-            title: t.pages.settings.inbound.mixedPort,
-            icon: Icons.device_hub_rounded,
-            inputToValue: int.tryParse,
-            digitsOnly: true,
-            validateInput: isPort,
-            trailing: SwitchPreferenceWidget(preference: ConfigOptions.enableMixedPort),
-          ),
           if (PlatformUtils.isLinux)
             ValuePreferenceWidget(
               value: ref.watch(ConfigOptions.tproxyPort),
@@ -96,7 +52,6 @@ class InboundOptionsPage extends HookConsumerWidget with AppLogger {
             validateInput: isPort,
             trailing: SwitchPreferenceWidget(preference: ConfigOptions.enableDirectPort),
           ),
-          const LanSharingPreferenceWidget(),
         ],
       ),
     );
