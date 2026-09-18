@@ -69,8 +69,11 @@ class Db extends _$Db with InfraLogger {
         from6To7: (m, schema) async {
           // 实体层（照 NekoBox 的 `proxy_groups` / `proxy_entities`）。
           // 纯新增、不动既有表 —— 见 docs/design/nekobox-parity.md §8.6。
+          // 注意：索引必须显式建 —— `createTable` 不含 `@TableIndex`，
+          // `m.createAll()`（新装库）会建而升级库不会，漏了 upgrade 即崩。
           await m.createTable(schema.proxyGroups);
           await m.createTable(schema.proxyEntities);
+          await m.createIndex(schema.proxyEntitiesGroupId);
         },
       ),
     );
