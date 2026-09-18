@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +11,7 @@ import 'package:hiddify/core/widget/nekobox/nk_card.dart';
 import 'package:hiddify/core/widget/nekobox/nk_theme.dart';
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/data/offline_proxy_parser.dart';
+import 'package:hiddify/features/proxy/data/outbound_to_link.dart';
 import 'package:hiddify/gen/fonts.gen.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hiddify/utils/custom_loggers.dart';
@@ -36,6 +39,9 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 /// - **✎ 只覆盖 4 种协议**（anytls / vless / hysteria2 / shadowsocks，真机 84 个节点的
 ///   100%）。其余协议（NekoBox 另有 8 份表单）没有表单，[onEdit] 传 null ⇒ 不显示按钮。
 ///   规格源仍是 NekoBox 的 `res/xml/*_preferences.xml`，见 `protocol_form.dart`。
+/// - **⤴ 分享 = 标准链接优先**（NekoBox `*Fmt.toUri()` 的等价物，见
+///   `outbound_to_link.dart`）：8 协议（ss/vless/vmess/trojan/hy2/tuic/socks/http）
+///   生成可粘贴进其它客户端的链接；不支持的协议回落复制出站 JSON（原行为）。
 /// - 改名（NekoBox `name_preferences.xml`）未纳入表单：`tag` 是节点身份，改名要跨
 ///   内核配置 / 选中偏好 / 删除基线三处迁移，属独立改动。
 /// - 长按弹出节点详情（hiddify 补充能力）；国旗/序号暂不显示。
@@ -168,7 +174,19 @@ class ProxyTile extends HookConsumerWidget with PresLogger {
                                   ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
                                   return;
                                 }
-                                await Clipboard.setData(ClipboardData(text: json));
+                                // 优先分享**标准链接**（可粘贴进 NekoBox/v2rayN 等客户端）；
+                                // 不支持的协议/字段残缺时回落到出站 JSON（原行为，不丢功能）。
+                                String text = json;
+                                try {
+                                  final decoded = jsonDecode(json);
+                                  if (decoded is Map<String, dynamic>) {
+                                    final link = outboundToLink(decoded);
+                                    if (link != null) text = link;
+                                  }
+                                } catch (_) {
+                                  // JSON 都解析不了时原样复制
+                                }
+                                await Clipboard.setData(ClipboardData(text: text));
                                 if (!context.mounted) return;
                                 ref
                                     .read(inAppNotificationControllerProvider)
