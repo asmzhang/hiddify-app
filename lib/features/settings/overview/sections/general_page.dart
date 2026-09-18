@@ -1,4 +1,3 @@
-import 'package:dartx/dartx.dart';
 import 'package:flutter/material.dart';
 import 'package:hiddify/core/haptic/haptic_service.dart';
 import 'package:hiddify/core/localization/translations.dart';
@@ -6,14 +5,14 @@ import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/features/auto_start/notifier/auto_start_notifier.dart';
 import 'package:hiddify/features/common/general_pref_tiles.dart';
-import 'package:hiddify/features/log/model/log_level.dart';
-import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/features/settings/widget/preference_tile.dart';
-import 'package:hiddify/singbox/model/singbox_config_enum.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:humanizer/humanizer.dart';
 
+/// 「通用」子页：只放 hiddify 附加项（NekoBox global_preferences.xml 没有的）。
+/// NekoBox 已覆盖的项（主题/语言/服务模式/日志等级/测速 URL 等）全部内联在
+/// 设置主表，此处不再重复——归一原则：每个能力只允许一个入口。
+/// 挂起项（NekoBox 规格有、内核契约缺字段）：见 settings_page.dart 头注释。
 class GeneralPage extends HookConsumerWidget {
   const GeneralPage({super.key});
   @override
@@ -24,9 +23,6 @@ class GeneralPage extends HookConsumerWidget {
       appBar: AppBar(title: Text(t.pages.settings.general.title)),
       body: ListView(
         children: [
-          const LocalePrefTile(),
-          const ThemeModePrefTile(),
-          const NkPalettePrefTile(),
           const EnableAnalyticsPrefTile(),
           SwitchListTile.adaptive(
             title: Text(t.pages.settings.general.autoIpCheck),
@@ -85,74 +81,6 @@ class GeneralPage extends HookConsumerWidget {
               }
               await ref.read(debugModeNotifierProvider.notifier).update(value);
             },
-          ),
-          // NekoBox 复刻 · 基础类含"服务模式"（VPN/TUN 与系统代理的切换）——
-          // 该配置此前只有快捷设置入口，设置页缺失。choices 按平台过滤。
-          ChoicePreferenceWidget(
-            selected: ref.watch(ConfigOptions.serviceMode),
-            preferences: ref.watch(ConfigOptions.serviceMode.notifier),
-            choices: ServiceMode.choices,
-            title: t.pages.settings.inbound.serviceMode,
-            icon: Icons.swap_horiz_rounded,
-            presentChoice: (value) => value.present(t),
-          ),
-          ChoicePreferenceWidget(
-            selected: ref.watch(ConfigOptions.logLevel),
-            preferences: ref.watch(ConfigOptions.logLevel.notifier),
-            choices: LogLevel.choices,
-            title: t.pages.settings.general.logLevel,
-            icon: Icons.description_rounded,
-            presentChoice: (value) => value.name.toUpperCase(),
-          ),
-          ValuePreferenceWidget(
-            value: ref.watch(ConfigOptions.connectionTestUrl),
-            preferences: ref.watch(ConfigOptions.connectionTestUrl.notifier),
-            title: t.pages.settings.general.connectionTestUrl,
-            icon: Icons.link_rounded,
-          ),
-          ListTile(
-            title: Text(t.pages.settings.general.urlTestInterval),
-            subtitle: Text(ref.watch(ConfigOptions.urlTestInterval).toApproximateTime(isRelativeToNow: false)),
-            leading: const Icon(Icons.timer_rounded),
-            onTap: () async => await ref
-                .read(dialogNotifierProvider.notifier)
-                .showSettingSlider(
-                  title: t.pages.settings.general.urlTestInterval,
-                  initialValue: ref.watch(ConfigOptions.urlTestInterval).inMinutes.coerceIn(0, 60).toDouble(),
-                  onReset: ref.read(ConfigOptions.urlTestInterval.notifier).reset,
-                  min: 1,
-                  max: 60,
-                  divisions: 60,
-                  labelGen: (value) => Duration(minutes: value.toInt()).toApproximateTime(isRelativeToNow: false),
-                )
-                .then((value) async {
-                  if (value == null) return;
-                  await ref.read(ConfigOptions.urlTestInterval.notifier).update(Duration(minutes: value.toInt()));
-                }),
-          ),
-          // NekoBox `allowInsecureOnRequest`：仅订阅更新跳过证书检查（RawUpdater.kt:66），
-          // 纯 app 层开关，不影响内核与其它请求。
-          SwitchListTile.adaptive(
-            title: Text(t.pages.settings.general.allowInsecureOnRequest),
-            secondary: const Icon(Icons.lock_open_rounded),
-            value: ref.watch(ConfigOptions.allowInsecureOnRequest),
-            onChanged: ref.read(ConfigOptions.allowInsecureOnRequest.notifier).update,
-          ),
-          ValuePreferenceWidget(
-            value: ref.watch(ConfigOptions.clashApiPort),
-            preferences: ref.watch(ConfigOptions.clashApiPort.notifier),
-            title: t.pages.settings.general.clashApiPort,
-            icon: Icons.api_rounded,
-            validateInput: isPort,
-            digitsOnly: true,
-            inputToValue: int.tryParse,
-          ),
-          SwitchListTile.adaptive(
-            title: Text(t.pages.settings.general.useXrayCoreWhenPossible),
-            subtitle: Text(t.pages.settings.general.useXrayCoreWhenPossibleMsg),
-            secondary: const Icon(Icons.extension_rounded),
-            value: ref.watch(ConfigOptions.useXrayCoreWhenPossible),
-            onChanged: ref.read(ConfigOptions.useXrayCoreWhenPossible.notifier).update,
           ),
         ],
       ),

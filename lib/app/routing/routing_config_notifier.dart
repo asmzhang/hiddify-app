@@ -23,7 +23,6 @@ import 'package:hiddify/features/route_rules/notifier/rule_notifier.dart';
 import 'package:hiddify/features/route_rules/overview/generic_list_page.dart';
 import 'package:hiddify/features/route_rules/overview/rule_page.dart';
 import 'package:hiddify/features/settings/overview/sections/chain_options_page.dart';
-import 'package:hiddify/features/settings/overview/sections/dns_options_page.dart';
 import 'package:hiddify/features/settings/overview/sections/general_page.dart';
 import 'package:hiddify/features/settings/overview/sections/inbound_options_page.dart';
 import 'package:hiddify/features/settings/overview/sections/routing_options_page.dart';
@@ -251,12 +250,6 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
                   name: 'general',
                   path: 'general',
                   pageBuilder: (_, state) => customTransition(TransitionType.slide, state.pageKey, const GeneralPage()),
-                ),
-                GoRoute(
-                  name: 'dnsOptions',
-                  path: 'dns-options',
-                  pageBuilder: (_, state) =>
-                      customTransition(TransitionType.slide, state.pageKey, const DnsOptionsPage()),
                 ),
                 GoRoute(
                   name: 'inboundOptions',
