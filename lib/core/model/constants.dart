@@ -13,6 +13,9 @@ abstract class Constants {
   static const telegramChannelUrl = "https://t.me/hiddify";
   static const privacyPolicyUrl = "https://hiddify.com/privacy-policy/";
   static const termsAndConditionsUrl = "https://hiddify.com/terms/";
+  // FAQ 入口（NekoBox `MainActivity.kt:343` 的 nav_faq → launchCustomTab）。
+  // 本项目是 NekoBox 壳，文档站也照它的规格指向 matsuridayo.github.io。
+  static const faqUrl = "https://matsuridayo.github.io/";
   static const cfWarpPrivacyPolicy = "https://www.cloudflare.com/application/privacypolicy/";
   static const cfWarpTermsOfService = "https://www.cloudflare.com/application/terms/";
 }

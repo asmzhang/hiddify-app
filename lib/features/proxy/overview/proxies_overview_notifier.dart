@@ -18,6 +18,7 @@ import 'package:hiddify/features/proxy/data/runtime_outbound_tags.dart';
 import 'package:hiddify/features/proxy/data/selected_proxy_store.dart';
 import 'package:hiddify/features/proxy/data/tcp_ping.dart';
 import 'package:hiddify/features/proxy/model/proxy_failure.dart';
+import 'package:hiddify/features/proxy/notifier/connection_test_notifier.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hiddify/utils/riverpod_utils.dart';
 import 'package:hiddify/utils/utils.dart';
@@ -477,7 +478,7 @@ class ProxiesOverviewNotifier extends _$ProxiesOverviewNotifier with AppLogger {
   /// 同上，订阅组版本（只有那份订阅正被加载时才真重载）。
   Future<void> reloadCoreForProfile(String profileId) => _reloadCoreIfAffected(profileId: profileId);
 
-  /// 测整组 / 测全部。
+  /// 测整组 / 测全部（内核 URL test）。
   ///
   /// **必须传空 tag**：内核 `commands.go` 的 `UrlTest` 在 `in.Tag == ""` 时走
   /// `UrlTestActive()`（内部硬编码用常量 `select`）；传组名会被当成**节点 tag**
@@ -485,14 +486,27 @@ class ProxiesOverviewNotifier extends _$ProxiesOverviewNotifier with AppLogger {
   ///
   /// 所以这里不再接收组名：NekoBox 侧也没有"按组测速"这个概念，
   /// 组只是订阅（`GroupType` 只有 BASIC/SUBSCRIPTION），测速是工具栏的 URL Test。
+  ///
+  /// 进度对话框接线：防重入走 [connectionTestNotifierProvider]（NekoBox
+  /// `DataStore.runningTest`）。NekoBox 的 urlTest 是应用侧逐节点 HTTP 探测、
+  /// 有逐条 update；本项目的对应物是内核 RPC 空 tag 一次测全部 —— 拿不到
+  /// 逐条回调，对话框只显示转圈 + 文案（计数不显示）。
   Future<void> urlTest() async {
     loggy.debug("testing all nodes of the active config");
     if (state case AsyncData()) {
       await ref.read(hapticServiceProvider.notifier).lightImpact();
-      await ref.read(proxyRepositoryProvider).urlTest('').getOrElse((err) {
-        loggy.error("error testing group", err);
-        throw err;
-      }).run();
+      await ref
+          .read(connectionTestNotifierProvider.notifier)
+          .runUrlTest(
+            body: () => ref
+                .read(proxyRepositoryProvider)
+                .urlTest('')
+                .getOrElse((err) {
+                  loggy.error("error testing group", err);
+                  throw err;
+                })
+                .run(),
+          );
     }
   }
 
@@ -567,8 +581,18 @@ class ProxiesOverviewNotifier extends _$ProxiesOverviewNotifier with AppLogger {
   ///
   /// 流程照 NekoBox：取节点 → 过滤不可测协议（`canTCPing` 白名单）→
   /// 并发 5（`connectionTestConcurrent`）→ 逐条写实体列 → invalidate 刷新列表。
-  /// 返回测过的节点数；失败返回 -1（调用方提示）。
-  Future<int> tcpPingNodes({String? profileId, int? groupId}) async {
+  ///
+  /// 与 NekoBox 的差异：它把"测试"和"进度"都放在 TestDialog 内部类里；本项目把
+  /// 进度抽到 [connectionTestNotifierProvider]（对话框只是视图）。防重入也由它承担
+  /// （NekoBox `DataStore.runningTest`）：`state.running` 为真时直接拒绝并返回 null。
+  /// 取消语义照 `test.cancel`：worker 池见取消标记即停，**已测结果照常落库**。
+  ///
+  /// 返回测过的节点数；被防重入拒绝返回 null；失败返回 -1（调用方提示）。
+  Future<int?> tcpPingNodes({String? profileId, int? groupId}) async {
+    final testNotifier = ref.read(connectionTestNotifierProvider.notifier);
+    // 防重入统一由 runTcpPing 承担（NekoBox `if (DataStore.runningTest) return`）——
+    // 它返回 null 即被拒绝；这里不再重复判 state.running（判完到开测之间仍有窗口）。
+
     final repo = ref.read(proxyEntityRepositoryProvider);
     final nodes = switch ((profileId, groupId)) {
       (_, final int g) => (await repo.groupWithNodes(g))?.nodes ?? const <ProxyEntityEntry>[],
@@ -579,25 +603,43 @@ class ProxiesOverviewNotifier extends _$ProxiesOverviewNotifier with AppLogger {
     final testable = nodes.where((n) => canTcpPing(n.type)).toList();
     if (testable.isEmpty) return 0;
 
-    // 并发 5 照 NekoBox `connectionTestConcurrent`：worker 池消费同一条队列。
-    final results = <({int id, int status, int ping, String? error})>[];
-    var cursor = 0;
-    Future<void> worker() async {
-      while (cursor < testable.length) {
-        final node = testable[cursor++];
-        final address = serverAddressOfPayload(node.payload);
-        // 地址解析不出的节点（怪 payload）跳过 —— 与 NekoBox 的 displayAddress 空值一致
-        if (address.host.isEmpty || address.port <= 0) continue;
-        final result = await tcpPingHost(address.host, address.port);
-        results.add((id: node.id, status: result.status, ping: result.ping, error: result.error));
-      }
-    }
-    await Future.wait([for (var i = 0; i < 5; i++) worker()]);
+    return await testNotifier.runTcpPing(
+      total: testable.length,
+      body: (isCancelled, onProgress) async {
+        // 并发 5 照 NekoBox `connectionTestConcurrent`：worker 池消费同一条队列。
+        final results = <({int id, int status, int ping, String? error})>[];
+        var cursor = 0;
+        Future<void> worker() async {
+          while (cursor < testable.length) {
+            // 取消（NekoBox `if (!isActive) break`）：队列指针推到底即全员退出。
+            if (isCancelled()) {
+              cursor = testable.length;
+              break;
+            }
+            final node = testable[cursor++];
+            final address = serverAddressOfPayload(node.payload);
+            // 地址解析不出的节点（怪 payload）跳过 —— 与 NekoBox 的 displayAddress 空值一致
+            if (address.host.isEmpty || address.port <= 0) continue;
+            final result = await tcpPingHost(address.host, address.port);
+            // 取消发生在测速中途：这条结果丢弃（NekoBox 的 worker 被 cancel 后
+            // 不再 update）。已完成的照常保留，收尾统一落库。
+            if (isCancelled()) break;
+            results.add((id: node.id, status: result.status, ping: result.ping, error: result.error));
+            // 逐条推进度（NekoBox `test.update(profile)`）：节点名 + 结果摘要。
+            // 文案用分类键（与 proxy_tile 状态位同一套），延迟直接给数字。
+            onProgress(node.displayName, connectionTestResultKey(result));
+          }
+        }
+        await Future.wait([for (var i = 0; i < 5; i++) worker()]);
 
-    final count = await repo.updateTestResults(results);
-    if (count < 0) return -1;
-    // 离线骨架的延迟显示来自实体列 —— invalidate 让结果立刻上屏（同 clearTestResults）。
-    ref.invalidate(proxyGroupTabsProvider);
-    return results.length;
+        // 落库（NekoBox `ProfileManager.updateProfile(it)` + postReload 的等价物）：
+        // 正常结束与取消都走到这里 —— NekoBox 的 cancel 路径同样把 test.results 落库。
+        final count = await repo.updateTestResults(results);
+        if (count < 0) return -1;
+        // 离线骨架的延迟显示来自实体列 —— invalidate 让结果立刻上屏（同 clearTestResults）。
+        ref.invalidate(proxyGroupTabsProvider);
+        return results.length;
+      },
+    );
   }
 }

@@ -136,6 +136,10 @@
       "testAfterConnect": "Connect first to test delays",
       "preselect": "Not connected · selected",
       "empty": "No proxies available",
+      "connectionTest": {
+        "title": "Connection test",
+        "testing": "Testing…"
+      },
       "msg": {
         "nodeRemoved": "Node removed",
         "exportToClipboard": "Copy nodes to clipboard",
@@ -299,6 +303,7 @@
       "donate": "Donate",
       "license": "License",
       "title": "About",
+      "faq": "Document",
       "notAvailableMsg": "Already using the latest version",
       "checkForUpdate": "Check for update",
       "openWorkingDir": "Open working directory",

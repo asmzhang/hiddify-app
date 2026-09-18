@@ -135,6 +135,10 @@
       "testAfterConnect": "連線後才能測速",
       "preselect": "未連線 · 已選",
       "empty": "無可用代理",
+      "connectionTest": {
+        "title": "連線測試",
+        "testing": "正在測試…"
+      },
       "msg": {
         "nodeRemoved": "已刪除節點",
         "exportToClipboard": "複製節點到剪貼簿",
@@ -295,6 +299,7 @@
       "donate": "捐贈",
       "license": "授權條款",
       "title": "關於",
+      "faq": "文件",
       "notAvailableMsg": "已是最新版本",
       "checkForUpdate": "檢查更新",
       "openWorkingDir": "開啟工作目錄",
