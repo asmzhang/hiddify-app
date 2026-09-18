@@ -87,11 +87,17 @@ install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
 install(FILES "../hiddify-core/bin/hiddify-core.dll" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
 COMPONENT Runtime RENAME hiddify-core.dll)
 
-install(FILES "../hiddify-core/bin/libcronet.dll" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-COMPONENT Runtime RENAME libcronet.dll)
+# libcronet.dll / HiddifyCli.exe：官方 CI 产物，本仓库构建链不生成。
+# 已验证：本地 core DLL 无 cronet 依赖（未打 cronet 构建标签，二进制零引用，
+# 仅影响 NaïveProxy），应用代码（lib/ runner/）也无 HiddifyCli 引用——
+# 硬性 install 会导致 INSTALL 步骤失败（MSB3073），故注释。
+# 未来若接 cronet：按 hiddify-core Makefile `extract-lib` 产出后恢复这两条。
 
-install(FILES "../hiddify-core/bin/HiddifyCli.exe" DESTINATION "${CMAKE_INSTALL_PREFIX}"
-COMPONENT Runtime RENAME HiddifyCli.exe)
+# install(FILES "../hiddify-core/bin/libcronet.dll" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+# COMPONENT Runtime RENAME libcronet.dll)
+
+# install(FILES "../hiddify-core/bin/HiddifyCli.exe" DESTINATION "${CMAKE_INSTALL_PREFIX}"
+# COMPONENT Runtime RENAME HiddifyCli.exe)
 
 
 if(PLUGIN_BUNDLED_LIBRARIES)
