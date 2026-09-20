@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/notification/in_app_notification_controller.dart';
+import 'package:hiddify/features/proxy/data/config_assembly.dart' show kChainEntityType;
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/data/protocol_form.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
+import 'package:hiddify/features/proxy/widget/chain_settings_page.dart';
 import 'package:hiddify/features/proxy/widget/protocol_form_modal.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -28,6 +30,13 @@ Future<void> startManualNodeFlow(BuildContext context, WidgetRef ref) async {
   final targetGroupId = await _resolveTargetGroupId(ref);
   if (targetGroupId == null) {
     ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
+    return;
+  }
+
+  // chain 不是协议表单：直接开 ChainSettings 页（NekoBox `ConfigurationFragment.kt:444-446`
+  // `action_new_chain` → `ChainSettingsActivity` 的对应物，新建模式 = 空成员列表）。
+  if (protocol == kChainEntityType) {
+    await showChainSettingsSheet(tag: '', chainGroupId: targetGroupId, isNew: true);
     return;
   }
 

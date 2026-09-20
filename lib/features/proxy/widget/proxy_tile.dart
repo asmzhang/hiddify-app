@@ -162,37 +162,41 @@ class ProxyTile extends HookConsumerWidget with PresLogger {
                               tooltip: t.common.edit,
                               onTap: editEnabled ? onEdit : null,
                             ),
-                            NkCardAction(
-                              icon: AdaptiveIcon(context).share,
-                              tooltip: t.common.share,
-                              onTap: () async {
-                                final json = await ref.read(outboundJsonProvider(proxy.tag).future);
-                                if (!context.mounted) return;
-                                if (json == null) {
-                                  // 只在"两个来源都找不到这个 tag"时发生（理论上不该出现：
-                                  // 列表本身就是从实体或同一份配置来的），所以用通用错误文案。
-                                  ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
-                                  return;
-                                }
-                                // 优先分享**标准链接**（可粘贴进 NekoBox/v2rayN 等客户端）；
-                                // 不支持的协议/字段残缺时回落到出站 JSON（原行为，不丢功能）。
-                                String text = json;
-                                try {
-                                  final decoded = jsonDecode(json);
-                                  if (decoded is Map<String, dynamic>) {
-                                    final link = outboundToLink(decoded);
-                                    if (link != null) text = link;
+                            // chain 无分享（NekoBox `ProxyEntity.haveLink() = false`
+                            // → ConfigurationFragment.kt:1610-1644 隐藏 share/QR/剪贴板；
+                            // chain 的 payload 是成员清单，分享出来别的客户端也解析不了）
+                            if (proxy.type != 'chain')
+                              NkCardAction(
+                                icon: AdaptiveIcon(context).share,
+                                tooltip: t.common.share,
+                                onTap: () async {
+                                  final json = await ref.read(outboundJsonProvider(proxy.tag).future);
+                                  if (!context.mounted) return;
+                                  if (json == null) {
+                                    // 只在"两个来源都找不到这个 tag"时发生（理论上不该出现：
+                                    // 列表本身就是从实体或同一份配置来的），所以用通用错误文案。
+                                    ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
+                                    return;
                                   }
-                                } catch (_) {
-                                  // JSON 都解析不了时原样复制
-                                }
-                                await Clipboard.setData(ClipboardData(text: text));
-                                if (!context.mounted) return;
-                                ref
-                                    .read(inAppNotificationControllerProvider)
-                                    .showSuccessToast(t.common.msg.export.clipboard.success);
-                              },
-                            ),
+                                  // 优先分享**标准链接**（可粘贴进 NekoBox/v2rayN 等客户端）；
+                                  // 不支持的协议/字段残缺时回落到出站 JSON（原行为，不丢功能）。
+                                  String text = json;
+                                  try {
+                                    final decoded = jsonDecode(json);
+                                    if (decoded is Map<String, dynamic>) {
+                                      final link = outboundToLink(decoded);
+                                      if (link != null) text = link;
+                                    }
+                                  } catch (_) {
+                                    // JSON 都解析不了时原样复制
+                                  }
+                                  await Clipboard.setData(ClipboardData(text: text));
+                                  if (!context.mounted) return;
+                                  ref
+                                      .read(inAppNotificationControllerProvider)
+                                      .showSuccessToast(t.common.msg.export.clipboard.success);
+                                },
+                              ),
                             if (onDelete != null)
                               NkCardAction(
                                 icon: AdaptiveIcon(context).delete,

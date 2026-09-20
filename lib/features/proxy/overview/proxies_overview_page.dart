@@ -18,11 +18,13 @@ import 'package:hiddify/features/connection/notifier/connection_summary.dart';
 import 'package:hiddify/features/profile/add/add_profile_modal.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/notifier/profiles_update_notifier.dart';
+import 'package:hiddify/features/proxy/data/config_assembly.dart' show chainProxiesOf, kChainEntityType;
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/data/protocol_form.dart';
 import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
 import 'package:hiddify/features/proxy/notifier/connection_test_notifier.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
+import 'package:hiddify/features/proxy/widget/chain_settings_page.dart';
 import 'package:hiddify/features/proxy/widget/connection_test_dialog.dart';
 import 'package:hiddify/features/proxy/widget/protocol_form_modal.dart';
 import 'package:hiddify/features/proxy/widget/proxy_tile.dart';
@@ -541,9 +543,9 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
     int nodeCount,
   ) {
     final isSelected = group.selected == proxy.tag;
-    // ✎ 只在"这一行是实体 + 该协议有表单"时给出 —— 与 🗑 同一条判据，
-    // 保证"能点到的节点一定能改"（表单的规格查表见 protocol_form.dart）。
-    final canEdit = tab != null && protocolFormSpecFor(proxy.type) != null;
+    // ✎ 只在"这一行是实体 + （该协议有表单 或 是 chain）"时给出 —— 与 🗑 同一条
+    // 判据，保证"能点到的节点一定能改"（表单的规格查表见 protocol_form.dart）。
+    final canEdit = tab != null && (protocolFormSpecFor(proxy.type) != null || proxy.type == kChainEntityType);
     return ProxyTile(
       proxy,
       selected: isSelected,
@@ -569,6 +571,23 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
   /// 所以"能分享的就能编辑"。真落到保存时，实体行不存在会被写接口拒掉（不会写坏配置）。
   Future<void> _editNode(BuildContext context, WidgetRef ref, ProxyGroupTab tab, OutboundInfo proxy) async {
     final t = ref.read(translationsProvider).requireValue;
+    // chain 走自己的编辑页（NekoBox `ProxyEntity.settingIntent()` 按 type 分发到
+    // `ChainSettingsActivity` 的对应物）：不读出站 JSON —— 它的 payload 是成员清单。
+    if (proxy.type == kChainEntityType) {
+      final chainNode = await ref.read(proxyEntityRepositoryProvider).nodeByTagAnyGroup(proxy.tag);
+      if (!context.mounted) return;
+      if (chainNode == null) {
+        ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
+        return;
+      }
+      final members = chainProxiesOf(chainNode.payload) ?? const <String>[];
+      await showChainSettingsSheet(
+        tag: chainNode.tag,
+        chainGroupId: chainNode.groupId,
+        initialProxies: members,
+      );
+      return;
+    }
     final payload = await ref.read(outboundJsonProvider(proxy.tag).future);
     if (!context.mounted) return;
     if (payload == null) {

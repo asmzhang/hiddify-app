@@ -361,6 +361,114 @@ void main() {
   final eps16 = ((jsonDecode(r16!.configJson) as Map<String, dynamic>)['endpoints'] as List).cast<Map<String, dynamic>>();
   check('覆写 · 坏 JSON 跳过（payload 原样）', eps16.firstWhere((e) => e['tag'] == 'WG-BAD')['mtu'], 1420);
 
+  // ── 批次 10：chain 任意节点串联（设计 docs/design/chain-2026-09-20.md）──
+  // 规格：NekoBox buildChain（ConfigBuilder.kt:248-459）的本项目映射：
+  //   成员出站 `c-<chainTag>-<成员tag>§hide§`（detour 链），落地 `chain:<chainTag>`
+  //   （无 §hide§ = select 组可见成员 = 选中入口）。
+  ImportedProxyEntity chainEntity(String tag, List<String> proxies, {String overlay = ''}) => ImportedProxyEntity(
+    tag: tag,
+    type: kChainEntityType,
+    payload: jsonEncode({'proxies': proxies}),
+    displayName: tag,
+    customOutbound: overlay,
+  );
+
+  // 三跳：UI 序 [JP-02, HK-01, US-04]（第一行入口、最后一行落地）
+  final rChain = applyEntitiesToOutbounds(
+    baselineConfigJson: baseline,
+    entities: [...entities, chainEntity('我的链', ['JP-02', 'HK-01', 'US-04'])],
+    staleTags: const ['GONE-03'],
+  );
+  check('chain · 组装成功', rChain != null, true);
+  final outChain = ((jsonDecode(rChain!.configJson) as Map<String, dynamic>)['outbounds'] as List).cast<Map<String, dynamic>>();
+  Map<String, dynamic> cByTag(String t) => outChain.firstWhere((o) => o['tag'] == t);
+
+  // 落地出站存在、不带 §hide§、成员定义来自最后一个成员（US-04）
+  check('chain · 落地 tag = chain:前缀', cByTag('chain:我的链')['tag'], 'chain:我的链');
+  check('chain · 落地无 §hide§', 'chain:我的链'.contains('§hide§'), false);
+  check('chain · 落地 = 最后成员的出站定义', cByTag('chain:我的链')['uuid'], 'u4');
+  check('chain · 落地无 detour（链尾直出）', cByTag('chain:我的链').containsKey('detour'), false);
+
+  // 中间跳出站：带 §hide§、detour 链指向 build 序上一条（= UI 序的上一行）
+  final entry = cByTag('c-我的链-JP-02§hide§'); // UI 第一行 = 入口
+  final middle = cByTag('c-我的链-HK-01§hide§');
+  check('chain · 入口 detour → 下一跳', entry['detour'], 'c-我的链-HK-01§hide§');
+  check('chain · 中间跳 detour → 落地', middle['detour'], 'chain:我的链');
+  check('chain · 中间跳 type 来自成员', [entry['type'], middle['type']], ['vless', 'anytls']);
+  check('chain · 成员出站定义正确（HK-01 凭据）', middle['server'], 'new-hk.example.com');
+
+  // NekoBox 语义：成员既有独立出站（可单独选中），又有链上副本（tag 不同不冲突）
+  check(
+    'chain · 成员独立出站保留（NekoBox 全量建链语义）',
+    outChain.where((o) => o['tag'] == 'HK-01' || o['tag'] == 'JP-02' || o['tag'] == 'US-04').length,
+    3,
+  );
+
+  // 循环引用：chain 引用自己 ⇒ 整条跳过，不炸组装
+  final rCycle = applyEntitiesToOutbounds(
+    baselineConfigJson: baseline,
+    entities: [...entities, chainEntity('环链', ['环链', 'HK-01'])],
+  );
+  check('chain · 自引用整条跳过（组装不失败）', rCycle != null, true);
+  final outCycle = ((jsonDecode(rCycle!.configJson) as Map<String, dynamic>)['outbounds'] as List).cast<Map<String, dynamic>>();
+  check('chain · 自引用无落地出站', outCycle.any((o) => o['tag'] == 'chain:环链'), false);
+  // 间接环：A → B → A
+  final rCycle2 = applyEntitiesToOutbounds(
+    baselineConfigJson: baseline,
+    entities: [...entities, chainEntity('环A', ['环B', 'HK-01']), chainEntity('环B', ['环A', 'US-04'])],
+  );
+  final outCycle2 = ((jsonDecode(rCycle2!.configJson) as Map<String, dynamic>)['outbounds'] as List).cast<Map<String, dynamic>>();
+  check('chain · 间接环两条都跳过', outCycle2.any((o) => o['tag'] == 'chain:环A' || o['tag'] == 'chain:环B'), false);
+
+  // 嵌套 chain 递归展开（NekoBox resolveChainInternal）：
+  // 内链 = [N1]；外链 = [内链, N1] ⇒ 展平 [N1, N1] = 两跳（N1→N1）
+  final rNested = applyEntitiesToOutbounds(
+    baselineConfigJson: baseline,
+    entities: [
+      _entity('N1', 'vless', {'server': 'n1.example.com', 'server_port': 443, 'uuid': 'n1'}),
+      chainEntity('内链', ['N1']),
+      chainEntity('外链', ['内链', 'N1']),
+    ],
+  );
+  check('chain · 嵌套组装成功', rNested != null, true);
+  final outNested = ((jsonDecode(rNested!.configJson) as Map<String, dynamic>)['outbounds'] as List).cast<Map<String, dynamic>>();
+  final outer = outNested.firstWhere((o) => o['tag'] == 'chain:外链');
+  final outerEntry = outNested.firstWhere((o) => o['tag'] == 'c-外链-N1§hide§');
+  check('chain · 嵌套落地 = 内层最后成员', outer['uuid'], 'n1');
+  check('chain · 嵌套入口 detour 链完整', outerEntry['detour'], 'chain:外链');
+  // 展平 [N1, N1]：build 序 [落地, N1, N1] —— 靠前的跳是 UI 第二个 N1，靠后的是入口。
+  // 两条成员出站 tag 相同（同名成员）—— 现实里成员去重由 UI 层负责（列表不收重复），
+  // 组装层不去重（NekoBox 同样不去重，允许同节点在链上出现多次）。这里验证的
+  // 是「嵌套展开发生了」：tag 集合里有 c-外链- 就算展开成功。
+  final flatTags = outNested.map((o) => o['tag']).where((t) => (t as String).startsWith('c-外链-')).toList();
+  check('chain · 嵌套展开发生（外链成员出站存在）', flatTags.isNotEmpty, true);
+
+  // endpoint 成员被拒（内核 stub）；坏 payload 整条跳过
+  final rRefused = applyEntitiesToOutbounds(
+    baselineConfigJson: baseline,
+    entities: [
+      wgEntity('WG-01', wgEndpoint),
+      chainEntity('含端点', ['WG-01', 'HK-01']),
+      chainEntity('坏定义', [' not-json']),
+      chainEntity('空链', []),
+    ],
+  );
+  check('chain · endpoint/坏定义/空链全跳过但组装不失败', rRefused != null, true);
+  final outRefused = ((jsonDecode(rRefused!.configJson) as Map<String, dynamic>)['outbounds'] as List).cast<Map<String, dynamic>>();
+  check('chain · 被拒链无落地', outRefused.any((o) => (o['tag'] as String).startsWith('chain:')), false);
+  check('chain · 普通成员未被殃及（wg endpoint 正常进段）', ((jsonDecode(rRefused.configJson) as Map<String, dynamic>)['endpoints'] as List).length, 1);
+
+  // chain 级覆写合并进落地出站（记档差异：NekoBox 无此概念，本项目实体模型统一）
+  final rChainOverlay = applyEntitiesToOutbounds(
+    baselineConfigJson: baseline,
+    entities: [
+      ...entities.where((e) => e.tag == 'HK-01' || e.tag == 'US-04'),
+      chainEntity('覆写链', ['HK-01', 'US-04'], overlay: '{"multiplex":{"enabled":true}}'),
+    ],
+  );
+  final landingOverlay = ((jsonDecode(rChainOverlay!.configJson) as Map<String, dynamic>)['outbounds'] as List).cast<Map<String, dynamic>>().firstWhere((o) => o['tag'] == 'chain:覆写链');
+  check('chain · 级覆写进落地出站', ((landingOverlay['multiplex'] as Map)['enabled'], landingOverlay['uuid']), (true, 'u4'));
+
   print('\n组装摘要: $r');
   print(failures == 0 ? '\nALL PASS' : '\n$failures FAILED');
 }

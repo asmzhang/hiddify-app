@@ -132,6 +132,18 @@
         "result": "Задержка: ${delay} мс",
         "timeout": "Тайм-аут теста задержки",
         "testing": "Задержка: тестирование..."
+      },
+      "chain": {
+        "proxyChain": "Proxy Chain",
+        "selectMember": "Select member",
+        "addMember": "Add member",
+        "orderHint": "Traffic goes top → bottom: the first member is the entry, the last one is the landing. Long-press to reorder, swipe to remove.",
+        "landing": "Landing (exit)",
+        "entryHop": "Hop ${index}",
+        "circular": "Circular reference: this member contains the chain itself",
+        "endpointBlocked": "WireGuard endpoints cannot be chain members",
+        "empty": "Add at least one member",
+        "saved": "Chain saved"
       }
     },
     "profiles": {

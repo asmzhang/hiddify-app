@@ -239,6 +239,18 @@
         "result": "延迟：${delay}毫秒",
         "timeout": "延迟测试超时",
         "testing": "延迟：测试中..."
+      },
+      "chain": {
+        "proxyChain": "链式代理",
+        "selectMember": "选择成员",
+        "addMember": "添加节点",
+        "orderHint": "流量自上而下：第一个是入口，最后一个是落地。长按拖动排序，左滑删除。",
+        "landing": "落地（出口）",
+        "entryHop": "第 ${index} 跳",
+        "circular": "循环引用：该节点包含本链自身",
+        "endpointBlocked": "WireGuard 端点不能作为链成员",
+        "empty": "至少添加一个节点",
+        "saved": "链已保存"
       }
     },
     "profiles": {

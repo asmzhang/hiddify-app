@@ -655,6 +655,9 @@ void main() {
     'anytls',
     'ssh',
     'wireguard',
+    // 批次 10：NekoBox add_profile_menu 的 action_new_chain（手动设置子菜单内，
+    // 位置在 wg 之后）；chain 不是协议表单，manual_node_flow 对它特判开 ChainSettings
+    'chain',
   ]);
   check('新建 · 协议显示名照 NekoBox strings', [
     for (final p in kManualCreatableProtocols) protocolDisplayName(p),
@@ -672,6 +675,8 @@ void main() {
     'AnyTLS',
     'SSH',
     'WireGuard',
+    // NekoBox strings.xml:226 proxy_chain = "Proxy Chain"
+    'Proxy Chain',
   ]);
 
   // ── 8. 批次 9：wireguard（endpoint 形态）────────────────────────────────
