@@ -34,6 +34,7 @@
 // ---------------------------------------------------------------------------
 import 'dart:convert';
 
+import 'package:hiddify/core/utils/json_merge.dart';
 import 'package:hiddify/features/proxy/data/proxy_entity_import.dart';
 import 'package:hiddify/features/proxy/data/runtime_outbound_tags.dart';
 
@@ -177,6 +178,29 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
   }
   final entityTags = nodeEntities.map((e) => e.tag).where(payloadByTag.containsKey).toList();
 
+  // 节点级**出站覆写**（切片 8.5，NekoBox `ConfigBuilder.kt:404`
+  // `_hack_custom_config = bean.customOutboundJson`）：深合并进该节点的出站 JSON。
+  // 合并失败（坏 JSON）按无覆写处理 —— 覆写不该让节点整个失效；
+  // `tag` 由本模块管理（NekoBox 同样在合并前把 tag 写进 `_hack_config_map`），覆写里写了也不影响。
+  // 普通节点与 endpoint 实体各一份索引（两段同构套用）。
+  Map<String, Map<String, dynamic>> overlayIndexFor(List<ImportedProxyEntity> bucket) {
+    final index = <String, Map<String, dynamic>>{};
+    for (final entity in bucket) {
+      final raw = entity.customOutbound.trim();
+      if (raw.isEmpty) continue;
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map<String, dynamic>) index[entity.tag] = decoded;
+      } catch (_) {
+        // 坏覆写：跳过（等价于停用），不记进组装结果
+      }
+    }
+    return index;
+  }
+
+  final outboundOverlayByTag = overlayIndexFor(nodeEntities);
+  final endpointOverlayByTag = overlayIndexFor(endpointEntities);
+
   // endpoint 实体的 tag → 完整 endpoint 定义（判据与 outbounds 段同构）
   final endpointPayloadByTag = <String, Map<String, dynamic>>{};
   for (final entity in endpointEntities) {
@@ -209,7 +233,13 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
       continue;
     }
     if (tag is String && payloadByTag.containsKey(tag)) {
-      result.add(payloadByTag[tag]!);
+      final payload = payloadByTag[tag]!;
+      final overlay = outboundOverlayByTag[tag];
+      // 覆写合并（切片 8.5）：在 payload 替换基准之后做（NekoBox 的合并发生在
+      // Bean → 出站序列化时，等价于"节点定义完成后的最后一步"）。deepMergeJson
+      // 就地修改 payload —— payloadByTag 的值是本函数私有解码产物，无副作用。
+      if (overlay != null) deepMergeJson(payload, overlay);
+      result.add(payload);
       replaced++;
       continue;
     }
@@ -225,7 +255,11 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
   var added = 0;
   for (final tag in entityTags) {
     if (!presentTags.contains(tag)) {
-      result.add(payloadByTag[tag]!);
+      final payload = payloadByTag[tag]!;
+      // 追加的实体同样套用出站覆写（手动新建的节点都在这里，覆写却常用在它们身上）
+      final overlay = outboundOverlayByTag[tag];
+      if (overlay != null) deepMergeJson(payload, overlay);
+      result.add(payload);
       added++;
     }
   }
@@ -250,7 +284,11 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
       }
     }
     if (tag is String && endpointPayloadByTag.containsKey(tag)) {
-      endpointResult.add(endpointPayloadByTag[tag]!);
+      final payload = endpointPayloadByTag[tag]!;
+      // endpoint 实体的覆写同构套用（批次 8.5）
+      final overlay = endpointOverlayByTag[tag];
+      if (overlay != null) deepMergeJson(payload, overlay);
+      endpointResult.add(payload);
       replaced++;
       continue;
     }
@@ -259,7 +297,10 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
   final presentEndpointTags = {for (final e in endpointResult) e['tag']};
   for (final tag in endpointEntityTags) {
     if (!presentEndpointTags.contains(tag)) {
-      endpointResult.add(endpointPayloadByTag[tag]!);
+      final payload = endpointPayloadByTag[tag]!;
+      final overlay = endpointOverlayByTag[tag];
+      if (overlay != null) deepMergeJson(payload, overlay);
+      endpointResult.add(payload);
       added++;
     }
   }

@@ -164,6 +164,9 @@
         "profileName": "配置名称",
         "manual": "手动输入",
         "selectProtocol": "选择协议",
+        "customOutbound": "自定义出站 JSON",
+        "customConfig": "自定义配置 JSON",
+        "customConfigInvalid": "JSON 无效：必须是一个 JSON 对象。",
         "section": {
           "proxy": "服务器设置",
           "security": "TLS 安全设置",

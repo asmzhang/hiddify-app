@@ -25,7 +25,14 @@ import 'package:hiddify/features/proxy/data/runtime_outbound_tags.dart';
 /// 只保留与"从配置派生"有关的部分：tag 即 NekoBox 的 `uuid`/name 字段位
 /// （NekoBox 用 `uuid` 列存显示名），`payload` 对应它的协议 Bean。
 class ImportedProxyEntity {
-  const ImportedProxyEntity({required this.tag, required this.type, required this.payload, required this.displayName});
+  const ImportedProxyEntity({
+    required this.tag,
+    required this.type,
+    required this.payload,
+    required this.displayName,
+    this.customOutbound = '',
+    this.customConfig = '',
+  });
 
   /// 出站 tag（配置里的唯一标识）。
   final String tag;
@@ -38,6 +45,15 @@ class ImportedProxyEntity {
 
   /// 显示名（去掉 `§` 后缀），对应 NekoBox 的 `displayName()`。
   final String displayName;
+
+  /// 节点级**出站覆写**（切片 8.5，NekoBox `AbstractBean.customOutboundJson`）——
+  /// 组装时深合并进该节点出站。空串 = 停用。不参与判重/显示（payload 保持净定义，
+  /// NekoBox 的 Bean 字段同样不进 `Deduplication.hash()`）。
+  final String customOutbound;
+
+  /// 节点级**根配置覆写**（切片 8.5，NekoBox `AbstractBean.customConfigJson`）——
+  /// 选中该节点启动时合并进根配置（root overlay 的数据源）。空串 = 停用。
+  final String customConfig;
 
   @override
   String toString() => 'ImportedProxyEntity($type, $tag)';

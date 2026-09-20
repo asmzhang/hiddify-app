@@ -88,7 +88,7 @@ class ProxyEntityRepository with InfraLogger {
         final group = existing.where((g) => profileIdOfSubscription(g.subscription) == profileId).firstOrNull;
 
         if (group == null) {
-          return _db
+          final id = await _db
               .into(_db.proxyGroups)
               .insert(
                 ProxyGroupsCompanion.insert(
@@ -98,7 +98,21 @@ class ProxyEntityRepository with InfraLogger {
                   isSelector: Value(derived.isSelector),
                 ),
               );
+          // 新组没有旧覆写可保留 —— 与"整组替换"的其余路径汇合
+          return (groupId: id, overrides: const <String, ({String customOutbound, String customConfig})>{});
         }
+
+        // 节点级自定义覆写要跨订阅更新保留（切片 8.5，照 NekoBox
+        // `RawUpdater.kt:165-166`：bean.customOutboundJson / customConfigJson
+        // 从旧 bean 抄回新 bean）。整组替换前先把它们捞出来，按 tag 回填。
+        final preserved = await (_db.select(_db.proxyEntities)
+              ..where((t) => t.groupId.equals(group.id))
+              ..where((t) => t.customOutbound.equals('').not() | t.customConfig.equals('').not()))
+            .get();
+        final overridesByTag = <String, ({String customOutbound, String customConfig})>{
+          for (final row in preserved)
+            row.tag: (customOutbound: row.customOutbound, customConfig: row.customConfig),
+        };
 
         // 更新：保留 order/userOrder 等用户属性，只刷新名字与订阅信息
         await (_db.update(_db.proxyGroups)..where((t) => t.id.equals(group.id))).write(
@@ -106,19 +120,23 @@ class ProxyEntityRepository with InfraLogger {
         );
         // 节点集合整组替换（replace 语义），避免残留已下线的节点
         await (_db.delete(_db.proxyEntities)..where((t) => t.groupId.equals(group.id))).go();
-        return group.id;
+        return (groupId: group.id, overrides: overridesByTag);
       });
 
       await _db.batch((batch) {
         batch.insertAll(_db.proxyEntities, [
           for (final (index, entity) in derived.entities.indexed)
             ProxyEntitiesCompanion.insert(
-              groupId: groupId,
+              groupId: groupId.groupId,
               tag: entity.tag,
               type: entity.type,
               displayName: entity.displayName,
               payload: entity.payload,
               userOrder: Value(index),
+              // 用户覆写按 tag 回填（订阅更新不丢，NekoBox RawUpdater 同语义）；
+              // 该 tag 没有覆写就是默认空串
+              customOutbound: Value(groupId.overrides[entity.tag]?.customOutbound ?? ''),
+              customConfig: Value(groupId.overrides[entity.tag]?.customConfig ?? ''),
             ),
         ]);
       });
@@ -251,6 +269,18 @@ class ProxyEntityRepository with InfraLogger {
     if (groupId != null) return (await groupWithNodes(groupId))?.nodes ?? const [];
     if (profileId != null) return (await groupForProfile(profileId))?.nodes ?? const [];
     return const [];
+  }
+
+  /// 按 tag 跨组查节点（启动管线用：选中偏好只存了 tag，启动时取它的节点级覆写）。
+  /// tag 在配置里全局唯一（内核按 tag 建索引，重名节点进不来），所以"跨组"不会撞。
+  /// 失败返回 null。
+  Future<ProxyEntityEntry?> nodeByTagAnyGroup(String tag) async {
+    try {
+      return (await (_db.select(_db.proxyEntities)..where((t) => t.tag.equals(tag))).get()).firstOrNull;
+    } catch (e, stackTrace) {
+      loggy.warning("failed to read node [$tag]", e, stackTrace);
+      return null;
+    }
   }
 
   /// 撤回上一步删除（NekoBox `UndoSnackbarManager.undo`）：把那一行按原顺序放回。
@@ -681,6 +711,37 @@ class ProxyEntityRepository with InfraLogger {
     }
   }
 
+  /// 保存节点行的**节点级覆写**（切片 8.5，NekoBox `ProfileSettingsActivity.kt:298-312`
+  /// 两个 ⋮ 菜单项的落点：`bean.customOutboundJson = …` / `bean.customConfigJson = …`）。
+  ///
+  /// 空串 = 停用该覆写。只动覆写列、不碰 `payload` —— 两者是 NekoBox Bean 的两个
+  /// 独立字段（`AbstractBean.java:24-25`），编辑协议字段不该动覆写，反之亦然。
+  /// 失败只记日志并返回 false。
+  Future<bool> updateNodeOverrides({
+    String? profileId,
+    int? groupId,
+    required String tag,
+    String? customOutbound,
+    String? customConfig,
+  }) async {
+    try {
+      final row = (await _nodesOf(profileId: profileId, groupId: groupId)).where((n) => n.tag == tag).firstOrNull;
+      if (row == null) return false;
+
+      await (_db.update(_db.proxyEntities)..where((t) => t.id.equals(row.id))).write(
+        ProxyEntitiesCompanion(
+          customOutbound: Value(customOutbound ?? row.customOutbound),
+          customConfig: Value(customConfig ?? row.customConfig),
+        ),
+      );
+      loggy.info("node overrides updated: [$tag]");
+      return true;
+    } catch (e, stackTrace) {
+      loggy.warning("failed to update overrides of [$tag]", e, stackTrace);
+      return false;
+    }
+  }
+
   /// 组装**要交给内核启动的出站表**：实体层覆盖订阅基准的节点段。
   ///
   /// 为什么要这么做（docs/design/nekobox-parity.md §8.6 第 4 步）：内核真正读的是
@@ -724,7 +785,15 @@ class ProxyEntityRepository with InfraLogger {
       final subscriptionTags = [for (final row in rows) row.tag];
       final entities = <ImportedProxyEntity>[
         for (final row in rows)
-          ImportedProxyEntity(tag: row.tag, type: row.type, payload: row.payload, displayName: row.displayName),
+          ImportedProxyEntity(
+            tag: row.tag,
+            type: row.type,
+            payload: row.payload,
+            displayName: row.displayName,
+            // 节点级覆写（切片 8.5）：组装层据此做出站深合并
+            customOutbound: row.customOutbound,
+            customConfig: row.customConfig,
+          ),
       ];
 
       // **手动组（type=basic）的节点要被追加进任何一份订阅的出站表。**
@@ -742,7 +811,14 @@ class ProxyEntityRepository with InfraLogger {
           continue;
         }
         entities.add(
-          ImportedProxyEntity(tag: row.tag, type: row.type, payload: row.payload, displayName: row.displayName),
+          ImportedProxyEntity(
+            tag: row.tag,
+            type: row.type,
+            payload: row.payload,
+            displayName: row.displayName,
+            customOutbound: row.customOutbound,
+            customConfig: row.customConfig,
+          ),
         );
       }
 

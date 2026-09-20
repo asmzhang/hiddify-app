@@ -1,6 +1,6 @@
 # 交接文档 — hiddify-app（新机器迁移 + NekoBox UI 复刻）
 
-> 写于 2026-09-14 晚。上一份 anytls 修复交接（D:\ 时代）已被本文取代，
+> 写于 2026-09-14 晚，2026-09-20 刷新（批次 9 后）。上一份 anytls 修复交接（D:\ 时代）已被本文取代，
 > 旧版可在 git 历史找回：`git show d3e958a5~40:HANDOVER.md` 附近。
 > 目的：任何人（或没有上下文的 AI）读完就能接着干。
 
@@ -8,7 +8,9 @@
 
 ## 0. 一句话现状
 
-**工程在新机器上已完整恢复并验证（构建/运行/订阅数据流全通），NekoBox UI 复刻一期已完成并推送（16 个提交）；剩：yfjc 订阅确认入库（深链已发，等人工点确认）、少量实体级补齐、审计 B/C/D 三包。**
+**工程完整可构建可测（Windows debug 版），NekoBox 复刻推进到批次 9（提交已到 533a5c0d，未推送 origin/my）；
+实体层（分组/节点编辑/分享/去重/组装）与协议表单（15 类中 13 可用）已落地；
+剩：实机验证 raw 通道、切片 8.5 节点层 customConfigJson、chain 设计、审计 B/C/D 三包。**
 
 ---
 
@@ -16,8 +18,10 @@
 
 | 项 | 值 |
 |---|---|
-| 开发目录 | `S:\test\hiddify-app`（分支 `my`） |
-| 对照快照 | `S:\test\hiddify-app-ui`（worktree，detached 在 `d3e958a5`，**静态参考**，勿在上面开发） |
+| 开发目录 | **`S:\test\1\hiddify-app`**（分支 `my`；老 `S:\test\hiddify-app` 是 git 损坏的历史项目，HEAD `620125ef`，实现可用 `git show 620125ef:<path>` 无损取出） |
+| UI 线快照 | `S:\test\1\hiddify-app - 副本`（与主体逐字节一致，回滚用） |
+| 规格源 | `S:\test\NekoBoxForAndroid`（Kotlin 源码；menu/preferences XML 是唯一规格准绳） |
+| 架构参照 | `S:\test\Throne`（C++；看 configs / database / stats 的组织方式） |
 | 仓库 | 顶层 `asmzhang/hiddify-app` + 8 层子模块（hiddify-core / hiddify-sing-box / ray2sing / replace 下 4 个），**全部本地 `my` 分支跟踪 `origin/my`** |
 | Flutter | **3.38.5，mise 管理**（`mise use -g flutter@3.38.5`）；pub 走 `pub.flutter-io.cn` 镜像 |
 | Go | **1.25.x 硬约束**（`mise use -g go@1.25.6`）。**1.26 会让 psiphon-tls 布局断言 panic**（核心 DLL 加载即崩、App 启动即退 code 2）。`make doctor` 已加检查 |
@@ -30,50 +34,43 @@
 
 ---
 
-## 2. 本次会话提交清单（16 个，全部已推送 origin/my）
+## 2. 提交清单（2026-09-14 会话 16 个 + 9-16~9-20 批次 1-9，**均未推送 origin/my**）
 
-**环境/修复（换机恢复）**
-- `f904b5e4` **Makefile PATH 截断修复**（本次最大坑，见 §4.1）
-- `25559a81` doctor 增加 Go 版本检查（防 1.26 panic 复发）
-- `92db036d` 钉死代码生成器版本（flutter_gen_runner 5.10.0 / slang 4.8.1 / slang_build_runner 4.8.1）
+**环境/修复（换机恢复，09-14）**
+- `f904b5e4` Makefile PATH 截断修复 / `25559a81` doctor Go 版本检查 / `92db036d` 钉死代码生成器版本
+- 规范：`22f46190` 行尾 LF 唯一化 / `3d3a7ef5` CI 门禁 / `88dfbbde` 镜像版 pubspec.lock（勿回退）
+- NekoBox UI 一期（`d3e958a5`→`b786d886`）：主题色板/主壳/卡片分组/设置/拖拽排序/导航命名
 
-**规范（审计 A 包）**
-- `22f46190` .gitattributes + .editorconfig + 全库行尾重整（LF 唯一化）
-- `6bc26f32` 恢复 flutter_test 声明
-- `3d3a7ef5` CI：publish 门控修复 + analyze 门禁 + 清理过期引用/死脚本
-- `81f2b090` BUILD.md / HANDOVER.md 同步
-- `88dfbbde` 提交镜像版 pubspec.lock + 插件注册文件（**勿回退成 pub.dev 版**，见 §4.3）
-
-**NekoBox UI 复刻**
-- `d3e958a5` 原型页 `docs/ui-mockup/nekobox_replica.html`（活进度板，浏览器直接看）
-- `8653d8ff` 步骤1 主题色板（5 色 × 日/夜/AMOLED，退役 Material You）
-- `c259702d` 步骤2 主壳（抽屉/Rail 三组、FAB 四态=连接开关、StatsBar 主色底）
-- `fe2b0286` 步骤3 卡片与分组 Tab 1:1（layout_profile.xml / layout_group_list.xml）
-- `2861ca2b` 步骤4 设置补服务模式入口（五类覆盖已核实）
-- `aefbd117` 步骤4 分组页滑动删除 + 撤销
-- `e4cbcc3c` 步骤5 分组拖拽排序持久化（prefs 存 id 序列，零 schema 迁移）
-- `a216ec5b` 导航命名对齐（代理→配置 / 订阅→分组 / 流量→仪表盘）
-- `b786d886` dart format 收尾
+**实体线 + 复刻批次（09-16 → 09-20，`cee9d6c2` → `533a5c0d`）**
+- 批次 1 `cee9d6c2` 实体层移植（分组/节点实体 + drift v7，211 files）
+- 批次 2 `cde4620e` 协议表单 4→10；2.5 `8bc2228b` 路由 per-rule package routing
+- 批次 3 `868dd0bf` 节点分享标准链接（8 协议，hiddify-core 侧 ray2sing 往返校验）
+- 批次 4 `2fd360fc` 连接测试进度对话框 + FAQ；审计修复 `406a5bdd`（pop 竞态）
+- 批次 5 `054b9c1a` 清流量统计（⋮ 菜单 8/8 收官）
+- `80aba722` **Windows 构建通关**（hiddify-core.dll + 插件 junction + CMakeLists 注释 install）
+- `f9206fa9` Windows 集成测试冒烟（integration_test/main_test.dart 全绿）
+- 批次 6 `6abbaba1` trojan + hysteria v1 表单（手动菜单 12 项；valueSuffix 机制）
+- 批次 7 `06ac24b7` 设置页 NekoBox 对照审计（38 项：21 覆盖 + 9 等价 + 8 挂起）
+- 批次 8 `cac9fb4e` custom_config 全局自定义配置（两阶段 raw 通道，docs/design/custom-config-2026-09-18.md）
+- 批次 9 `533a5c0d` wireguard endpoint 表单 + endpoints 通路（docs/design/wireguard-endpoint-2026-09-18.md；手动菜单 13 项）
 
 ---
 
-## 3. NekoBox UI 复刻蓝图与进度
+## 3. 进度与剩余（按优先级）
 
-设计原则（已与用户定案，**不要推翻**）：
-1. **NekoBox 壳 + hiddify 芯**：先 1:1 对照 NekoBox（源文件级：layout_profile.xml / layout_group_list.xml / main_drawer_menu.xml / themes.xml），hiddify 功能作为最后一批"补充"
-2. **FAB = 唯一连接开关**（四态：stopped=▶ / connecting=转圈禁点 / connected=⏹ / disconnecting=转圈）；系统代理模式选择放设置，不放主页卡片
-3. **多平台**：手机 = NavigationDrawer（复刻 NekoBox 抽屉三组）；PC ≥600dp = NavigationRail 常驻左侧（同三组，平铺不分组）
-4. **归一原则**：每个能力只允许一个数据源/入口；退役 UI 不删码只降权；每步一提交
+**设计原则（已与用户定案，不要推翻）**：NekoBox 壳 + hiddify 芯 / FAB 四态唯一开关 / 手机 Drawer + PC(≥600dp) NavigationRail / 归一原则 / 每步一提交。规格源唯一 = NekoBoxForAndroid（nekoray 不进决策链）。
 
-**已完成**：主题色板 / 导航三组+命名（配置/分组/路由/设置‖日志/仪表盘/工具‖关于）/ 主页（Toolbar 三件套+分组 Tab 连体+1:1 卡片+StatsBar）/ 分组页（滑删+撤销+拖拽排序持久化）/ 设置五类覆盖+服务模式入口。
+**已完成**：主题色板/主壳/主页卡片/分组页（滑删+拖拽）/导航命名 ‖ 实体层（分组+节点+编辑+分享+删除+去重+组装）‖ ⋮ 菜单 8/8、抽屉 10/11 ‖ 协议表单 13/15（socks/ss/vless/vmess/trojan/hy1/hy2/tuic/shadowtls/anytls/mieru/naive/ssh/wireguard）‖ 设置页审计归一 ‖ custom_config 全局（两阶段 raw）‖ wireguard endpoint 通路 ‖ Windows 构建 + 冒烟测试。
 
 **剩余（按优先级）**：
-1. **yfjc 订阅确认入库**（深链已发，等人工点两次确认；cpdd 已验证 39 anytls 全链路 ✓）
-2. 实体级补齐（需动模型/后端）：手动分组实体、geo 资源管理、卡片动作图标（编辑/分享/删除）、路由细粒度字段（domain/ip/port）
-3. 审计 B 供应链包：CORE_FETCH 加 sha256、git 依赖锁 ref（circle_flags/installed_apps）、启用 flutter-version-file、CI 缓存 core-libs
-4. 审计 C 安全包：gRPC 明文+固定端口 17078+`Random()` 非安全随机（core_interface_desktop.dart:60-94）、Sentry 默认上送订阅内容（profile_details_notifier.dart:59 → analytics）、3 处空 catch 补日志
-5. 审计 D 架构包：core→features 14 处逆依赖、FFI 门面收敛（15 文件直用 hcore.pb.dart）、riverpod 风格统一、json_editor.dart 1592 行拆分、3 个业务测试
-6. 上游 PR：anytls 修复 + Makefile PATH 修复提给 hiddify 官方
+1. **实机验证**：PC/Android 各连一次，确认 custom_config raw 通道真实生效（内核日志应有 raw 读取痕迹）；顺带验证 wireguard 表单实连
+2. **切片 8.5 节点层 customConfigJson**：NekoBox Bean 有两个字段（customOutboundJson 合并进该节点 outbound / customConfigJson 选中时合并进根配置，RawUpdater 订阅更新都保留）。本项目挂载点 = `applyEntitiesToOutbounds` 组装时对单条出站深合并（与全局同一 `deepMergeJson`）
+3. **chain 任意节点串联**：另立设计文档（涉及 profile 数据模型：detour 引用 + 环检测 + 分组 UI；已有 warp/psiphon 双链骨架）
+4. 实体级补齐：geo 资源管理、路由细粒度字段
+5. 审计 B 供应链包：CORE_FETCH 加 sha256、git 依赖锁 ref、启用 flutter-version-file、CI 缓存 core-libs
+6. 审计 C 安全包：gRPC 明文+固定端口 17078+`Random()` 非安全随机、Sentry 默认上送订阅内容、3 处空 catch 补日志
+7. 审计 D 架构包：core→features 14 处逆依赖、FFI 门面收敛、riverpod 风格统一、json_editor.dart 拆分、3 个业务测试
+8. **推送 origin/my**（落后 20+ 提交）+ 上游 PR（anytls 修复 + Makefile PATH 修复提给 hiddify 官方）
 
 ---
 
@@ -83,9 +80,13 @@
 2. **Go 版本**：1.26 编核心 → 运行时 panic（psiphon-tls 断言）。**永远用 1.25.x**，doctor 会查。
 3. **pubspec.lock 与镜像**：`PUB_HOSTED_URL=pub.flutter-io.cn` 与 lock 里 `pub.dev` 来源不匹配 → pub 每次 pub get 重解析（版本在约束内漂移）。已提交镜像版 lock 为基线；pub.dev 机器（CI）自行解析不回写。**不要试图"恢复干净 lock"——那是死循环**。
 4. **单实例**：旧实例还在跑时启动新构建 → 新进程握手后 exit 0（像闪退）。烟测前先杀干净 Hiddify 进程。
-5. **生成代码不入库**：新机器必须 `dart run build_runner build --delete-conflicting-outputs`（freezed/slang/drift/riverpod 全靠它），否则 analyze 报一堆 undefined。
+5. **生成代码不入库**：新机器必须 `dart run build_runner build --delete-conflicting-outputs`（freezed/slang/drift/riverpod 全靠它），否则 analyze 报一堆 undefined。**必须全量跑**：`--build-filter` 会漏掉 slang 真正输出（lib/gen/translations_*.g.dart）。
 6. **git submodule update 不带 `--remote` 会锁死在父仓库记录的 SHA**（游离 HEAD）——本项目约定全层跟 `my` 分支，见 docs/BUILD.md「取源码」节。
 7. **后台任务里跑 git checkout 会留下半路状态**（index.lock / 半删文件）——git 操作放前台。
+8. **flutter test 前必须 `unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY`**——代理变量存在（哪怕指向已关闭的本地端口）就劫持 flutter_tester 本地 WebSocket，全部测试 "Invalid WebSocket upgrade request" 挂载失败。
+9. **`for (final x in list ?? const [])` 类型陷阱**：裸 `const []` 让 `??` 的类型 LUB 劣化，循环变量掉成 `Object?` → 4 个 error + dead_code。必须 `const <Map<String, dynamic>>[]` 或 `if (list != null)` 包裹。
+10. **全量 flutter analyze 被沙箱 reg.EXE 黑名单拦截** → 用 `dart analyze lib test tool` 分目录替代。
+11. **Windows 构建三关**（详见 .workbuddy/memory/MEMORY.md「Windows 构建链」）：hiddify-core.dll 不带 with_ech / 插件 junction 预建（tool/ensure_plugin_junctions.ps1）/ CMakeLists 两条 install 已注释。
 
 ---
 
