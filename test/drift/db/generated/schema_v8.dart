@@ -420,6 +420,22 @@ class ProxyEntities extends Table with TableInfo {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  late final GeneratedColumn<String> customOutbound = GeneratedColumn<String>(
+    'custom_outbound',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const CustomExpression('\'\''),
+  );
+  late final GeneratedColumn<String> customConfig = GeneratedColumn<String>(
+    'custom_config',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const CustomExpression('\'\''),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -434,6 +450,8 @@ class ProxyEntities extends Table with TableInfo {
     ping,
     error,
     payload,
+    customOutbound,
+    customConfig,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -453,8 +471,8 @@ class ProxyEntities extends Table with TableInfo {
   }
 }
 
-class DatabaseAtV7 extends GeneratedDatabase {
-  DatabaseAtV7(QueryExecutor e) : super(e);
+class DatabaseAtV8 extends GeneratedDatabase {
+  DatabaseAtV8(QueryExecutor e) : super(e);
   late final ProfileEntries profileEntries = ProfileEntries(this);
   late final AppProxyEntries appProxyEntries = AppProxyEntries(this);
   late final ProxyGroups proxyGroups = ProxyGroups(this);
@@ -475,7 +493,7 @@ class DatabaseAtV7 extends GeneratedDatabase {
     proxyEntitiesGroupId,
   ];
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
   @override
   DriftDatabaseOptions get options =>
       const DriftDatabaseOptions(storeDateTimeAsText: true);
