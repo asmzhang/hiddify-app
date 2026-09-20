@@ -116,6 +116,158 @@ Set<String> staleNodeTags({required String baselineConfigJson, required Iterable
   return stale;
 }
 
+/// chain 实体 payload 的**净定义**（设计 `docs/design/chain-2026-09-20.md` D1）：
+/// `{"proxies": ["tag1", …]}` —— 有序成员 tag 引用，UI 序 = 流量经过顺序（第一行入口，
+/// 最后一行落地）。对齐 NekoBox `ChainBean.proxies`（那边是有序 Long id，本项目实体
+/// 身份本来就是 tag，直接用 tag 引用，组装层零 join）。
+const kChainEntityType = 'chain';
+
+/// chain 落地出站的 tag 保留前缀。普通节点 tag 不允许用它开头（`createNode` 层拦截），
+/// 避免与落地出站撞名（风险见设计 §4）。
+const kChainTagPrefix = 'chain:';
+
+/// chain 实体 payload ⇄ 有序成员 tag 列表。坏 payload 返回 null。
+List<String>? chainProxiesOf(String payload) {
+  try {
+    final decoded = jsonDecode(payload);
+    if (decoded is! Map) return null;
+    final raw = decoded['proxies'];
+    if (raw is! List) return null;
+    final tags = <String>[];
+    for (final item in raw) {
+      if (item is String && item.isNotEmpty) {
+        tags.add(item);
+      } else {
+        return null; // 单个坏成员 = 整条定义不可信，宁可不组装
+      }
+    }
+    return tags;
+  } catch (_) {
+    return null;
+  }
+}
+
+/// 把 chain 实体展开成一组内核出站（设计 §D2 —— NekoBox `buildChain` 的本项目映射）。
+///
+/// ## 语义（1:1 对齐 NekoBox `fmt/ConfigBuilder.kt:86-124, 248-459`）
+///
+/// - 展平：成员引用另一个 chain 实体 ⇒ 递归展开（NekoBox `resolveChainInternal`）；
+///   `visiting` 灰集防环（NekoBox 编辑期 `testProfileContains` 的组装期兜底）。
+/// - build 序 = UI 序 `asReversed()`（落地在 build index 0）；detour 从 build 序 index>0
+///   起每条指向上一条（= UI 序的上一行；流量 p0→…→pn-1 由入口逐跳指向下一跳）。
+/// - tag 命名：中间跳/入口 `c-<chainTag>-<成员tag>` **全部带 `§hide§`** —— 内核
+///   `builder.go:178` 只把不带 `§hide§` 的 tag 收进 select/balance 组，出站本体照留
+///   （`:183`）。落地出站 `chain:<chainTag>` **不带** —— 它是 select 组的可见成员，
+///   选中 chain = 把 selector 指到它（NekoBox `TAG_PROXY` 的本项目对应物：
+///   本项目路由 final 固定 `select`，没有独立 TAG_PROXY 通路）。
+/// - 成员出站 = 成员 payload 深拷贝 + 换 tag + detour + 该成员 `customOutbound`
+///   deepMerge（NekoBox :404 `_hack_custom_config = bean.customOutboundJson` 同构）；
+///   chain 实体自身的 `customOutbound` 合并进落地出站（记档差异：NekoBox 无 chain 级
+///   customOutbound，本项目实体模型统一，合并点选落地 = 「覆写最终出站」）。
+/// - endpoint 型成员（wireguard）**拒绝**：本项目内核里 wireguard outbound 是 stub，
+///   endpoint 不能做 chain 跳点（NekoBox 的 WireGuardBean 是 outbound 形态，形态不同）。
+/// - 内置类型（direct/block/dns）、组类型成员同样拒绝（不可作为跳点）。
+///
+/// 返回：`(memberOutbounds, landingOutbound)`。任何不可组装的情形（环/坏定义/空链/
+/// 缺成员 payload）返回 null —— 整条 chain 跳过，宁缺毋炸。
+({List<Map<String, dynamic>> memberOutbounds, Map<String, dynamic> landingOutbound})? buildChainOutbounds({
+  required ImportedProxyEntity chainEntity,
+  required Map<String, ImportedProxyEntity> entityByTag,
+}) {
+  final proxies = chainProxiesOf(chainEntity.payload);
+  if (proxies == null || proxies.isEmpty) return null;
+
+  // 展平（UI 序）：成员引用 chain 实体 ⇒ 递归展开；环 = 返回 null（整条跳过）
+  List<String>? flatten(String tag, Set<String> visiting) {
+    if (visiting.contains(tag)) return null; // 环：兜底跳过整条链（设计 §D3）
+    final entity = entityByTag[tag];
+    if (entity == null) return null; // 成员实体不存在（被删了） ⇒ 整条跳过
+    if (entity.type == kChainEntityType) {
+      final nested = chainProxiesOf(entity.payload);
+      if (nested == null) return null;
+      final expanded = <String>[];
+      final nextVisiting = {...visiting, tag};
+      for (final nestedTag in nested) {
+        final part = flatten(nestedTag, nextVisiting);
+        if (part == null) return null;
+        expanded.addAll(part);
+      }
+      return expanded;
+    }
+    if (isNodeEndpoint(entity.type)) return null; // endpoint 不能做跳点
+    if (kInternalOutboundTypes.contains(entity.type)) return null;
+    if (kGroupOutboundTypes.contains(entity.type)) return null;
+    return [tag];
+  }
+
+  final flat = <String>[];
+  for (final tag in proxies) {
+    final part = flatten(tag, {kChainTagPrefix + chainEntity.tag});
+    if (part == null) return null;
+    flat.addAll(part);
+  }
+  if (flat.isEmpty) return null;
+
+  // build 序 = 落地在前（asReversed）。detour 链：build 序每条指向上一条。
+  // 流量方向：入口（build 末）detour→ … → 落地（build 0）无 detour 直接出网。
+  final buildOrder = flat.reversed.toList();
+
+  // chain 自身覆写（坏 JSON 按无覆写）
+  Map<String, dynamic>? chainOverlay;
+  final rawChainOverlay = chainEntity.customOutbound.trim();
+  if (rawChainOverlay.isNotEmpty) {
+    try {
+      final decoded = jsonDecode(rawChainOverlay);
+      if (decoded is Map<String, dynamic>) chainOverlay = decoded;
+    } catch (_) {}
+  }
+
+  final memberOutbounds = <Map<String, dynamic>>[];
+  String? previousTag;
+  Map<String, dynamic>? landingOutbound;
+  for (var i = 0; i < buildOrder.length; i++) {
+    final memberTag = buildOrder[i];
+    final entity = entityByTag[memberTag]!;
+    final isLanding = i == 0;
+
+    Map<String, dynamic> outbound;
+    try {
+      final decoded = jsonDecode(entity.payload);
+      if (decoded is! Map<String, dynamic>) return null;
+      final recoded = jsonDecode(jsonEncode(decoded)); // 深拷贝，别污染实体索引
+      if (recoded is! Map<String, dynamic>) return null;
+      outbound = recoded;
+    } catch (_) {
+      return null;
+    }
+
+    // 成员覆写（NekoBox :404）：在换 tag 之前合并也行，tag 由本模块管理
+    final rawOverlay = entity.customOutbound.trim();
+    if (rawOverlay.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawOverlay);
+        if (decoded is Map<String, dynamic>) deepMergeJson(outbound, decoded);
+      } catch (_) {}
+    }
+
+    final outboundTag = isLanding ? kChainTagPrefix + chainEntity.tag : 'c-${chainEntity.tag}-$memberTag§hide§';
+    outbound['tag'] = outboundTag;
+    if (!isLanding) outbound['detour'] = previousTag;
+    if (isLanding && chainOverlay != null) deepMergeJson(outbound, chainOverlay);
+
+    if (isLanding) {
+      landingOutbound = outbound;
+    } else {
+      memberOutbounds.add(outbound);
+    }
+    previousTag = outboundTag;
+  }
+
+  final landing = landingOutbound;
+  if (landing == null) return null;
+  return (memberOutbounds: memberOutbounds, landingOutbound: landing);
+}
+
 /// 把 [entities] 套用到 [baselineConfigJson]（内核生成的出站表基准）上。
 ///
 /// 规则：
@@ -154,19 +306,27 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
     return null;
   }
 
-  // 实体拆两桶：普通节点 → outbounds 段；endpoint 类 → endpoints 段
-  // （判据只有一处：`runtime_outbound_tags.isNodeEndpoint`，与派生/解析同一份）
+  // 实体拆三桶（设计 §D2）：chain 实体 → 展开成一串出站；普通节点 → outbounds 段；
+  // endpoint 类 → endpoints 段。判据各只有一处：`kChainEntityType` /
+  // `runtime_outbound_tags.isNodeEndpoint`，与派生/解析同一份。
+  final chainEntities = <ImportedProxyEntity>[];
   final nodeEntities = <ImportedProxyEntity>[];
   final endpointEntities = <ImportedProxyEntity>[];
   for (final entity in entities) {
-    if (isNodeEndpoint(entity.type)) {
+    if (entity.type == kChainEntityType) {
+      chainEntities.add(entity);
+    } else if (isNodeEndpoint(entity.type)) {
       endpointEntities.add(entity);
     } else {
       nodeEntities.add(entity);
     }
   }
 
-  // 普通节点的 tag → 完整出站定义
+  final entityByTag = {for (final e in entities) e.tag: e};
+
+  // 普通节点的 tag → 完整出站定义。**chain 成员照常参与覆盖/追加** ——
+  // NekoBox 语义（ConfigBuilder.kt:462-480 selector 全量建链）：节点既有独立
+  // 出站（可单独选中），又有链上副本（`c-…§hide§` tag，与独立 tag 不冲突）。
   final payloadByTag = <String, Map<String, dynamic>>{};
   for (final entity in nodeEntities) {
     try {
@@ -211,8 +371,11 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
   }
   final endpointEntityTags = endpointEntities.map((e) => e.tag).where(endpointPayloadByTag.containsKey).toList();
 
+  // chain 展开也算「有实体要组装」（chain-only 场景：手动组里只有 chain、
+  // 订阅组节点全删光的极端情况也不至于静默回落）
+  final hasChains = chainEntities.any((e) => buildChainOutbounds(chainEntity: e, entityByTag: entityByTag) != null);
   final isEndpointsOnly = payloadByTag.isEmpty && endpointPayloadByTag.isNotEmpty;
-  if (payloadByTag.isEmpty && !isEndpointsOnly) return null;
+  if (payloadByTag.isEmpty && !isEndpointsOnly && !hasChains) return null;
 
   final stale = staleTags.toSet();
   final result = <Map<String, dynamic>>[];
@@ -263,6 +426,30 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
       added++;
     }
   }
+
+  // ── chain 段（设计 §D2）──
+  // 成员出站（§hide§ tag，detour 链）+ 落地出站（`chain:<tag>`，select 组可见成员）。
+  // 追加在节点段末尾 —— 内核按输入顺序收集 tag，落地 tag 进 select 组。
+  // 撞名兜底：任何一条链上出站与基准/节点段撞 tag ⇒ **整条 chain 的出站全部跳过**
+  // （detour 链按 tag 相互引用，跳一半 = 链断裂，比整条不生效更糟）。
+  // 撞名只可能来自用户手工造出 `chain:` 前缀或 `c-<tag>-…§hide§` 形状的旧数据
+  // （createNode 层已拦截 `chain:` 前缀新建），属异常态防御。
+  final chainResultOutbounds = <Map<String, dynamic>>[];
+  for (final chainEntity in chainEntities) {
+    final built = buildChainOutbounds(chainEntity: chainEntity, entityByTag: entityByTag);
+    if (built == null) continue; // 环/坏定义/缺成员：整条跳过
+    final allTags = [for (final o in built.memberOutbounds) o['tag'] as String, built.landingOutbound['tag'] as String];
+    if (allTags.any(presentTags.contains)) {
+      // 撞名属异常态防御（不打印 —— 本模块是纯 Dart，无 loggy；调用方按
+      // added 计数观察链是否缺席）
+      continue;
+    }
+    chainResultOutbounds.addAll(built.memberOutbounds);
+    chainResultOutbounds.add(built.landingOutbound);
+    presentTags.addAll(allTags);
+  }
+  result.addAll(chainResultOutbounds);
+  added += chainResultOutbounds.length;
 
   config['outbounds'] = result;
 

@@ -11,6 +11,8 @@
 //
 // 失败策略：**只记日志、绝不抛出** —— 实体派生失败不能让订阅导入/更新失败
 // （导入的成功标准是订阅可用，实体是附加物）。
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:hiddify/core/db/db.dart';
 import 'package:hiddify/core/model/proxy_group.dart';
@@ -645,6 +647,12 @@ class ProxyEntityRepository with InfraLogger {
     required String payload,
   }) async {
     try {
+      // `chain:` 是 chain 落地出站的保留前缀（组装层用它命名选中入口，设计
+      // chain-2026-09-20.md §4）；普通节点占用会让 chain 落地撞名。
+      if (tag.startsWith(kChainTagPrefix)) {
+        loggy.warning("node tag [$tag] uses the reserved chain prefix - rejected");
+        return null;
+      }
       final existing = await (_db.select(_db.proxyEntities)..where((t) => t.tag.equals(tag))).get();
       if (existing.isNotEmpty) {
         loggy.warning("node tag already exists: [$tag]");
@@ -682,6 +690,45 @@ class ProxyEntityRepository with InfraLogger {
           ..where((t) => t.groupId.isIn(basicIds))
           ..orderBy([(t) => OrderingTerm.asc(t.userOrder), (t) => OrderingTerm.asc(t.id)]))
         .get();
+  }
+
+  /// 全部 chain 实体（type=='chain'）。chain 落手动组 ⇒ 它天然在 [manualNodes]
+  /// 里，这里只是给 UI/校验用的便捷视图。
+  Future<List<ProxyEntityEntry>> chainNodes() async {
+    final rows = await (_db.select(_db.proxyEntities)..where((t) => t.type.equals(kChainEntityType))).get();
+    return rows;
+  }
+
+  /// 保存一条 chain 的成员定义（ChainSettings 页保存按钮的落点）。
+  ///
+  /// [proxies] 是**有序成员 tag**（UI 序 = 流量经过顺序：第一行入口、最后一行落地），
+  /// 序列化成 `{"proxies":[…]}` 存 payload（设计 chain-2026-09-20.md D1）。
+  /// 新建（库里无此 tag）走创建；已有（编辑）走 payload 整段替换 —— 与
+  /// [updateNodePayload] 同语义（tag 是身份，不改名）。
+  /// 失败返回 null（调用方提示，不落库）。
+  Future<ProxyEntityEntry?> saveChain({
+    required int groupId,
+    required String tag,
+    required List<String> proxies,
+    String? displayName,
+  }) async {
+    final payload = jsonEncode({'proxies': proxies});
+    final existing = await (_db.select(_db.proxyEntities)..where((t) => t.tag.equals(tag))).get();
+    if (existing.isNotEmpty) {
+      final row = existing.first;
+      await (_db.update(_db.proxyEntities)..where((t) => t.id.equals(row.id))).write(
+        ProxyEntitiesCompanion(payload: Value(payload), displayName: Value(displayName ?? row.displayName)),
+      );
+      return (_db.select(_db.proxyEntities)..where((t) => t.id.equals(row.id))).getSingle();
+    }
+    return createNode(groupId: groupId, tag: tag, type: kChainEntityType, payload: payload);
+  }
+
+  /// 供 ChainSettings 的成员选择对话框用：可选成员 = 全部实体里**能当跳点**的
+  /// （排除 endpoint 型 —— 内核 stub 拒收；chain 实体可嵌套引用，保留）。
+  Future<List<ProxyEntityEntry>> selectableChainMembers() async {
+    final rows = await _db.select(_db.proxyEntities).get();
+    return rows.where((r) => r.type != 'wireguard').toList();
   }
 
   /// 改写一个节点的**出站定义**（节点行 ✎ 的落点）。
