@@ -164,6 +164,9 @@
         "profileName": "Profile Name",
         "manual": "Manual Settings",
         "selectProtocol": "Select protocol",
+        "customOutbound": "Custom outbound JSON",
+        "customConfig": "Custom config JSON",
+        "customConfigInvalid": "Invalid JSON: the value must be a single JSON object.",
         "section": {
           "proxy": "Server Settings",
           "security": "TLS Security Settings",

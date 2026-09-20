@@ -4,6 +4,7 @@ import 'package:dartx/dartx.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:hiddify/core/model/directories.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
+import 'package:hiddify/core/preferences/preferences_provider.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/utils/exception_handler.dart';
 import 'package:hiddify/core/utils/json_merge.dart';
@@ -12,6 +13,7 @@ import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/profile/data/profile_path_resolver.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
 import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
+import 'package:hiddify/features/proxy/data/selected_proxy_store.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/hiddifycore/hiddify_core_service.dart';
 import 'package:hiddify/singbox/model/core_status.dart';
@@ -132,7 +134,32 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
 
         final customConfig = ref.read(ConfigOptions.customConfig);
         if (customConfig.isNotBlank) {
-          final rawResult = await _startWithCustomConfig(customConfig, basePath, profile.name, disableMemoryLimit).run();
+          // 节点级根配置覆写（切片 8.5）：取**期望选中**节点的那份（NekoBox 的
+          // `proxy.requireBean()` 是选中实体）。查不到/为空 ⇒ null（零行为变化）。
+          // 只在 global 覆写存在时才走 raw 通道 —— 节点覆写单独存在也值得支持，
+          // 但 raw 通道以 global 为门槛保持批次 8 的行为边界（无 global ⇒ 现状路径）。
+          String? selectedNodeConfig;
+          try {
+            final prefs = await ref.read(sharedPreferencesProvider.future);
+            final selection = SelectedProxyStore(prefs);
+            final tag = selection.outboundTag;
+            final belongsHere = selection.profileId.isEmpty || selection.profileId == profile.id;
+            if (belongsHere && tag.isNotEmpty) {
+              final node = await ref.read(proxyEntityRepositoryProvider).nodeByTagAnyGroup(tag);
+              final raw = node?.customConfig.trim() ?? '';
+              if (raw.isNotEmpty) selectedNodeConfig = raw;
+            }
+          } catch (_) {
+            loggy.warning("failed to read selected node customConfig - skipped");
+          }
+
+          final rawResult = await _startWithCustomConfig(
+            customConfig,
+            basePath,
+            profile,
+            disableMemoryLimit,
+            selectedNodeConfig: selectedNodeConfig,
+          ).run();
           if (rawResult.isRight()) return rawResult;
           loggy.warning("custom_config raw start failed, falling back to the normal path: $rawResult");
         }
@@ -152,12 +179,18 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
   /// 合并基准是**内核拼装的完整最终 JSON**（含全部 patch），不是订阅/实体文件原文——
   /// 否则 `EnableRawConfig=true` 会跳过内核 patch（WARP/静态 IP/DNS/路由构建），
   /// 与 ChangeHiddifySettings 驱动的配置不一致。
+  ///
+  /// **合并顺序照 NekoBox `ConfigBuilder.kt:741→744`**：global 先、选中节点后
+  /// （`_hack_custom_config = DataStore.globalCustomConfig` 之后
+  /// `Util.mergeJSON(configMap, proxy.requireBean().customConfigJson)`）——
+  /// 节点级覆写拥有对全局的"最后改卷权"，与 NekoBox 语义一致。
   TaskEither<ConnectionFailure, Unit> _startWithCustomConfig(
     String customConfig,
     String basePath,
-    String name,
-    bool disableMemoryLimit,
-  ) => TaskEither(() async {
+    ProfileEntity profile,
+    bool disableMemoryLimit, {
+    String? selectedNodeConfig,
+  }) => TaskEither(() async {
     // b. 内核正常拼装（raw=false），产出完整最终 JSON
     final fullConfig = await singbox.generateFullConfigByPath(basePath).run();
     final content = fullConfig.fold(
@@ -167,10 +200,19 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
 
     // c. Dart 侧 NekoBox 语义深合并（最后改卷权）
     final base = jsonDecode(content) as Map<String, dynamic>;
-    final merged = deepMergeJson(base, parseCustomConfig(customConfig));
+    var merged = deepMergeJson(base, parseCustomConfig(customConfig));
+    // 节点级根配置覆写（切片 8.5）：只对**选中的**节点生效（NekoBox 的
+    // `proxy.requireBean()` 就是当前选中项）。坏 JSON 按无覆写处理。
+    if (selectedNodeConfig != null) {
+      try {
+        merged = deepMergeJson(merged, parseCustomConfig(selectedNodeConfig));
+      } catch (_) {
+        loggy.warning("selected node customConfig is invalid - skipped");
+      }
+    }
 
     // d. raw 通道启动
-    return singbox.startRawContent(jsonEncode(merged), basePath, name, disableMemoryLimit).run();
+    return singbox.startRawContent(jsonEncode(merged), basePath, profile.name, disableMemoryLimit).run();
   });
 
   @override

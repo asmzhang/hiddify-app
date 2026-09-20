@@ -366,6 +366,36 @@ class ProxiesOverviewNotifier extends _$ProxiesOverviewNotifier with AppLogger {
     return true;
   }
 
+  /// 保存节点级覆写（切片 8.5，NekoBox ⋮ 菜单两项 customOutbound/Json + customConfig/Json）。
+  ///
+  /// customOutbound 参与组装 ⇒ 改完要重载内核（同 [updateNodePayload]）；
+  /// customConfig 只在启动时读 ⇒ 无需立即重载，下次连接自然生效。
+  /// 两者都传 null 表示"该项没改动"，repository 层会保留原值。
+  Future<bool> updateNodeOverrides({
+    String? profileId,
+    int? groupId,
+    required String tag,
+    String? customOutbound,
+    String? customConfig,
+  }) async {
+    loggy.debug("updating node overrides: [$tag]");
+    final ok = await ref
+        .read(proxyEntityRepositoryProvider)
+        .updateNodeOverrides(
+          profileId: profileId,
+          groupId: groupId,
+          tag: tag,
+          customOutbound: customOutbound,
+          customConfig: customConfig,
+        );
+    if (!ok) return false;
+    ref.invalidate(proxyGroupTabsProvider);
+    if (customOutbound != null) {
+      await _reloadCoreIfAffected(profileId: profileId, groupId: groupId);
+    }
+    return true;
+  }
+
   /// 手动新建分组（NekoBox `GroupSettingsActivity` 的保存 → `GroupManager.createGroup`）。
   /// 返回新组的主键；失败返回 null。
   Future<int?> createGroup({String? name, bool ungrouped = false}) async {

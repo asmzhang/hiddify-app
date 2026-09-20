@@ -26,6 +26,7 @@ Future<void> showProtocolFormSheet({
   required String payloadJson,
   String? profileId,
   int? groupId,
+  NodeOverrides? initialOverrides,
 }) => showRootBottomSheet<void>(
   child: ProtocolFormModal(
     type: type,
@@ -33,6 +34,7 @@ Future<void> showProtocolFormSheet({
     payloadJson: payloadJson,
     profileId: profileId,
     groupId: groupId,
+    initialOverrides: initialOverrides,
   ),
   isScrollControlled: true,
 );
@@ -47,6 +49,19 @@ Future<void> showProtocolCreateSheet({required int groupId, required String type
   isScrollControlled: true,
 );
 
+/// 读取一个节点的**节点级覆写**（切片 8.5 ⋮ 菜单回显用）。
+/// 由调用方（proxy_tile / proxies_overview_notifier）在打开表单前取好传入，
+/// 保持本 widget 的纯展示性（不直接依赖 drift/riverpod 数据层）。
+class NodeOverrides {
+  const NodeOverrides({this.customOutbound = '', this.customConfig = ''});
+
+  /// 出站覆写（NekoBox `AbstractBean.customOutboundJson`）。
+  final String customOutbound;
+
+  /// 根配置覆写（NekoBox `AbstractBean.customConfigJson`）。
+  final String customConfig;
+}
+
 class ProtocolFormModal extends HookConsumerWidget {
   const ProtocolFormModal({
     super.key,
@@ -56,6 +71,7 @@ class ProtocolFormModal extends HookConsumerWidget {
     this.profileId,
     this.groupId,
     this.targetGroupId,
+    this.initialOverrides,
   });
 
   final String type;
@@ -73,6 +89,9 @@ class ProtocolFormModal extends HookConsumerWidget {
 
   /// 新建模式：节点落到哪个分组。
   final int? targetGroupId;
+
+  /// 编辑模式：节点级覆写初值（切片 8.5 ⋮ 菜单的回显数据源）。
+  final NodeOverrides? initialOverrides;
 
   bool get isCreate => targetGroupId != null;
 
@@ -123,6 +142,23 @@ class ProtocolFormModal extends HookConsumerWidget {
     final errors = useState<Set<String>>(const {});
     final saving = useState(false);
     final layout = protocolFormLayout(spec);
+    // 节点级覆写（切片 8.5）：编辑会话内的草稿。⋮ 菜单项打开编辑对话框，
+    // 确认后写进这里；save() 一并落库。null 字段 = 该项未改动。
+    final draftOutbound = useState<String?>(null);
+    final draftConfig = useState<String?>(null);
+
+    Future<void> saveOverride({required bool isOutbound}) async {
+      final initial = isOutbound
+          ? (draftOutbound.value ?? initialOverrides?.customOutbound ?? '')
+          : (draftConfig.value ?? initialOverrides?.customConfig ?? '');
+      final updated = await _showJsonEditDialog(context, title: isOutbound ? t.pages.proxies.form.customOutbound : t.pages.proxies.form.customConfig, initial: initial, invalidJsonText: t.pages.proxies.form.customConfigInvalid);
+      if (updated == null) return; // 取消
+      if (isOutbound) {
+        draftOutbound.value = updated;
+      } else {
+        draftConfig.value = updated;
+      }
+    }
 
     Future<void> save() async {
       final trimmedName = name.value.trim();
@@ -155,6 +191,15 @@ class ProtocolFormModal extends HookConsumerWidget {
           payload: updated,
         );
         ok = created != null;
+        // 新建节点也可带覆写（一次编辑会话里顺手配好）
+        if (ok && (draftOutbound.value != null || draftConfig.value != null)) {
+          await notifier.updateNodeOverrides(
+            groupId: targetGroupId,
+            tag: trimmedName,
+            customOutbound: draftOutbound.value,
+            customConfig: draftConfig.value,
+          );
+        }
       } else {
         ok = await notifier.updateNodePayload(
           profileId: profileId,
@@ -162,6 +207,16 @@ class ProtocolFormModal extends HookConsumerWidget {
           tag: tag,
           payload: updated,
         );
+        // 覆写只在有改动时写（null = 未改动，避免把"没碰过的项"误清空）
+        if (ok && (draftOutbound.value != null || draftConfig.value != null)) {
+          await notifier.updateNodeOverrides(
+            profileId: profileId,
+            groupId: groupId,
+            tag: tag,
+            customOutbound: draftOutbound.value,
+            customConfig: draftConfig.value,
+          );
+        }
       }
       saving.value = false;
       if (!context.mounted) return;
@@ -208,6 +263,22 @@ class ProtocolFormModal extends HookConsumerWidget {
                     ),
                   ),
                   IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close_rounded)),
+                  // ⋮ 菜单（编辑模式）：NekoBox `profile_config_menu.xml` 的两个
+                  // custom_*_json 项 —— 节点级覆写入口（切片 8.5）
+                  if (!isCreate)
+                    PopupMenuButton<String>(
+                      onSelected: (key) => saveOverride(isOutbound: key == 'outbound'),
+                      itemBuilder: (context) => [
+                        PopupMenuItem(
+                          value: 'outbound',
+                          child: Text(t.pages.proxies.form.customOutbound),
+                        ),
+                        PopupMenuItem(
+                          value: 'config',
+                          child: Text(t.pages.proxies.form.customConfig),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),
@@ -396,6 +467,69 @@ Future<String?> _pickChoice(
     ],
   ),
 );
+
+/// 节点级覆写的 JSON 编辑对话框（切片 8.5，NekoBox `ConfigEditActivity` 的最小对应物）。
+///
+/// 校验在确认时做：非空必须是合法 JSON 对象（NekoBox 的 mergeJSON 对非对象输入
+/// 会直接崩，这里在入口拦下）。返回新文本；null = 取消；空串 = 停用该覆写。
+Future<String?> _showJsonEditDialog(
+  BuildContext context, {
+  required String title,
+  required String initial,
+  required String invalidJsonText,
+}) {
+  final controller = TextEditingController(text: initial);
+  String? error;
+  return showDialog<String>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setState) => AlertDialog(
+        title: Text(title),
+        content: SizedBox(
+          width: 480,
+          child: TextField(
+            controller: controller,
+            maxLines: 10,
+            autofocus: true,
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
+              errorText: error,
+              errorMaxLines: 2,
+            ),
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
+          ),
+          FilledButton(
+            onPressed: () {
+              final text = controller.text.trim();
+              if (text.isEmpty) {
+                Navigator.of(context).pop(''); // 空串 = 清除覆写
+                return;
+              }
+              try {
+                final decoded = jsonDecode(text);
+                if (decoded is! Map<String, dynamic>) {
+                  setState(() => error = invalidJsonText);
+                  return;
+                }
+              } catch (_) {
+                setState(() => error = invalidJsonText);
+                return;
+              }
+              Navigator.of(context).pop(text);
+            },
+            child: Text(MaterialLocalizations.of(context).okButtonLabel),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
 String _sectionLabel(TranslationsEn t, String section) {
   final s = t.pages.proxies.form.section;

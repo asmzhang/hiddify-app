@@ -15,7 +15,7 @@ class Db extends _$Db with InfraLogger {
   Db([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   static QueryExecutor _openConnection() {
     return LazyDatabase(
@@ -74,6 +74,12 @@ class Db extends _$Db with InfraLogger {
           await m.createTable(schema.proxyGroups);
           await m.createTable(schema.proxyEntities);
           await m.createIndex(schema.proxyEntitiesGroupId);
+        },
+        from7To8: (m, schema) async {
+          // 节点层自定义配置（切片 8.5，照 NekoBox `AbstractBean.customOutboundJson` /
+          // `customConfigJson`）。纯新增两列，默认空 = 零行为变化。
+          await m.addColumn(schema.proxyEntities, schema.proxyEntities.customOutbound);
+          await m.addColumn(schema.proxyEntities, schema.proxyEntities.customConfig);
         },
       ),
     );
@@ -195,4 +201,15 @@ class ProxyEntities extends Table {
 
   /// **完整出站定义（含凭据）** —— 对标 NekoBox 的协议 Bean。
   TextColumn get payload => text()();
+
+  /// 节点级**出站覆写**（切片 8.5，NekoBox `AbstractBean.customOutboundJson`）：
+  /// 组装时用 `deepMergeJson` 合并进该节点的出站 JSON（NekoBox `ConfigBuilder.kt:404`）。
+  /// 空串 = 停用。存独立列而不烘进 [payload] —— 订阅更新是整组替换，独立列才能
+  /// 像 NekoBox `RawUpdater.kt:165` 那样保留用户覆写。
+  TextColumn get customOutbound => text().withDefault(const Constant(''))();
+
+  /// 节点级**根配置覆写**（切片 8.5，NekoBox `AbstractBean.customConfigJson`）：
+  /// 选中该节点启动时合并进根配置（NekoBox `ConfigBuilder.kt:744`，最后改卷权）。
+  /// 空串 = 停用。保留语义同上（`RawUpdater.kt:166`）。
+  TextColumn get customConfig => text().withDefault(const Constant(''))();
 }

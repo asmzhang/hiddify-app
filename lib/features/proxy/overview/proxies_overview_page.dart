@@ -20,6 +20,7 @@ import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/notifier/profiles_update_notifier.dart';
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/data/protocol_form.dart';
+import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
 import 'package:hiddify/features/proxy/notifier/connection_test_notifier.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
 import 'package:hiddify/features/proxy/widget/connection_test_dialog.dart';
@@ -574,12 +575,16 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
       ref.read(inAppNotificationControllerProvider).showErrorToast(t.pages.proxies.form.jsonInvalid);
       return;
     }
+    // 节点级覆写初值（切片 8.5 ⋮ 菜单回显）：列表以实体为准，覆写列同源
+    final node = await ref.read(proxyEntityRepositoryProvider).nodeByTagAnyGroup(proxy.tag);
+    if (!context.mounted) return;
     await showProtocolFormSheet(
       tag: proxy.tag,
       type: proxy.type,
       payloadJson: payload,
       profileId: tab.profileId.isEmpty ? null : tab.profileId,
       groupId: tab.groupId,
+      initialOverrides: NodeOverrides(customOutbound: node?.customOutbound ?? '', customConfig: node?.customConfig ?? ''),
     );
   }
 

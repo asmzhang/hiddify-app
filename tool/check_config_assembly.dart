@@ -301,6 +301,66 @@ void main() {
   final a13 = jsonDecode(r13!.configJson) as Map<String, dynamic>;
   check('endpoints · stale 点名 ⇒ 段里的 endpoint 删除', (a13['endpoints'] as List).isEmpty, true);
 
+  // ── 批次 8.5：节点级出站覆写（customOutbound 深合并）────────────────────
+  // 规格：NekoBox ConfigBuilder.kt:404（bean.customOutboundJson → 出站序列化合并）
+  ImportedProxyEntity wgEntityWithOverlay(String tag, Map<String, dynamic> payload, String overlay) => ImportedProxyEntity(
+    tag: tag,
+    type: 'wireguard',
+    payload: jsonEncode(payload),
+    displayName: tag,
+    customOutbound: overlay,
+  );
+
+  // 覆盖路：基准里同名节点被实体 payload 替换后，覆写深合并进去
+  final overlayPayload = <String, dynamic>{
+    'type': 'vless',
+    'tag': 'HK-01',
+    'server': 's.example.com',
+    'server_port': 443,
+    'tls': {'enabled': true},
+  };
+  final entityOverlay = ImportedProxyEntity(
+    tag: 'HK-01',
+    type: 'vless',
+    payload: jsonEncode(overlayPayload),
+    displayName: 'HK-01',
+    // ① 深合并进既有 tls Map（不整体替换）② mtu+ 是 List 追加策略的通道
+    customOutbound: '{"tls":{"server_name":"override.example.com"},"multiplex":{"enabled":true},"mtu+":[1500]}',
+  );
+  final r14 = applyEntitiesToOutbounds(
+    baselineConfigJson: baseline,
+    entities: [...entities.where((e) => e.tag != 'HK-01'), entityOverlay],
+    staleTags: const ['GONE-03'],
+  );
+  final out14 = ((jsonDecode(r14!.configJson) as Map<String, dynamic>)['outbounds'] as List).cast<Map<String, dynamic>>();
+  final merged = out14.firstWhere((o) => o['tag'] == 'HK-01');
+  check('覆写 · 深合并进既有子对象', ((merged['tls'] as Map)['enabled'], (merged['tls'] as Map)['server_name']), (true, 'override.example.com'));
+  check('覆写 · 新键直通', ((merged['multiplex'] as Map)['enabled'], merged['server_port']), (true, 443));
+  check('覆写 · key+ 追加策略', merged['mtu'], [1500]);
+  // 无覆写的实体不受影响
+  final untouched = out14.firstWhere((o) => o['tag'] == 'JP-02');
+  check('覆写 · 无覆写实体零变化', jsonEncode(_canon(untouched)), jsonEncode(_canon(jsonDecode(entities[1].payload))));
+
+  // 追加路：手动新建的节点（基准里没有）同样套用覆写
+  final r15 = applyEntitiesToOutbounds(
+    baselineConfigJson: baseline,
+    entities: [
+      ...entities,
+      wgEntityWithOverlay('WG-NEW', {...wgEndpoint, 'tag': 'WG-NEW', 'mtu': 1420}, '{"mtu":1408}'),
+    ],
+  );
+  final eps15 = ((jsonDecode(r15!.configJson) as Map<String, dynamic>)['endpoints'] as List).cast<Map<String, dynamic>>();
+  final wgNew = eps15.firstWhere((e) => e['tag'] == 'WG-NEW');
+  check('覆写 · endpoint 追加路合并（覆写值胜）', wgNew['mtu'], 1408);
+
+  // 坏覆写 JSON 按无覆写处理（不让节点失效），等价于空覆写
+  final r16 = applyEntitiesToOutbounds(
+    baselineConfigJson: baseline,
+    entities: [...entities, wgEntityWithOverlay('WG-BAD', {...wgEndpoint, 'tag': 'WG-BAD', 'mtu': 1420}, '{oops')],
+  );
+  final eps16 = ((jsonDecode(r16!.configJson) as Map<String, dynamic>)['endpoints'] as List).cast<Map<String, dynamic>>();
+  check('覆写 · 坏 JSON 跳过（payload 原样）', eps16.firstWhere((e) => e['tag'] == 'WG-BAD')['mtu'], 1420);
+
   print('\n组装摘要: $r');
   print(failures == 0 ? '\nALL PASS' : '\n$failures FAILED');
 }
