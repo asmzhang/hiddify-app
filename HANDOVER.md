@@ -1,6 +1,6 @@
 # 交接文档 — hiddify-app（新机器迁移 + NekoBox UI 复刻）
 
-> 写于 2026-09-14 晚，2026-09-20 刷新（批次 9 后）。上一份 anytls 修复交接（D:\ 时代）已被本文取代，
+> 写于 2026-09-14 晚，2026-09-21 刷新（chain 方向修正 + 内核级验证后）。上一份 anytls 修复交接（D:\ 时代）已被本文取代，
 > 旧版可在 git 历史找回：`git show d3e958a5~40:HANDOVER.md` 附近。
 > 目的：任何人（或没有上下文的 AI）读完就能接着干。
 
@@ -8,9 +8,9 @@
 
 ## 0. 一句话现状
 
-**工程完整可构建可测（Windows debug 版），NekoBox 复刻推进到 chain 完成（提交已到 428a2cb9，未推送 origin/my）；
-实体层（分组/节点编辑/分享/去重/组装）+ 协议表单（15 类中 13 可用）+ 节点覆写（8.5）+ chain 串联已落地；
-NekoBox 可做项复刻口径 ≈95%。剩：实机验证（raw 通道 / 节点覆写 / chain 实连）、审计 B/C/D 三包、推送。**
+**工程完整可构建可测（Windows debug 版），NekoBox 复刻推进到 chain 完成 + 内核级验证闭环（提交已到 c0527aa6，未推送 origin/my）；
+实体层（分组/节点编辑/分享/去重/组装）+ 协议表单（15 类中 13 可用）+ 节点覆写（8.5）+ chain 串联已落地并经 HiddifyCli 实连验证（三断言全过）；
+NekoBox 可做项复刻口径 ≈95%。剩：实机验证（raw 通道 / 节点覆写 / wireguard 实连）、http+config 表单、审计 B/C/D 三包、推送。**
 
 ---
 
@@ -56,6 +56,7 @@ NekoBox 可做项复刻口径 ≈95%。剩：实机验证（raw 通道 / 节点�
 - 切片 8.5 `43215367` 节点级自定义配置覆写（customOutbound/customConfig 两列；drift v8）
 - `3d7423a4` 迁移测试补 v7→v8 覆盖
 - **批次 10 `428a2cb9` chain 任意节点串联**（docs/design/chain-2026-09-20.md；type='chain' 实体 + buildChainOutbounds 组装 + ChainSettings 弹窗；手动菜单 +chain；复刻口径 ≈95%）
+- **`c0527aa6` chain detour 方向修正**（内核级验证抓出：v1 方向反了会被静默旁路；按 ConfigBuilder.kt:311 + sing-box DialerOptions 语义重写为落地穿中间跳→入口直连 + 同名成员 #N 防撞；HiddifyCli run7/run9 三断言全过——①配置启动 ②curl 出口=落地节点出口≠入口出口 ③§hide§ 不进 select 组。验证通道与坑见 .workbuddy/memory/2026-09-21.md）
 
 ---
 
@@ -66,14 +67,14 @@ NekoBox 可做项复刻口径 ≈95%。剩：实机验证（raw 通道 / 节点�
 **已完成**：主题色板/主壳/主页卡片/分组页（滑删+拖拽）/导航命名 ‖ 实体层（分组+节点+编辑+分享+删除+去重+组装）‖ ⋮ 菜单 8/8、抽屉 10/11 ‖ 协议表单 13/15（socks/ss/vless/vmess/trojan/hy1/hy2/tuic/shadowtls/anytls/mieru/naive/ssh/wireguard）‖ 设置页审计归一 ‖ custom_config 全局（两阶段 raw）‖ 节点级覆写（切片 8.5）‖ wireguard endpoint 通路 ‖ **chain 任意串联**（批次 10）‖ Windows 构建 + 冒烟测试。
 
 **剩余（按优先级）**：
-1. **实机验证**：PC/Android 各连一次，确认 custom_config raw 通道真实生效（内核日志应有 raw 读取痕迹）；顺带验证 wireguard 表单实连
+1. **实机验证**：PC/Android 各连一次，确认 custom_config raw 通道真实生效（内核日志应有 raw 读取痕迹）；顺带验证节点级覆写（8.5）与 wireguard 表单实连。**chain 已内核级验证闭环（c0527aa6），不必重测**
 2. ~~切片 8.5~~ **已完成**（`43215367`）
-3. ~~chain 任意节点串联~~ **已完成**（`428a2cb9`，设计 docs/design/chain-2026-09-20.md；待实机验证选中链真连）
-4. 实体级补齐：geo 资源管理、路由细粒度字段、协议表单剩 http 可选
+3. ~~chain 任意节点串联~~ **已完成 + 内核级验证闭环**（`428a2cb9` + `c0527aa6`，设计 docs/design/chain-2026-09-20.md §D2 含方向修正记录）
+4. 实体级补齐：geo 资源管理、路由细粒度字段、协议表单剩 http 可选；config 类型节点（自定义完整配置当节点用，最后一个中等工程）
 5. 审计 B 供应链包：CORE_FETCH 加 sha256、git 依赖锁 ref、启用 flutter-version-file、CI 缓存 core-libs
 6. 审计 C 安全包：gRPC 明文+固定端口 17078+`Random()` 非安全随机、Sentry 默认上送订阅内容、3 处空 catch 补日志
 7. 审计 D 架构包：core→features 14 处逆依赖、FFI 门面收敛、riverpod 风格统一、json_editor.dart 拆分、3 个业务测试
-8. **推送 origin/my**（落后 20+ 提交）+ 上游 PR（anytls 修复 + Makefile PATH 修复提给 hiddify 官方）
+8. **推送 origin/my**（落后 25+ 提交）+ 上游 PR（anytls 修复 + Makefile PATH 修复提给 hiddify 官方）
 
 ---
 
