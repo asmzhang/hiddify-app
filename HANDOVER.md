@@ -57,6 +57,7 @@ NekoBox 可做项复刻口径 ≈95%。剩：实机验证（raw 通道 / 节点�
 - `3d7423a4` 迁移测试补 v7→v8 覆盖
 - **批次 10 `428a2cb9` chain 任意节点串联**（docs/design/chain-2026-09-20.md；type='chain' 实体 + buildChainOutbounds 组装 + ChainSettings 弹窗；手动菜单 +chain；复刻口径 ≈95%）
 - **`c0527aa6` chain detour 方向修正**（内核级验证抓出：v1 方向反了会被静默旁路；按 ConfigBuilder.kt:311 + sing-box DialerOptions 语义重写为落地穿中间跳→入口直连 + 同名成员 #N 防撞；HiddifyCli run7/run9 三断言全过——①配置启动 ②curl 出口=落地节点出口≠入口出口 ③§hide§ 不进 select 组。验证通道与坑见 .workbuddy/memory/2026-09-21.md）
+- **`2bf37a8b` custom_config raw 通道实机验证闭环 + createService 假失败修复**（integration_test/custom_config_test.dart 全绿：真 Windows 内核全链路 prefs→addLocal(Parse FFI)→节点覆写 DB 直写→reconnect raw 通道→clash API @16990 探针 HTTP 200 = raw 启动 + 节点覆写生效的运行态硬证据；顺带修 core_status.dart 的 ALREADY_STOPPED→createService 误映射——内核 stop.go:32 良性回执被当成假失败日志的根因）
 
 ---
 
@@ -67,7 +68,7 @@ NekoBox 可做项复刻口径 ≈95%。剩：实机验证（raw 通道 / 节点�
 **已完成**：主题色板/主壳/主页卡片/分组页（滑删+拖拽）/导航命名 ‖ 实体层（分组+节点+编辑+分享+删除+去重+组装）‖ ⋮ 菜单 8/8、抽屉 10/11 ‖ 协议表单 13/15（socks/ss/vless/vmess/trojan/hy1/hy2/tuic/shadowtls/anytls/mieru/naive/ssh/wireguard）‖ 设置页审计归一 ‖ custom_config 全局（两阶段 raw）‖ 节点级覆写（切片 8.5）‖ wireguard endpoint 通路 ‖ **chain 任意串联**（批次 10）‖ Windows 构建 + 冒烟测试。
 
 **剩余（按优先级）**：
-1. **实机验证**：PC/Android 各连一次，确认 custom_config raw 通道真实生效（内核日志应有 raw 读取痕迹）；顺带验证节点级覆写（8.5）与 wireguard 表单实连。**chain 已内核级验证闭环（c0527aa6），不必重测**
+1. ~~实机验证 custom_config raw 通道 + 节点级覆写~~ **已完成**（`2bf37a8b`，集成测试硬证据：clash API @16990 HTTP 200）。**剩余 wireguard 表单实连**（需真实 wireguard 凭据/端点，集成测试无法虚构）
 2. ~~切片 8.5~~ **已完成**（`43215367`）
 3. ~~chain 任意节点串联~~ **已完成 + 内核级验证闭环**（`428a2cb9` + `c0527aa6`，设计 docs/design/chain-2026-09-20.md §D2 含方向修正记录）
 4. 实体级补齐：geo 资源管理、路由细粒度字段、协议表单剩 http 可选；config 类型节点（自定义完整配置当节点用，最后一个中等工程）
