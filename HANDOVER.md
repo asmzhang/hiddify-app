@@ -8,7 +8,7 @@
 
 ## 0. 一句话现状
 
-**工程完整可构建可测（Windows debug 版），NekoBox 复刻推进到批次 13 路由规则活通完成（主仓库已推送至 e646299e）；
+**工程完整可构建可测（Windows debug 版），NekoBox 复刻推进到批次 14 路由规则 NekoBox 全语义完成（主仓库已推送至 78c6e8b7）；
 实体层（分组/节点编辑/分享/去重/组装）+ 协议表单（15 类中 13 可用）+ 节点覆写（8.5）+ chain 串联已落地并经 HiddifyCli 实连验证（三断言全过）；
 用户路由规则（rules UI → 内核）Go+Dart 双侧贯通并有契约校验；
 NekoBox 可做项复刻口径 ≈99%。剩：路由细粒度字段、wireguard 实连、审计 B/C/D 三包、上游 PR。**
@@ -67,6 +67,10 @@ NekoBox 可做项复刻口径 ≈99%。剩：路由细粒度字段、wireguard �
   - **Dart 侧**：根因 = `config_option_repository.dart:572` 发 `RouteRule.toProto3Json()`——proto3 JSON 单数键（rule_set/package_name）+ 枚举名（"direct"），而 Go pb.go json tag 是复数 + 数字枚举，unmarshal **静默丢弃**（上游注释掉消费点的原始动机）；叠加 freezed kebab rename 后顶层键 `route-rule` ≠ Go tag `rules` 且类型是对象不是数组，双重死亡。修复：模型字段 `routeRule: Map` → `rules: List<Map<String,dynamic>>`（kebab 后顶层键即 `rules`）；新建 `lib/features/route_rules/data/route_rule_json.dart`（routeRuleToCoreJson：只发显式赋值字段、复数 tag、枚举发 .value 数字、network=all 不发键；coreJsonToRules 反向读回供导入流）。
   - **校验**：`tool/check_route_rule_json.dart` 25 断言（契约形状/枚举锚定/空字段不发键/往返幂等/Go fixture 互验）+ `tool/check_route_rules_option_roundtrip.dart`（SingboxConfigOption 层 toJson→fromJson 无损 + 最终 HiddifySettingsJson 片段形状）全绿；flutter test 76/76；dart analyze 0 error 0 warning。
   - **坑**：dart run 直接跑引用 Flutter SDK 的 tool 脚本会撞 Flutter SDK 自身 Dart 版本编译错（text_painter.dart），要用 `flutter test tool/xxx.dart` 跑；flutter test 前必须 unset 代理变量（WebSocketException 老坑）。
+- **批次 14 路由规则 NekoBox 全语义（`2b4d08c`(core)+`d7f6dabc` 前半、`eb37a6d`(core)+`78c6e8b7` 后半，均已推送）**：
+  - **前半：前缀语义**（NekoBox `SingBoxOptionsUtil.makeSingBoxRule` + `ConfigBuilder.kt:499-603`）。Go `expandUserRuleDomains/expandUserRuleIps`：domains 列吃 `geosite:/full:/domain:/regexp:/keyword:`（裸值→suffix，全 lowercase），ip 列吃 `geoip:`（`geoip:private`→IPIsPrivate 内建条件，其余→rule-set）。geo 引用走 **MetaCubeX meta-rules-dat 远程 .srs**（`geosite:cn`→URL `.../geo/geosite/cn.srs`，tag `geosite-cn`），复用批次 13 注册+去重池（无 geo 资产管线定案的等价通路）。DNS 规则只吃域名桶（NekoBox 只喂 rule.domains）。**关键语义：Domains/IpCidrs 是前缀承载字段，展开结果替代原值**（合并会泄漏原串进规则——测试抓过）；suffix/keyword/regex 显式 pb 值才与展开 mergeUnique。Dart：validators `isDomainInput/isIpInput` 前缀化；**预定义规则裸 tag 启动失败 bug 顺带修复**（原 `geosite-category-ads-all` 等无人注册→选中即启动失败）。
+  - **后半：规则指向节点/分组 + 每规则覆写**（NekoBox `RuleEntity.outbound`→`tagMap[id]`（ConfigBuilder.kt:577）与 `RuleEntity.config`→`_hack_custom_config`（:584)）。proto Rule 加 `outbound_tag=19`/`config=20`，钉死工具链按文件定向重生成（protoc `--go_out=.` **不是** `--go_out=./v2/config`——后者 paths=source_relative 会错位产 v2/config/v2/）。Go：outbound_tag 非空⇒路由到该 tag 且**不产 DNS 规则**（NekoBox when 只处理 bypass/proxy/block）；config 走 marshal→mergeMap→unmarshal（可接受键=sing-box 解析器本身，无第二事实源；list REPLACE/map 递归/标量覆盖；坏 JSON fail-open 记日志）。Dart：转换器直通两字段（契约 31 断言）；UI = 「路由到节点」**选择器**（selectableChainMembers 数据源 + None 清空——手输 tag 未知会让 sing-box 启动校验失败，故不做自由文本）+「自定义配置」JSON 编辑（对象校验）；translations en/zh-CN/zh-TW。
+  - **校验**：go test 18 全绿（含 outbound_tag 覆盖枚举/不发 DNS、config 覆盖/坏 JSON/未知键）+ dart analyze 0 error 0 warning + 契约 31 断言/option 往返 + DLL 重构建 + Windows 冒烟全绿。
 
 ---
 
@@ -80,7 +84,7 @@ NekoBox 可做项复刻口径 ≈99%。剩：路由细粒度字段、wireguard �
 1. ~~实机验证 custom_config raw 通道 + 节点级覆写~~ **已完成**（`2bf37a8b`，集成测试硬证据：clash API @16990 HTTP 200）。**剩余 wireguard 表单实连**（需真实 wireguard 凭据/端点，集成测试无法虚构）
 2. ~~切片 8.5~~ **已完成**（`43215367`）
 3. ~~chain 任意节点串联~~ **已完成 + 内核级验证闭环**（`428a2cb9` + `c0527aa6`，设计 docs/design/chain-2026-09-20.md §D2 含方向修正记录）
-4. ~~config 类型节点~~ **已完成**（`a779c2c8`，批次 11）。~~协议表单剩 http 可选~~ **已完成**（`a92bd582`，批次 12：host/path 是 NekoBox 构建期死字段 V2RayFmt.kt:628-637 不消费、内核 HTTPOutboundOptions 也无 Host，不移植）。~~geo 资源管理~~ **不移植（批次 13 定案）**：sing-box 1.13 内核 legacy geo 已移除（本地 .db 无读取通道）、Throne 同架构也无资产页（2197 条名称→.srs URL 目录编译进 srslist.h）——等价物 = **路由规则活通，已完成**（批次 13 Go + Dart 双侧落地，rules UI 真正生效；远程 .srs 缓存进内核 cache.db 无用户可见文件）。实体级补齐余项：路由细粒度字段（对照 NekoBox 路由 XML 补 RuleEntity）
+4. ~~config 类型节点~~ **已完成**（`a779c2c8`，批次 11）。~~协议表单剩 http 可选~~ **已完成**（`a92bd582`，批次 12：host/path 是 NekoBox 构建期死字段 V2RayFmt.kt:628-637 不消费、内核 HTTPOutboundOptions 也无 Host，不移植）。~~geo 资源管理~~ **不移植（批次 13 定案）**：sing-box 1.13 内核 legacy geo 已移除（本地 .db 无读取通道）、Throne 同架构也无资产页（2197 条名称→.srs URL 目录编译进 srslist.h）——等价物 = **路由规则活通 + NekoBox 全语义（前缀/指向节点/每规则覆写），已完成**（批次 13 + 14；远程 .srs 缓存进内核 cache.db 无用户可见文件）。路由规则 UI 对照差异仅剩：domain 列可收敛为单一输入框（语义层已生效，纯 UI 形态问题）
 5. 审计 B 供应链包：CORE_FETCH 加 sha256、git 依赖锁 ref、启用 flutter-version-file、CI 缓存 core-libs
 6. 审计 C 安全包：gRPC 明文+固定端口 17078+`Random()` 非安全随机、Sentry 默认上送订阅内容、3 处空 catch 补日志
 7. 审计 D 架构包：core→features 14 处逆依赖、FFI 门面收敛、riverpod 风格统一、json_editor.dart 拆分、3 个业务测试
