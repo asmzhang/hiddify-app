@@ -10,7 +10,7 @@
 
 **工程完整可构建可测（Windows debug 版），NekoBox 复刻推进到 chain 完成 + 内核级验证闭环（提交已到 c0527aa6，未推送 origin/my）；
 实体层（分组/节点编辑/分享/去重/组装）+ 协议表单（15 类中 13 可用）+ 节点覆写（8.5）+ chain 串联已落地并经 HiddifyCli 实连验证（三断言全过）；
-NekoBox 可做项复刻口径 ≈95%。剩：实机验证（raw 通道 / 节点覆写 / wireguard 实连）、http+config 表单、审计 B/C/D 三包、推送。**
+NekoBox 可做项复刻口径 ≈98%。剩：实机验证（wireguard 实连）、geo 资源管理、路由细粒度字段、审计 B/C/D 三包、推送。**
 
 ---
 
@@ -58,6 +58,7 @@ NekoBox 可做项复刻口径 ≈95%。剩：实机验证（raw 通道 / 节点�
 - **批次 10 `428a2cb9` chain 任意节点串联**（docs/design/chain-2026-09-20.md；type='chain' 实体 + buildChainOutbounds 组装 + ChainSettings 弹窗；手动菜单 +chain；复刻口径 ≈95%）
 - **`c0527aa6` chain detour 方向修正**（内核级验证抓出：v1 方向反了会被静默旁路；按 ConfigBuilder.kt:311 + sing-box DialerOptions 语义重写为落地穿中间跳→入口直连 + 同名成员 #N 防撞；HiddifyCli run7/run9 三断言全过——①配置启动 ②curl 出口=落地节点出口≠入口出口 ③§hide§ 不进 select 组。验证通道与坑见 .workbuddy/memory/2026-09-21.md）
 - **`2bf37a8b` custom_config raw 通道实机验证闭环 + createService 假失败修复**（integration_test/custom_config_test.dart 全绿：真 Windows 内核全链路 prefs→addLocal(Parse FFI)→节点覆写 DB 直写→reconnect raw 通道→clash API @16990 探针 HTTP 200 = raw 启动 + 节点覆写生效的运行态硬证据；顺带修 core_status.dart 的 ALREADY_STOPPED→createService 误映射——内核 stop.go:32 良性回执被当成假失败日志的根因）
+- **批次 12 `a92bd582` http 表单**（协议表单收官，NekoBox HttpBean 移植）：字段照 `StandardV2RaySettingsActivity.kt:103-109` 对 HttpBean 的可见性裁剪 = server/port/username/password + TLS 段（security→tls.enabled，关 ⇒ tls 连根删，同 vless/trojan 构型）。**host/path 不移植**：`V2RayFmt.kt:628-637` HttpBean 分支只搬 server/port/username/password/tls——UI 显示但构建期不读，是死字段；内核 `HTTPOutboundOptions`（simple.go:32-40）也无 Host（host 属 headers map[string][]string，文本表单写不出正确形状）。菜单位 = `action_new_http` 紧跟 socks（add_profile_menu.xml 第 2 项），显示名 HTTP（strings.xml:213）。手动菜单 14 项（NekoBox 17 项里 trojan_go 内核缺出站不移植、其余全齐）
 - **批次 11 `a779c2c8` config 类型节点**（NekoBox ConfigBean 双形态移植）：type='config' 实体，payload=用户手写 JSON。**outbound 形态**（顶层有 `type` 键）照普通节点进 outbounds 段 + tag 组装期注入（ConfigBuilder.kt:402 `_hack_config_map` 语义）；**full 形态**（无 `type` 键）= payload 即启动配置本体，旁路整个 outbounds 拼装（ConfigBuilder.kt:66-78 type=0 分支对应物，`assembleConfigEntityConfig`；≥2 个 full 实体=语义无定义→回落常规路径）。UI：ConfigSettings 弹窗（名称+JSON 编辑器+**按内容自动识别形态**提示——NekoBox 的 isOutboundOnly 开关可能与其 JSON 自相矛盾，自动识别让 UI 提示与组装判据永远同一路径）；手动菜单 +config（NekoBox 菜单序 config 紧挨 chain 前）；分享隐藏（haveLink=false）；full 形态不可做 chain 成员（outbound 形态可以）
 
 ---
@@ -66,13 +67,13 @@ NekoBox 可做项复刻口径 ≈95%。剩：实机验证（raw 通道 / 节点�
 
 **设计原则（已与用户定案，不要推翻）**：NekoBox 壳 + hiddify 芯 / FAB 四态唯一开关 / 手机 Drawer + PC(≥600dp) NavigationRail / 归一原则 / 每步一提交。规格源唯一 = NekoBoxForAndroid（nekoray 不进决策链）。
 
-**已完成**：主题色板/主壳/主页卡片/分组页（滑删+拖拽）/导航命名 ‖ 实体层（分组+节点+编辑+分享+删除+去重+组装）‖ ⋮ 菜单 8/8、抽屉 10/11 ‖ 协议表单 13/15（socks/ss/vless/vmess/trojan/hy1/hy2/tuic/shadowtls/anytls/mieru/naive/ssh/wireguard）‖ 设置页审计归一 ‖ custom_config 全局（两阶段 raw）‖ 节点级覆写（切片 8.5）‖ wireguard endpoint 通路 ‖ **chain 任意串联**（批次 10）‖ **config 类型节点**（批次 11）‖ Windows 构建 + 冒烟测试。
+**已完成**：主题色板/主壳/主页卡片/分组页（滑删+拖拽）/导航命名 ‖ 实体层（分组+节点+编辑+分享+删除+去重+组装）‖ ⋮ 菜单 8/8、抽屉 10/11 ‖ 协议表单 14/15（socks/http/ss/vless/vmess/trojan/hy1/hy2/tuic/shadowtls/anytls/mieru/naive/ssh/wireguard）‖ 设置页审计归一 ‖ custom_config 全局（两阶段 raw）‖ 节点级覆写（切片 8.5）‖ wireguard endpoint 通路 ‖ **chain 任意串联**（批次 10）‖ **config 类型节点**（批次 11）‖ **http 表单**（批次 12，`a92bd582`）‖ Windows 构建 + 冒烟测试。
 
 **剩余（按优先级）**：
 1. ~~实机验证 custom_config raw 通道 + 节点级覆写~~ **已完成**（`2bf37a8b`，集成测试硬证据：clash API @16990 HTTP 200）。**剩余 wireguard 表单实连**（需真实 wireguard 凭据/端点，集成测试无法虚构）
 2. ~~切片 8.5~~ **已完成**（`43215367`）
 3. ~~chain 任意节点串联~~ **已完成 + 内核级验证闭环**（`428a2cb9` + `c0527aa6`，设计 docs/design/chain-2026-09-20.md §D2 含方向修正记录）
-4. ~~config 类型节点~~ **已完成**（`a779c2c8`，批次 11）。实体级补齐余项：geo 资源管理、路由细粒度字段、协议表单剩 http 可选
+4. ~~config 类型节点~~ **已完成**（`a779c2c8`，批次 11）。~~协议表单剩 http 可选~~ **已完成**（`a92bd582`，批次 12：host/path 是 NekoBox 构建期死字段 V2RayFmt.kt:628-637 不消费、内核 HTTPOutboundOptions 也无 Host，不移植）。实体级补齐余项：geo 资源管理、路由细粒度字段
 5. 审计 B 供应链包：CORE_FETCH 加 sha256、git 依赖锁 ref、启用 flutter-version-file、CI 缓存 core-libs
 6. 审计 C 安全包：gRPC 明文+固定端口 17078+`Random()` 非安全随机、Sentry 默认上送订阅内容、3 处空 catch 补日志
 7. 审计 D 架构包：core→features 14 处逆依赖、FFI 门面收敛、riverpod 风格统一、json_editor.dart 拆分、3 个业务测试
