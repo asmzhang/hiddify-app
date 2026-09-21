@@ -641,8 +641,60 @@ void main() {
     'uuid': '',
   }), ['uuid']);
 
+  // ── 7.5 批次 12：http（HttpBean 可见性裁剪版）────────────────────────────
+  // NekoBox HttpBean 复用 StandardV2Ray 表单（StandardV2RaySettingsActivity.kt:103-109
+  // 隐藏 type/uuid/alterId/encryption/packetEncoding），但 V2RayFmt.kt:628-637 的
+  // HttpBean 分支只消费 server/port/username/password/tls —— host/path 是死字段，
+  // 表单不做（规格侧判据见 _httpSpec 文档）。TLS 与 vless 同一套 buildSingBoxOutboundTLS。
+  final http = protocolFormSpecFor('http')!;
+  check('规格 · http 有表单', protocolFormSpecFor('http'), http);
+  check('规格 · http 字段数', protocolFormFieldIds(http).length, 10);
+  const httpReal =
+      '{"type":"http","tag":"h-1","server":"proxy.example.com","server_port":8080,'
+      '"username":"u","password":"p",'
+      '"tls":{"enabled":true,"server_name":"sni.example.com","alpn":["h2","http/1.1"]}}';
+  checkRoundTrip('http(裸 tls)', http, httpReal);
+  final httpV = readProtocolFormValues(payload: decode(httpReal), spec: http);
+  check('读 · http 地址', httpV['serverAddress'], 'proxy.example.com');
+  check('读 · http 端口', httpV['serverPort'], '8080');
+  check('读 · http 凭据', [httpV['serverUsername'], httpV['serverPassword']], ['u', 'p']);
+  check('读 · http security(内核 tls.enabled 布尔反查)', httpV['security'], 'true');
+  check('读 · http sni', httpV['sni'], 'sni.example.com');
+  check('读 · http alpn(数组→逗号串)', httpV['alpn'], 'h2,http/1.1');
+  // 无 TLS 的明文 http（内核 omitempty ⇒ 无 tls 对象）
+  const httpPlain =
+      '{"type":"http","tag":"h-2","server":"10.0.0.1","server_port":3128}';
+  checkRoundTrip('http(无 tls)', http, httpPlain);
+  check('读 · http 明文 security 缺键 ⇒ 空(空串=关，同 anytls allowInsecure 先例)', readProtocolFormValues(payload: decode(httpPlain), spec: http)['security'], '');
+  // 编辑：改地址/端口/凭据，键全在 tls 不动
+  final httpEdited = decode(applyOk(http, httpReal, {
+    ...httpV, 'serverAddress': 'new.example.com', 'serverPort': '3129',
+  }));
+  check('改 · http 地址端口', [httpEdited['server'], httpEdited['server_port']], ['new.example.com', 3129]);
+  check('改 · http 凭据与 tls 不动', [
+    httpEdited['username'], httpEdited['password'],
+    (httpEdited['tls'] as Map<String, dynamic>)['server_name'],
+  ], ['u', 'p', 'sni.example.com']);
+  // 编辑：关 security ⇒ tls 连根删除（容器规则 dropWhen，同 vless）
+  final httpNoTls = decode(applyOk(http, httpReal, {...httpV, 'security': 'false'}));
+  check('改 · http 关 security ⇒ tls 连根删除', httpNoTls.containsKey('tls'), false);
+  check('改 · http 关 security ⇒ 代理字段仍在', [httpNoTls['server'], httpNoTls['server_port']], ['proxy.example.com', 8080]);
+  // 新建：security 默认关 ⇒ 种子不留 tls；utls 只在 security 开时才该有
+  final httpCreated = decode(buildProtocolPayload(
+    spec: http, tag: 'h',
+    values: {'serverAddress': 'a.example.com', 'serverPort': '8080', 'security': 'false'},
+  )!);
+  check('新建 · http 关 security ⇒ 无 tls', httpCreated.containsKey('tls'), false);
+  check('新建 · http 有 tag/server/server_port', [
+    httpCreated['tag'], httpCreated['server'], httpCreated['server_port'],
+  ], ['h', 'a.example.com', 8080]);
+
   check('新建 · 手动菜单顺序照 NekoBox add_profile_menu', kManualCreatableProtocols, [
     'socks',
+    // 批次 12：NekoBox add_profile_menu 的 action_new_http（第 2 项，紧跟 socks）；
+    // 表单字段照 StandardV2RaySettingsActivity 对 HttpBean 的可见性裁剪（host/path
+    // 是 NekoBox 构建期死字段，不移植）
+    'http',
     'shadowsocks',
     'vless',
     'trojan',
@@ -667,6 +719,8 @@ void main() {
     for (final p in kManualCreatableProtocols) protocolDisplayName(p),
   ], [
     'SOCKS',
+    // NekoBox strings.xml:213 action_http = "HTTP"
+    'HTTP',
     'Shadowsocks',
     'VLESS',
     'Trojan',
