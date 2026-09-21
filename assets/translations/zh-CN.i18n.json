@@ -428,6 +428,8 @@
             "validIpCidr": "有效的 IP CIDR，例如\n@:pages.settings.routing.routeRule.rule.validIpCidrEx",
             "validDomainEx": "Google.com 或 dl.google.com",
             "validDomain": "有效的 \"域名\"，例如\n@:pages.settings.routing.routeRule.rule.validDomainEx",
+            "validDomainInputEx": "geosite:cn · full:example.com · domain:example.org\nregexp:^ads\\d+\\.com$ · keyword:ads · 裸域名.com",
+            "validDomainInput": "支持 NekoBox 前缀的域名，例如\n@:pages.settings.routing.routeRule.rule.validDomainInputEx",
             "validDomainSuffixEx": ".com 或 .ir",
             "validDomainSuffix": "有效的 \"域名后缀\"，例如\n@:pages.settings.routing.routeRule.rule.validDomainSuffixEx",
             "tileTitle(map)": {

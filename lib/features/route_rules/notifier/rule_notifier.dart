@@ -27,6 +27,10 @@ enum RuleEnum {
   ipCidr,
   sourceIpCidr,
   domain,
+  // Deprecated UI-wise (batch 14: NekoBox consolidates domains into the single
+  // prefixed `domain` input). CANNOT be removed: getIndex() = index + 1 must
+  // keep matching the proto field numbers for the update() JSON addressing,
+  // and old data in these fields still flows to the core (mergeUnique).
   domainSuffix,
   domainKeyword,
   domainRegex,
@@ -70,9 +74,7 @@ enum RuleEnum {
     // geoip:/geosite:/full:/domain:/regexp:/keyword: prefixed entries.
     ipCidr => (value) => isIpInput('$value') ? null : t.pages.settings.routing.routeRule.rule.validIpCidr,
     sourceIpCidr => (value) => isIpCidr('$value') ? null : t.pages.settings.routing.routeRule.rule.validIpCidr,
-    domain => (value) => isDomainInput('$value') ? null : t.pages.settings.routing.routeRule.rule.validDomain,
-    domainSuffix =>
-      (value) => isDomainSuffix('$value') ? null : t.pages.settings.routing.routeRule.rule.validDomainSuffix,
+    domain => (value) => isDomainInput('$value') ? null : t.pages.settings.routing.routeRule.rule.validDomainInput,
     _ => null,
   };
 }
