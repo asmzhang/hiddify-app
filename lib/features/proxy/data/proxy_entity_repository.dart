@@ -726,9 +726,17 @@ class ProxyEntityRepository with InfraLogger {
 
   /// 供 ChainSettings 的成员选择对话框用：可选成员 = 全部实体里**能当跳点**的
   /// （排除 endpoint 型 —— 内核 stub 拒收；chain 实体可嵌套引用，保留）。
+  /// config 实体排除 **full 形态**（它是整份配置，做跳点无意义——NekoBox 的
+  /// `resolveChainInternal` 对非出站 Bean 同样展开失败）；**outbound 形态**
+  /// （payload 有 `type` 键）本质就是一个出站，照常可做 chain 成员
+  /// （NekoBox `CustomSingBoxOption` 出站在链上与普通出站同位，ConfigBuilder.kt:339）。
   Future<List<ProxyEntityEntry>> selectableChainMembers() async {
     final rows = await _db.select(_db.proxyEntities).get();
-    return rows.where((r) => r.type != 'wireguard').toList();
+    return rows.where((r) {
+      if (r.type == 'wireguard') return false;
+      if (r.type == kConfigEntityType && !isConfigOutboundPayload(r.payload)) return false;
+      return true;
+    }).toList();
   }
 
   /// 改写一个节点的**出站定义**（节点行 ✎ 的落点）。
@@ -867,6 +875,16 @@ class ProxyEntityRepository with InfraLogger {
             customConfig: row.customConfig,
           ),
         );
+      }
+
+      // **full 形态 config 实体（批次 11）旁路整个 outbounds 拼装**（NekoBox
+      // `ConfigBuilder.kt:66-78` type=0 分支：`buildConfig` 直接返回 `bean.config`）。
+      // 恰好一个 full 实体 ⇒ 它的 payload 就是启动配置本体；0 个或多个（冲突，语义
+      // 无定义）⇒ null，回落下方常规组装路径 —— 绝不因新能力而连不上网。
+      final configEntityConfig = assembleConfigEntityConfig(entities);
+      if (configEntityConfig != null) {
+        loggy.info("entity assembly: [$profileId] full config entity takes over the startup config");
+        return configEntityConfig;
       }
 
       final assembled = applyEntitiesToOutbounds(

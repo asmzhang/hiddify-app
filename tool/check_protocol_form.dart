@@ -655,6 +655,10 @@ void main() {
     'anytls',
     'ssh',
     'wireguard',
+    // 批次 11：NekoBox add_profile_menu 的 action_new_config（手动设置子菜单内，
+    // 菜单位紧挨 action_new_chain 之前）；config 不是协议表单，manual_node_flow
+    // 对它特判开 ConfigSettings
+    'config',
     // 批次 10：NekoBox add_profile_menu 的 action_new_chain（手动设置子菜单内，
     // 位置在 wg 之后）；chain 不是协议表单，manual_node_flow 对它特判开 ChainSettings
     'chain',
@@ -675,6 +679,8 @@ void main() {
     'AnyTLS',
     'SSH',
     'WireGuard',
+    // NekoBox strings.xml custom_config = "Custom Config"（action_new_config 的 title）
+    'Custom Config',
     // NekoBox strings.xml:226 proxy_chain = "Proxy Chain"
     'Proxy Chain',
   ]);

@@ -126,6 +126,58 @@ const kChainEntityType = 'chain';
 /// 避免与落地出站撞名（风险见设计 §4）。
 const kChainTagPrefix = 'chain:';
 
+/// config 类型实体（NekoBox `proxy/config/ConfigBean.java`，`TYPE_CONFIG=998` 的对应物）。
+///
+/// payload = 用户手写的 JSON，**净定义不加包装**。双形态照 NekoBox：
+/// - **outbound 形态**（JSON 顶层有 `type` 键）：仅出站 JSON，NekoBox `ConfigBean.type=1`
+///   → `ConfigBuilder.kt:339` `CustomSingBoxOption(bean.config)` → 当一个普通出站参与拼装；
+///   tag 由构建期注入（`ConfigBuilder.kt:402` `_hack_config_map["tag"] = tagOut`，
+///   用户 JSON 不必自带 tag）—— 这里同样在组装期把实体 tag 写进 payload。
+/// - **full 形态**（无 `type` 键）：整份 sing-box 配置，NekoBox `ConfigBean.type=0`
+///   → `ConfigBuilder.kt:66-78` 在 `buildConfig` 最顶端直接返回 `bean.config`
+///   作为 ConfigBuildResult（旁路全部拼装）—— 这里在组装层以实体 payload 直接替换
+///   基准（[assembleConfigEntityConfig]）。
+///
+/// 形态判据 [isConfigOutboundPayload] 与 NekoBox `displayType()`（ConfigBean.java:52-63
+/// 按 `json.has("type")` 区分展示）同源。
+const kConfigEntityType = 'config';
+
+/// config 实体 payload 是否为 **outbound 形态**（顶层含 `type` 键的 JSON 对象）。
+/// 非 JSON 对象（数组/标量/坏 JSON）一律 false —— 交由 [assembleConfigEntityConfig]
+/// 按坏数据处理（full 形态要求整份配置是 JSON 对象，两处判据合流）。
+bool isConfigOutboundPayload(String payload) {
+  try {
+    final decoded = jsonDecode(payload);
+    return decoded is Map<String, dynamic> && decoded['type'] is String;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// config 实体（full 形态）产出**整份启动配置**：实体 payload 原样生效（NekoBox
+/// `buildConfig` type=0 分支的对应物——那边是"直接返回 bean.config"，这里因为没有
+/// 基准可旁路（内核 `EnableRawConfig` 直读内容），把 payload 当作启动配置本身）。
+///
+/// 冲突防御：**同一批实体里只允许一个 full 形态 config 实体**。多个 full 实体的语义
+/// 本身无定义（NekoBox 按"选中哪一个"构建，构建结果只有一份；实体集合没有"选中"
+/// 概念），取哪个都属自创规则 ⇒ 全部跳过、返回 null，调用方回落现状路径（与组装
+/// 失败同一兜底，绝不因新能力而让用户连不上网）。
+/// outbound 形态的 config 实体不参与此函数（它们照普通节点进 outbounds 段）。
+String? assembleConfigEntityConfig(Iterable<ImportedProxyEntity> entities) {
+  final full = entities
+      .where((e) => e.type == kConfigEntityType && !isConfigOutboundPayload(e.payload))
+      .toList();
+  if (full.length != 1) return null;
+  final payload = full.single.payload;
+  try {
+    final decoded = jsonDecode(payload);
+    if (decoded is! Map<String, dynamic>) return null;
+  } catch (_) {
+    return null;
+  }
+  return payload;
+}
+
 /// chain 实体 payload ⇄ 有序成员 tag 列表。坏 payload 返回 null。
 List<String>? chainProxiesOf(String payload) {
   try {
@@ -195,6 +247,9 @@ List<String>? chainProxiesOf(String payload) {
       return expanded;
     }
     if (isNodeEndpoint(entity.type)) return null; // endpoint 不能做跳点
+    if (entity.type == kConfigEntityType && !isConfigOutboundPayload(entity.payload)) {
+      return null; // full 形态 config 是整份配置，做跳点无意义（outbound 形态可以）
+    }
     if (kInternalOutboundTypes.contains(entity.type)) return null;
     if (kGroupOutboundTypes.contains(entity.type)) return null;
     return [tag];
@@ -326,8 +381,13 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
     return null;
   }
 
-  // 实体拆三桶（设计 §D2）：chain 实体 → 展开成一串出站；普通节点 → outbounds 段；
-  // endpoint 类 → endpoints 段。判据各只有一处：`kChainEntityType` /
+  // 实体拆桶（设计 §D2 + 批次 11 config）：chain 实体 → 展开成一串出站；
+  // 普通节点 + **outbound 形态 config 实体** → outbounds 段（NekoBox `ConfigBean.type=1`
+  // 走 `CustomSingBoxOption` 参与拼装，与普通出站同位）；endpoint 类 → endpoints 段。
+  // **full 形态 config 实体不进这里** —— 它们旁路整个 outbounds 拼装
+  // （NekoBox `buildConfig` type=0 分支），由 [assembleConfigEntityConfig] 单独处理，
+  // 调用方（proxy_entity_repository）据此决定启动配置本体。
+  // 判据各只有一处：`kChainEntityType` / `kConfigEntityType` /
   // `runtime_outbound_tags.isNodeEndpoint`，与派生/解析同一份。
   final chainEntities = <ImportedProxyEntity>[];
   final nodeEntities = <ImportedProxyEntity>[];
@@ -335,6 +395,10 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
   for (final entity in entities) {
     if (entity.type == kChainEntityType) {
       chainEntities.add(entity);
+    } else if (entity.type == kConfigEntityType) {
+      if (isConfigOutboundPayload(entity.payload)) nodeEntities.add(entity);
+      // full 形态 / 坏 payload：跳过（坏 payload 与普通节点的坏 JSON 同一处理——
+      // 只是让它缺席，不让它毁掉整份配置）
     } else if (isNodeEndpoint(entity.type)) {
       endpointEntities.add(entity);
     } else {
@@ -351,7 +415,14 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
   for (final entity in nodeEntities) {
     try {
       final decoded = jsonDecode(entity.payload);
-      if (decoded is Map<String, dynamic>) payloadByTag[entity.tag] = decoded;
+      if (decoded is Map<String, dynamic>) {
+        // config outbound 形态：tag 构建期注入（NekoBox `ConfigBuilder.kt:402`
+        // `_hack_config_map["tag"] = tagOut` —— 用户 JSON 不必自带 tag，组装时统一
+        // 以实体 tag 覆盖）。普通协议节点的 payload 天然不带 tag（字段表单不管理它），
+        // 唯一写 tag 的入口就是这里。
+        if (entity.type == kConfigEntityType) decoded['tag'] = entity.tag;
+        payloadByTag[entity.tag] = decoded;
+      }
     } catch (_) {
       // 单条坏 payload 不该毁掉整份配置：跳过它
     }

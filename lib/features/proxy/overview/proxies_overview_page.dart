@@ -18,13 +18,14 @@ import 'package:hiddify/features/connection/notifier/connection_summary.dart';
 import 'package:hiddify/features/profile/add/add_profile_modal.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/notifier/profiles_update_notifier.dart';
-import 'package:hiddify/features/proxy/data/config_assembly.dart' show chainProxiesOf, kChainEntityType;
+import 'package:hiddify/features/proxy/data/config_assembly.dart' show chainProxiesOf, kChainEntityType, kConfigEntityType;
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/data/protocol_form.dart';
 import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
 import 'package:hiddify/features/proxy/notifier/connection_test_notifier.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
 import 'package:hiddify/features/proxy/widget/chain_settings_page.dart';
+import 'package:hiddify/features/proxy/widget/config_settings_page.dart';
 import 'package:hiddify/features/proxy/widget/connection_test_dialog.dart';
 import 'package:hiddify/features/proxy/widget/protocol_form_modal.dart';
 import 'package:hiddify/features/proxy/widget/proxy_tile.dart';
@@ -543,9 +544,10 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
     int nodeCount,
   ) {
     final isSelected = group.selected == proxy.tag;
-    // ✎ 只在"这一行是实体 + （该协议有表单 或 是 chain）"时给出 —— 与 🗑 同一条
+    // ✎ 只在"这一行是实体 + （该协议有表单 或 是 chain / config）"时给出 —— 与 🗑 同一条
     // 判据，保证"能点到的节点一定能改"（表单的规格查表见 protocol_form.dart）。
-    final canEdit = tab != null && (protocolFormSpecFor(proxy.type) != null || proxy.type == kChainEntityType);
+    final canEdit = tab != null &&
+        (protocolFormSpecFor(proxy.type) != null || proxy.type == kChainEntityType || proxy.type == kConfigEntityType);
     return ProxyTile(
       proxy,
       selected: isSelected,
@@ -585,6 +587,24 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
         tag: chainNode.tag,
         chainGroupId: chainNode.groupId,
         initialProxies: members,
+      );
+      return;
+    }
+    // config 走 ConfigSettings（NekoBox `settingIntent()` 的 `ConfigSettingsActivity`
+    // 对应物）：payload 是用户手写的整份 JSON（出站或完整配置），字段表单不适用。
+    // 不读出站 JSON —— `outboundJsonProvider` 的"配置回落"只对出站有意义，
+    // config 实体以库里的 payload 为唯一权威（与 chain 同一原则）。
+    if (proxy.type == kConfigEntityType) {
+      final configNode = await ref.read(proxyEntityRepositoryProvider).nodeByTagAnyGroup(proxy.tag);
+      if (!context.mounted) return;
+      if (configNode == null) {
+        ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
+        return;
+      }
+      await showConfigSettingsSheet(
+        tag: configNode.tag,
+        configGroupId: configNode.groupId,
+        initialPayload: configNode.payload,
       );
       return;
     }
