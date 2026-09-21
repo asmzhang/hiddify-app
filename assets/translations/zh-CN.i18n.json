@@ -446,8 +446,13 @@
               "domain": "域名",
               "domain_suffixe": "域名后缀",
               "domain_keyword": "域名关键词",
-              "domain_regex": "域名正则表达式"
+              "domain_regex": "域名正则表达式",
+              "outbound_tag": "路由到节点",
+              "config": "自定义配置"
             },
+            "outboundTagNone": "默认（使用上方出站）",
+            "configHint": "按 sing-box 规则语义写每规则覆写，例如\n{\n  \"domain_suffix\": [\"extra.example.com\"]\n}\n将在组装完成后合并进规则。",
+            "configInvalid": "JSON 无效（必须是对象）",
             "outbound(map)": {
               "proxy": "代理",
               "direct": "直连",

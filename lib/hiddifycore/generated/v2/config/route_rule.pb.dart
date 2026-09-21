@@ -88,6 +88,8 @@ class Rule extends $pb.GeneratedMessage {
     $core.Iterable<$core.String>? domainSuffixes,
     $core.Iterable<$core.String>? domainKeywords,
     $core.Iterable<$core.String>? domainRegexes,
+    $core.String? outboundTag,
+    $core.String? config,
   }) {
     final result = create();
     if (listOrder != null) result.listOrder = listOrder;
@@ -109,6 +111,8 @@ class Rule extends $pb.GeneratedMessage {
     if (domainSuffixes != null) result.domainSuffixes.addAll(domainSuffixes);
     if (domainKeywords != null) result.domainKeywords.addAll(domainKeywords);
     if (domainRegexes != null) result.domainRegexes.addAll(domainRegexes);
+    if (outboundTag != null) result.outboundTag = outboundTag;
+    if (config != null) result.config = config;
     return result;
   }
 
@@ -154,6 +158,8 @@ class Rule extends $pb.GeneratedMessage {
         protoName: 'domain_keywords')
     ..pPS(18, _omitFieldNames ? '' : 'domain_regex',
         protoName: 'domain_regexes')
+    ..aOS(19, _omitFieldNames ? '' : 'outbound_tag')
+    ..aOS(20, _omitFieldNames ? '' : 'config')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -258,6 +264,32 @@ class Rule extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(18)
   $pb.PbList<$core.String> get domainRegexes => $_getList(17);
+
+  /// Batch 14 half 2 (NekoBox RuleEntity.outbound -> tagMap[id] at
+  /// ConfigBuilder.kt:577-582): the outbound TAG of a specific node or group
+  /// this rule routes to. Non-empty takes precedence over the enum above; a
+  /// tagged rule produces no DNS rule (NekoBox only emits DNS rules for
+  /// bypass/proxy/block).
+  @$pb.TagNumber(19)
+  $core.String get outboundTag => $_getSZ(18);
+  @$pb.TagNumber(19)
+  set outboundTag($core.String value) => $_setString(18, value);
+  @$pb.TagNumber(19)
+  $core.bool hasOutboundTag() => $_has(18);
+  @$pb.TagNumber(19)
+  void clearOutboundTag() => $_clearField(19);
+
+  /// NekoBox RuleEntity.config (_hack_custom_config at ConfigBuilder.kt:584):
+  /// per-rule override JSON in sing-box rule semantics (e.g. "domain_suffix"),
+  /// merged over the assembled rule object before parsing.
+  @$pb.TagNumber(20)
+  $core.String get config => $_getSZ(19);
+  @$pb.TagNumber(20)
+  set config($core.String value) => $_setString(19, value);
+  @$pb.TagNumber(20)
+  $core.bool hasConfig() => $_has(19);
+  @$pb.TagNumber(20)
+  void clearConfig() => $_clearField(20);
 }
 
 const $core.bool _omitFieldNames =

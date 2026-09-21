@@ -424,8 +424,13 @@
               "domain": "網域",
               "domain_suffixe": "網域後綴",
               "domain_keyword": "網域關鍵字",
-              "domain_regex": "網域正規表示式"
+              "domain_regex": "網域正規表示式",
+              "outbound_tag": "路由到節點",
+              "config": "自訂設定"
             },
+            "outboundTagNone": "預設（使用上方出站）",
+            "configHint": "按 sing-box 規則語義寫每規則覆寫，例如\n{\n  \"domain_suffix\": [\"extra.example.com\"]\n}\n將在組裝完成後合併進規則。",
+            "configInvalid": "JSON 無效（必須是物件）",
             "outbound(map)": {
               "proxy": "代理",
               "direct": "直連",
