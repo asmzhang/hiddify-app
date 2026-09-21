@@ -387,13 +387,15 @@ void main() {
   check('chain · 落地 tag = chain:前缀', cByTag('chain:我的链')['tag'], 'chain:我的链');
   check('chain · 落地无 §hide§', 'chain:我的链'.contains('§hide§'), false);
   check('chain · 落地 = 最后成员的出站定义', cByTag('chain:我的链')['uuid'], 'u4');
-  check('chain · 落地无 detour（链尾直出）', cByTag('chain:我的链').containsKey('detour'), false);
 
-  // 中间跳出站：带 §hide§、detour 链指向 build 序上一条（= UI 序的上一行）
+  // detour 方向 = NekoBox ConfigBuilder.kt:311（sing-box 语义：本出站穿过 detour
+  // 指向的出站）：落地穿过中间跳、中间跳穿过入口、入口（build 末）无 detour 直连。
+  // 流量：客户端 → JP-02(入口) → HK-01 → US-04(落地) → 目标。
+  check('chain · 落地 detour → 中间跳', cByTag('chain:我的链')['detour'], 'c-我的链-HK-01§hide§');
   final entry = cByTag('c-我的链-JP-02§hide§'); // UI 第一行 = 入口
   final middle = cByTag('c-我的链-HK-01§hide§');
-  check('chain · 入口 detour → 下一跳', entry['detour'], 'c-我的链-HK-01§hide§');
-  check('chain · 中间跳 detour → 落地', middle['detour'], 'chain:我的链');
+  check('chain · 中间跳 detour → 入口', middle['detour'], 'c-我的链-JP-02§hide§');
+  check('chain · 入口无 detour（直连出网）', entry.containsKey('detour'), false);
   check('chain · 中间跳 type 来自成员', [entry['type'], middle['type']], ['vless', 'anytls']);
   check('chain · 成员出站定义正确（HK-01 凭据）', middle['server'], 'new-hk.example.com');
 
@@ -433,15 +435,29 @@ void main() {
   check('chain · 嵌套组装成功', rNested != null, true);
   final outNested = ((jsonDecode(rNested!.configJson) as Map<String, dynamic>)['outbounds'] as List).cast<Map<String, dynamic>>();
   final outer = outNested.firstWhere((o) => o['tag'] == 'chain:外链');
-  final outerEntry = outNested.firstWhere((o) => o['tag'] == 'c-外链-N1§hide§');
   check('chain · 嵌套落地 = 内层最后成员', outer['uuid'], 'n1');
-  check('chain · 嵌套入口 detour 链完整', outerEntry['detour'], 'chain:外链');
-  // 展平 [N1, N1]：build 序 [落地, N1, N1] —— 靠前的跳是 UI 第二个 N1，靠后的是入口。
-  // 两条成员出站 tag 相同（同名成员）—— 现实里成员去重由 UI 层负责（列表不收重复），
-  // 组装层不去重（NekoBox 同样不去重，允许同节点在链上出现多次）。这里验证的
-  // 是「嵌套展开发生了」：tag 集合里有 c-外链- 就算展开成功。
+  // 嵌套展平 [N1, N1] = UI 2 行 = 1 落地 + 1 成员（入口）。
+  final outerEntry = outNested.firstWhere((o) => o['tag'] == 'c-外链-N1§hide§');
+  check('chain · 嵌套落地 detour → 成员（入口）', outer['detour'], 'c-外链-N1§hide§');
+  check('chain · 嵌套成员（入口）无 detour', outerEntry.containsKey('detour'), false);
   final flatTags = outNested.map((o) => o['tag']).where((t) => (t as String).startsWith('c-外链-')).toList();
-  check('chain · 嵌套展开发生（外链成员出站存在）', flatTags.isNotEmpty, true);
+  check('chain · 嵌套展开发生（成员出站恰一条）', flatTags.length, 1);
+
+  // 同名成员重复（UI/NekoBox 均放行）：3 行链 [HK-01, HK-01, US-04] =
+  // build 序 [落地(US-04), HK-01(#1 中间跳), HK-01#2(入口)]。第二次出现加
+  // #2 防撞后缀（重复 tag 会被 sing-box 整份拒收），落地 = US-04。
+  final rDup = applyEntitiesToOutbounds(
+    baselineConfigJson: baseline,
+    entities: [...entities, chainEntity('重链', ['HK-01', 'HK-01', 'US-04'])],
+  );
+  check('chain · 重复成员组装成功', rDup != null, true);
+  final outDup = ((jsonDecode(rDup!.configJson) as Map<String, dynamic>)['outbounds'] as List).cast<Map<String, dynamic>>();
+  final dupMid = outDup.firstWhere((o) => o['tag'] == 'c-重链-HK-01§hide§');
+  final dupEntry = outDup.firstWhere((o) => o['tag'] == 'c-重链-HK-01§hide§#2');
+  check('chain · 重复成员落地定义 = US-04', outDup.firstWhere((o) => o['tag'] == 'chain:重链')['uuid'], 'u4');
+  check('chain · 重复成员落地 detour → #1', outDup.firstWhere((o) => o['tag'] == 'chain:重链')['detour'], 'c-重链-HK-01§hide§');
+  check('chain · 重复成员 #1 detour → #2', dupMid['detour'], 'c-重链-HK-01§hide§#2');
+  check('chain · 重复成员 #2（入口）无 detour', dupEntry.containsKey('detour'), false);
 
   // endpoint 成员被拒（内核 stub）；坏 payload 整条跳过
   final rRefused = applyEntitiesToOutbounds(

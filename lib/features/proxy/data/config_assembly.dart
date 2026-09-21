@@ -208,9 +208,30 @@ List<String>? chainProxiesOf(String payload) {
   }
   if (flat.isEmpty) return null;
 
-  // build 序 = 落地在前（asReversed）。detour 链：build 序每条指向上一条。
-  // 流量方向：入口（build 末）detour→ … → 落地（build 0）无 detour 直接出网。
+  // build 序 = 落地在前（asReversed，NekoBox resolveChainInternal 同构）。
   final buildOrder = flat.reversed.toList();
+
+  // detour 方向（sing-box DialerOptions 语义：本出站拨号要**穿过** detour 指向的
+  // 出站）。NekoBox ConfigBuilder.kt:311 `pastOutbound.detour = tagOut`：靠落地侧
+  // 的出站穿过靠入口侧的出站 ⇒ build 序每条穿过**下一条**（更靠入口），末条
+  // （= UI 第一行 = 入口）无 detour 直连。选中落地 ⇒ 流量
+  // 客户端 → 入口 → … → 落地 → 目标。（v1 方向接反会把链整体旁路——内核级
+  // 验证抓出后按 NekoBox 源码定案修正，2026-09-20。）
+  //
+  // tag 预计算 + 同名成员防撞：同一成员在非落地位置出现 ≥2 次（UI 不去重，
+  // NekoBox 同样放行）会产出重复 outbound tag，sing-box 整份配置拒收 ⇒
+  // 第二次起加 `#N` 序号后缀（§hide§ 恒在末尾）。
+  final outboundTags = List<String>.filled(buildOrder.length, '');
+  final seenMemberTags = <String, int>{};
+  for (var i = 0; i < buildOrder.length; i++) {
+    if (i == 0) {
+      outboundTags[i] = kChainTagPrefix + chainEntity.tag; // 落地：进 select 组
+    } else {
+      final n = (seenMemberTags[buildOrder[i]] ?? 0) + 1;
+      seenMemberTags[buildOrder[i]] = n;
+      outboundTags[i] = 'c-${chainEntity.tag}-${buildOrder[i]}§hide§${n > 1 ? '#$n' : ''}';
+    }
+  }
 
   // chain 自身覆写（坏 JSON 按无覆写）
   Map<String, dynamic>? chainOverlay;
@@ -223,7 +244,6 @@ List<String>? chainProxiesOf(String payload) {
   }
 
   final memberOutbounds = <Map<String, dynamic>>[];
-  String? previousTag;
   Map<String, dynamic>? landingOutbound;
   for (var i = 0; i < buildOrder.length; i++) {
     final memberTag = buildOrder[i];
@@ -250,9 +270,10 @@ List<String>? chainProxiesOf(String payload) {
       } catch (_) {}
     }
 
-    final outboundTag = isLanding ? kChainTagPrefix + chainEntity.tag : 'c-${chainEntity.tag}-$memberTag§hide§';
+    final outboundTag = outboundTags[i];
     outbound['tag'] = outboundTag;
-    if (!isLanding) outbound['detour'] = previousTag;
+    // build 序 i 穿过 i+1（更靠入口侧）；末条（入口）无 detour 直连。
+    if (i + 1 < buildOrder.length) outbound['detour'] = outboundTags[i + 1];
     if (isLanding && chainOverlay != null) deepMergeJson(outbound, chainOverlay);
 
     if (isLanding) {
@@ -260,7 +281,6 @@ List<String>? chainProxiesOf(String payload) {
     } else {
       memberOutbounds.add(outbound);
     }
-    previousTag = outboundTag;
   }
 
   final landing = landingOutbound;
