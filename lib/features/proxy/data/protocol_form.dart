@@ -704,8 +704,10 @@ ProtocolFormSpec? protocolFormSpecFor(String type) => _specs[type.trim().toLower
 ///   视需求补；
 /// - `trojan_go`：**不移植** —— hiddify 内核（sing-box fork）没有 trojan-go 出站
 ///   注册（`include/registry.go` 无 TypeTrojanGo），NekoBox 靠外部二进制运行，
-///   hiddify 无此机制，表单做了也连不上；
-/// - `config`：NekoBox 的「从配置文件导入」不属于协议表单。
+///   hiddify 无此机制，表单做了也连不上。
+/// - ~~`config`：NekoBox 的「从配置文件导入」不属于协议表单~~ 批次 11 反悔：
+///   确实不属于协议表单，但属于手动菜单（`action_new_config`）—— 走
+///   [kManualCreatableProtocols] 列表 + 特判流程，见该常量的批次 11 注释。
 ///
 /// 批次 9 补上 `wireguard`（NekoBox add_profile_menu 第 15 项 wg）：内核形态是
 /// endpoint（`_wireguardSpec` 的注释），payload 由组装层进 `endpoints` 段。
@@ -713,6 +715,11 @@ ProtocolFormSpec? protocolFormSpecFor(String type) => _specs[type.trim().toLower
 /// `proxy_chain`="Proxy Chain"）：它**不是协议表单** —— [startManualNodeFlow] 对它
 /// 特判开 ChainSettings 页；列在这里只是为了让它出现在「选择协议」菜单
 /// （NekoBox 的菜单位也在这：`add_profile_menu.xml` 手动设置子菜单内）。
+/// 批次 11 补上 `config`（NekoBox `action_new_config`，title=`custom_config`
+/// ="Custom Config"，菜单位紧挨 chain 之前）：同样**不是协议表单** —— 它没有字段
+/// （payload 就是用户手写的整份 JSON），[startManualNodeFlow] 对它特判开
+/// ConfigSettings 页；组装层按 payload 有无 `type` 键分 outbound/full 两形态
+/// （`config_assembly.kConfigEntityType` 的注释）。
 const kManualCreatableProtocols = <String>[
   'socks',
   'shadowsocks',
@@ -727,6 +734,7 @@ const kManualCreatableProtocols = <String>[
   'anytls',
   'ssh',
   'wireguard',
+  'config',
   'chain',
 ];
 
@@ -748,6 +756,7 @@ String protocolDisplayName(String type) => switch (type.trim().toLowerCase()) {
   'mieru' => 'Mieru',
   'naive' => 'Naïve',
   'wireguard' => 'WireGuard',
+  'config' => 'Custom Config',
   'chain' => 'Proxy Chain',
   _ => type,
 };

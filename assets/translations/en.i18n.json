@@ -251,6 +251,15 @@
         "endpointBlocked": "WireGuard endpoints cannot be chain members",
         "empty": "Add at least one member",
         "saved": "Chain saved"
+      },
+      "customConfig": {
+        "title": "Custom Config",
+        "configType": "This JSON is a full sing-box config (replaces everything)",
+        "outboundType": "This JSON is a single outbound (has \"type\" key)",
+        "serverConfig": "Config JSON",
+        "jsonInvalid": "Invalid JSON: the value must be a single JSON object.",
+        "saved": "Config saved",
+        "created": "Config created"
       }
     },
     "profiles": {

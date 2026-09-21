@@ -251,6 +251,15 @@
         "endpointBlocked": "WireGuard 端点不能作为链成员",
         "empty": "至少添加一个节点",
         "saved": "链已保存"
+      },
+      "customConfig": {
+        "title": "自定义配置",
+        "configType": "此 JSON 是完整的 sing-box 配置（整体替代）",
+        "outboundType": "此 JSON 是单个出站（含 \"type\" 键）",
+        "serverConfig": "配置 JSON",
+        "jsonInvalid": "JSON 不合法：必须是一个 JSON 对象。",
+        "saved": "配置已保存",
+        "created": "配置已创建"
       }
     },
     "profiles": {

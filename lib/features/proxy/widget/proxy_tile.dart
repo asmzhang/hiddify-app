@@ -162,10 +162,11 @@ class ProxyTile extends HookConsumerWidget with PresLogger {
                               tooltip: t.common.edit,
                               onTap: editEnabled ? onEdit : null,
                             ),
-                            // chain 无分享（NekoBox `ProxyEntity.haveLink() = false`
-                            // → ConfigurationFragment.kt:1610-1644 隐藏 share/QR/剪贴板；
-                            // chain 的 payload 是成员清单，分享出来别的客户端也解析不了）
-                            if (proxy.type != 'chain')
+                            // chain/config 无分享（NekoBox `ProxyEntity.haveLink()`
+                            // 对两者都返回 false → ConfigurationFragment.kt:1610-1644
+                            // 隐藏 share/QR/剪贴板：chain 的 payload 是成员清单、config
+                            // 的 payload 是裸 JSON，分享出来别的客户端都解析不了）
+                            if (proxy.type != 'chain' && proxy.type != 'config')
                               NkCardAction(
                                 icon: AdaptiveIcon(context).share,
                                 tooltip: t.common.share,
