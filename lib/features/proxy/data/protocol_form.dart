@@ -489,6 +489,49 @@ const _socksSpec = ProtocolFormSpec(
   ],
 );
 
+/// http —— NekoBox 的 HttpBean 复用 `standard_v2ray_preferences.xml`，但
+/// `StandardV2RaySettingsActivity.kt:103-109` 对 HttpBean 做**可见性裁剪**：
+/// 隐藏 type/uuid/alterId/encryption/packetEncoding，显示 username/password；
+/// `updateView` 对 http 传输显示 host/path（标题 HTTP Host/Path）。
+///
+/// 本表单只保留**构建期真正被消费**的字段。NekoBox `buildSingBoxOutboundStandardV2RayBean`
+/// 的 HttpBean 分支（`V2RayFmt.kt:628-637`）只搬 server/port/username/password/tls
+/// —— **host/path 是死字段**（UI 显示但 HttpBean 分支不读它们，sing-box 的 http 出站
+/// 也不认 `transport`），所以这里不做 host/path，也不做 transport。
+/// TLS 字段与 vless 同一套（`buildSingBoxOutboundTLS`，security=="tls" 才有 tls 对象）：
+/// sni/alpn/certificates/allowInsecure/utlsFingerprint（HttpBean 是 StandardV2RayBean
+/// 子类，reality/ech 也继承可用；内核 `HTTPOutboundOptions` 的 TLS 容器同样全量支持）。
+/// 内核 `HTTPOutboundOptions`（`option/simple.go:32-40`）还有 `Path`/`Headers`
+/// —— Headers 是 `map[string][]string`，表单文本写不出正确形状（与 naive
+/// serverHeaders 同一放弃理由）；Path 在 NekoBox 构建期同样不消费，一并放弃。
+const _httpSpec = ProtocolFormSpec(
+  type: 'http',
+  fields: [
+    ProtocolField(id: 'serverAddress', kind: ProtocolFieldKind.text, path: ['server'], required: true, section: 'proxy'),
+    ProtocolField(id: 'serverPort', kind: ProtocolFieldKind.integer, path: ['server_port']),
+    ProtocolField(id: 'serverUsername', kind: ProtocolFieldKind.text, path: ['username']),
+    ProtocolField(id: 'serverPassword', kind: ProtocolFieldKind.text, path: ['password']),
+    // TLS：表单的 `security`（none/tls）落成 `tls.enabled` —— 与 vless/trojan 同构
+    ProtocolField(id: 'security', kind: ProtocolFieldKind.boolean, path: ['tls', 'enabled'], section: 'security'),
+    ProtocolField(id: 'sni', kind: ProtocolFieldKind.text, path: ['tls', 'server_name']),
+    ProtocolField(id: 'allowInsecure', kind: ProtocolFieldKind.boolean, path: ['tls', 'insecure']),
+    ProtocolField(id: 'alpn', kind: ProtocolFieldKind.stringList, path: ['tls', 'alpn']),
+    ProtocolField(id: 'certificates', kind: ProtocolFieldKind.text, path: ['tls', 'certificate']),
+    ProtocolField(
+      id: 'utlsFingerprint',
+      kind: ProtocolFieldKind.choice,
+      path: ['tls', 'utls', 'fingerprint'],
+      choices: kUtlsFingerprints,
+      siblings: {'enabled': 'true'},
+    ),
+  ],
+  containers: [
+    // security 关 ⇒ 没有 tls（NekoBox `buildSingBoxOutboundTLS` 返回 null）
+    ProtocolContainerRule(path: ['tls'], controllerId: 'security', dropWhen: {'false'}),
+    ProtocolContainerRule(path: ['tls', 'utls']),
+  ],
+);
+
 /// ssh —— `res/xml/ssh_preferences.xml` + `fmt/ssh/SSHFmt.kt` +
 /// 内核 `SSHOutboundOptions`（`option/ssh.go:5`）。
 ///
@@ -682,6 +725,7 @@ const _specs = <String, ProtocolFormSpec>{
   'hysteria2': _hysteria2Spec,
   'shadowsocks': _shadowsocksSpec,
   'socks': _socksSpec,
+  'http': _httpSpec,
   'ssh': _sshSpec,
   'tuic': _tuicSpec,
   'shadowtls': _shadowtlsSpec,
@@ -700,8 +744,6 @@ ProtocolFormSpec? protocolFormSpecFor(String type) => _specs[type.trim().toLower
 /// **hysteria** / tuic / shadowtls / **anytls** / ssh / wg / chain）。
 ///
 /// 批次 9 后的缺席项及理由：
-/// - `http`：内核有出站，但 NekoBox 没有独立 http 表单 XML（复用 socks 的旧版做法），
-///   视需求补；
 /// - `trojan_go`：**不移植** —— hiddify 内核（sing-box fork）没有 trojan-go 出站
 ///   注册（`include/registry.go` 无 TypeTrojanGo），NekoBox 靠外部二进制运行，
 ///   hiddify 无此机制，表单做了也连不上。
@@ -720,8 +762,12 @@ ProtocolFormSpec? protocolFormSpecFor(String type) => _specs[type.trim().toLower
 /// （payload 就是用户手写的整份 JSON），[startManualNodeFlow] 对它特判开
 /// ConfigSettings 页；组装层按 payload 有无 `type` 键分 outbound/full 两形态
 /// （`config_assembly.kConfigEntityType` 的注释）。
+/// 批次 12 补上 `http`（NekoBox add_profile_menu 第 2 项 action_new_http）：
+/// 表单见 [_httpSpec] —— 字段照 `StandardV2RaySettingsActivity.kt:103-109` 对
+/// HttpBean 的可见性裁剪，host/path 因 NekoBox 构建期不消费（死字段）而不移植。
 const kManualCreatableProtocols = <String>[
   'socks',
+  'http',
   'shadowsocks',
   'vless',
   'trojan',
@@ -750,6 +796,7 @@ String protocolDisplayName(String type) => switch (type.trim().toLowerCase()) {
   'hysteria2' => 'Hysteria',
   'anytls' => 'AnyTLS',
   'socks' => 'SOCKS',
+  'http' => 'HTTP',
   'ssh' => 'SSH',
   'tuic' => 'TUIC',
   'shadowtls' => 'ShadowTLS',
