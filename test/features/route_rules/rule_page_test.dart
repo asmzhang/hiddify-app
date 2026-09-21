@@ -25,19 +25,21 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('RulePage 新建模式', () {
-    testWidgets('渲染出全部 16 个字段控件，保存键可用', (tester) async {
+    testWidgets('渲染出全部字段控件，保存键可用', (tester) async {
       await pumpTestApp(tester, child: const RulePage());
 
-      // name 文本框 + outbound 单选（3 个 Outbound 枚举值）
-      expect(find.byType(SettingText), findsOneWidget);
+      // name + config 两个文本框（config 是批次 14 后半引入的
+      // per-rule 自定义配置 tile，带 JSON object 校验）
+      expect(find.byType(SettingText), findsNWidgets(2));
       expect(find.byType(SettingRadio<Outbound>), findsOneWidget);
-      // 其余 12 个字符串列表控件（ruleSet / packageName / process×2 /
-      // port×2 / ip×2 / domain×4）；protocol 是 SettingCheckbox 不算在内
+      // 9 个字符串列表控件（ruleSet / packageName / process×2 / port×2 /
+      // ip×2 / domain）——批次 14 已把原 domain×4 合并为一个前缀语义
+      // 输入；protocol 是 SettingCheckbox、outboundTag 是 ListTile，不算在内
       expect(
         find.byType(SettingGenericList<String>),
-        findsNWidgets(12),
-        reason: '12 个字符串列表字段（ruleSet / packageName / processName / '
-            'processPath / portRange / sourcePortRange / ipCidr / sourceIpCidr / domain×4）',
+        findsNWidgets(9),
+        reason: '9 个字符串列表字段（ruleSet / packageName / processName / '
+            'processPath / portRange / sourcePortRange / ipCidr / sourceIpCidr / domain）',
       );
 
       // 新建模式保存键可用（isRuleEdited 对 null listOrder 恒 true）
