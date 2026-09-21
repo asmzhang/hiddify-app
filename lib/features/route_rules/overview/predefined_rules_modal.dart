@@ -72,7 +72,11 @@ class PredefinedRulesModal extends HookConsumerWidget {
         enabled: true,
         name: t.pages.settings.routing.predefinedRules.ads.name,
         outbound: Outbound.direct,
-        ruleSets: ["geosite-category-ads-all"],
+        // Batch 14: NekoBox prefix semantics. Previously bare rule-set tags
+        // ("geosite-category-ads-all") were emitted here, but nothing
+        // registered those rule-sets and the config failed to start. The
+        // geosite: prefix expands to the MetaCubeX remote .srs rule-set.
+        domains: ["geosite:category-ads-all"],
       ),
     ),
     (
@@ -81,7 +85,8 @@ class PredefinedRulesModal extends HookConsumerWidget {
         enabled: true,
         name: t.pages.settings.routing.predefinedRules.bypassLan.name,
         outbound: Outbound.direct,
-        ruleSets: ["geosite-private", "geoip-private"],
+        domains: ["geosite:private"],
+        ipCidrs: ["geoip:private"],
       ),
     ),
   ];

@@ -60,9 +60,11 @@ enum RuleEnum {
     processPath => (value) => isProcessPath('$value') ? null : t.pages.settings.routing.routeRule.rule.validProcessPath,
     portRange || sourcePortRange =>
       (value) => isPortOrPortRange('$value') ? null : t.pages.settings.routing.routeRule.rule.validPortRange,
-    ipCidr ||
+    // Batch 14: NekoBox prefix semantics — the ipCidr / domain lists accept
+    // geoip:/geosite:/full:/domain:/regexp:/keyword: prefixed entries.
+    ipCidr => (value) => isIpInput('$value') ? null : t.pages.settings.routing.routeRule.rule.validIpCidr,
     sourceIpCidr => (value) => isIpCidr('$value') ? null : t.pages.settings.routing.routeRule.rule.validIpCidr,
-    domain => (value) => isDomain('$value') ? null : t.pages.settings.routing.routeRule.rule.validDomain,
+    domain => (value) => isDomainInput('$value') ? null : t.pages.settings.routing.routeRule.rule.validDomain,
     domainSuffix =>
       (value) => isDomainSuffix('$value') ? null : t.pages.settings.routing.routeRule.rule.validDomainSuffix,
     _ => null,

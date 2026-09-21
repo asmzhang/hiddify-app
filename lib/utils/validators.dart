@@ -89,3 +89,32 @@ bool isDomain(String input) {
 bool isDomainSuffix(String input) {
   return _domainSuffix.hasMatch(input);
 }
+
+/// NekoBox prefix semantics (SingBoxOptionsUtil.makeSingBoxRule, isIP=false)
+/// for the single "domain" input: geosite:/full:/domain:/regexp:/keyword:
+/// prefixes, or a bare domain. Mirrors hiddify-core route_rules.go
+/// expandUserRuleDomains — keep the two in sync.
+bool isDomainInput(String input) {
+  final v = input.trim();
+  if (v.isEmpty) return false;
+  const prefixes = ['geosite:', 'full:', 'domain:', 'regexp:', 'keyword:'];
+  for (final prefix in prefixes) {
+    if (v.startsWith(prefix)) {
+      return v.length > prefix.length && !v.contains(' ');
+    }
+  }
+  return isDomain(v);
+}
+
+/// NekoBox prefix semantics for the single "dst ip" input: geoip: prefix
+/// (geoip:private / geoip:<code>) or a bare IPv4 CIDR. Mirrors hiddify-core
+/// expandUserRuleIps — keep the two in sync.
+bool isIpInput(String input) {
+  final v = input.trim();
+  if (v.isEmpty) return false;
+  if (v.startsWith('geoip:')) {
+    final name = v.substring('geoip:'.length);
+    return name.isNotEmpty && !name.contains(' ');
+  }
+  return isIpCidr(v);
+}
