@@ -162,6 +162,15 @@ DISTRIBUTOR_ARGS=--skip-clean --build-target $(TARGET) --build-dart-define sentr
 #   指纹变了（换 CHANNEL / 换核心库版本）-> 自动重新下载
 # 需要无条件刷新时：make <platform>-libs FORCE=1
 #
+# 完整性校验（审计 B）：下载完成后用 GitHub release API 的 asset digest
+# （`sha256:...`，GitHub 为每个上传的 release 资产自动生成，draft/prod 两个
+# channel 都有）做 sha256 比对；不匹配即删除落盘文件并失败——防传输损坏与
+# 被篡改的下载源。digest 取不到时（网络受限/未来 API 变化）退化为只警告，
+# 不阻塞构建。缓存命中（复用）时不再校验 —— 文件在首次下载时已校验过。
+# 之所以不用固定的 checksums 文件：上游 draft release 每天重发、没有发布
+# checksums 附件（49 个资产里一个都没有），API digest 是唯一随资产自动
+# 更新的完整性来源。
+#
 # tarball 刻意不放在各平台的产物目录（如 android/app/libs）里 ——
 # 那些目录会被后续打包步骤读取，不该混入缓存文件。
 #
@@ -169,12 +178,39 @@ DISTRIBUTOR_ARGS=--skip-clean --build-target $(TARGET) --build-dart-define sentr
 # ---------------------------------------------------------------------------
 CURL := curl -fL --retry 3 --retry-delay 2 --connect-timeout 30
 CORE_CACHE := .cache/core-libs
+# curl 默认错误输出是英文的 "curl: (22) The requested URL..."，把它替换成
+# 指向 digest 校验失败的说明 —— 排查时能一眼看到是完整性问题而不是网络问题。
+# sha256sum：Windows 用 Git for Windows 自带（usr/bin），macOS 自带，Linux 自带。
+# 注意：release tag（URL 最后一段）由 make 侧 $(notdir $(CORE_URL)) 展开注入，
+# 不能写成 $${CORE_URL##*/} —— make 会把 ${CORE_URL##*/} 当成名为
+# "CORE_URL##*/" 的 make 变量引用（静默展开成空），shell 里 CORE_URL 又未导出。
+CORE_RELEASE_TAG = $(notdir $(CORE_URL))
 CORE_FETCH = $(MKDIR) "$(CORE_CACHE)" && \
   if [ -z "$(FORCE)" ] && [ -f "$(CORE_CACHE)/$(2)" ] && [ "$$(cat "$(CORE_CACHE)/$(2).url" 2>/dev/null)" = "$(CORE_URL)/$(2)" ]; then \
     printf "    cached: %s  (FORCE=1 to re-download)\n" "$(2)"; \
   else \
     printf "    downloading: %s\n" "$(2)"; \
-    $(CURL) -o "$(CORE_CACHE)/$(2)" "$(CORE_URL)/$(2)" && printf "%s" "$(CORE_URL)/$(2)" > "$(CORE_CACHE)/$(2).url"; \
+    if $(CURL) -o "$(CORE_CACHE)/$(2)" "$(CORE_URL)/$(2)"; then \
+      printf "%s" "$(CORE_URL)/$(2)" > "$(CORE_CACHE)/$(2).url"; \
+    else \
+      _rc=$$?; printf "    download failed (curl rc=%s) - removing partial file\n" "$$_rc"; \
+      rm -f "$(CORE_CACHE)/$(2)" "$(CORE_CACHE)/$(2).url"; exit 1; \
+    fi; \
+    _asset="$$(basename "$(2)")"; \
+    _digest="$$(curl -fsSL --connect-timeout 30 --retry 3 --retry-delay 2 "https://api.github.com/repos/hiddify/hiddify-core/releases/tags/$(CORE_RELEASE_TAG)" \
+      | sed -n "s/.*\"name\"[[:space:]]*:[[:space:]]*\"$$_asset\".*\"digest\"[[:space:]]*:[[:space:]]*\"sha256:\([0-9a-f]*\)\".*/\1/p" | head -n 1)"; \
+    if [ -n "$$_digest" ]; then \
+      _actual="$$(sha256sum "$(CORE_CACHE)/$(2)" | cut -d' ' -f1)"; \
+      if [ "$$_actual" = "$$_digest" ]; then \
+        printf "    sha256 OK: %s\n" "$$_digest"; \
+      else \
+        printf "    SHA256 MISMATCH for %s:\n      expected: %s\n      actual:   %s\n      (delete .cache/core-libs/ and retry; if upstream asset changed, re-check the release)\n" "$(2)" "$$_digest" "$$_actual"; \
+        rm -f "$(CORE_CACHE)/$(2)" "$(CORE_CACHE)/$(2).url"; \
+        exit 1; \
+      fi; \
+    else \
+      printf "    WARN no digest from GitHub API for %s - skipping integrity check\n" "$(2)"; \
+    fi; \
   fi && \
   tar xzf "$(CORE_CACHE)/$(2)" -C "$(1)"
 

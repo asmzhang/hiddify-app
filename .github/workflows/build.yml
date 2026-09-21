@@ -32,7 +32,9 @@ on:
 env:
   IS_GITHUB_ACTIONS: 1
   CHANNEL: "${{ inputs.channel }}"
-  FLUTTER_VERSION: '3.38.5'
+  # Flutter 版本的事实源是 pubspec.yaml 的 environment.flutter（单事实源，审计 B）。
+  # Makefile 的 REQUIRED_VER 与 Dockerfile 都从那里 grep，CI 通过
+  # flutter-version-file 读同一个文件 —— 三处永远一致，改版本只动 pubspec.yaml。
   NDK_VERSION: r28c
   UPLOAD_ARTIFACT: "${{ inputs.upload-artifact }}"
   TAG_NAME: "${{ inputs.tag-name }}"
@@ -59,10 +61,18 @@ jobs:
       - uses: actions/checkout@v6
       - uses: subosito/flutter-action@v2.21.0 #issue with 2.13
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          flutter-version-file: pubspec.yaml
           channel: 'stable'
           cache: true
-          
+
+      # 与 build job 的 "Cache core-libs" 共用同一 key：test job 先跑先写，
+      # 之后各平台 build job 直接命中（linux-amd64 包不必重复下载）。
+      - name: Cache core-libs
+        uses: actions/cache@v5
+        with:
+          path: .cache/core-libs
+          key: core-libs-${{ inputs.channel }}-${{ hashFiles('dependencies.properties', 'Makefile') }}
+
       - name: Prepare
         run: make linux-amd64-prepare
       - name: Test
@@ -200,13 +210,12 @@ jobs:
       #   uses: hurelhuyag/flutter-arm64-action@HEAD
       #   with:
       #     channel: 'stable'
-      #     flutter-version: ${{ env.FLUTTER_VERSION }}
+      #     flutter-version-file: pubspec.yaml
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2.21.0 #issue with 2.13
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          # flutter-version-file: pubspec.yaml
+          flutter-version-file: pubspec.yaml
           channel: 'stable'
           cache: true
 
@@ -304,6 +313,19 @@ jobs:
       - name: Install Inno Setup (windows)
         if: startsWith(matrix.platform,'windows')
         run: choco install innosetup -y --no-progress
+
+      # 缓存核心库 tarball（审计 B）。Makefile 把下载的包放在 .cache/core-libs/
+      # 并用 <文件>.url 记来源指纹（URL 含 channel 与核心版本），同一来源直接
+      # 命中缓存跳过下载 —— 所以 key 用 CHANNEL + dependencies.properties 的
+      # core.version；MAKEFILE 改动（CORE_FETCH 逻辑变化）也进 key，防旧缓存
+      # 卡住新逻辑。命中时 Prepare 的下载步骤整体跳过（Windows 包 26MB/平台）。
+      # 注意 test job（linux-amd64-prepare，第 67 行附近）也下载，同样受益于
+      # 下面的 cache 步骤 —— 它们共用一个 key，先跑的写、后跑的读。
+      - name: Cache core-libs
+        uses: actions/cache@v5
+        with:
+          path: .cache/core-libs
+          key: core-libs-${{ inputs.channel }}-${{ hashFiles('dependencies.properties', 'Makefile') }}
 
       - name: Prepare for ${{ matrix.platform }}
         run: |
