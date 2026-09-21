@@ -29,6 +29,7 @@ NekoBox 可做项复刻口径 ≈99%。剩：路由细粒度字段、wireguard �
 | cgo 编译器 | `C:\platform\llvm-mingw-20260908-ucrt-x86_64`（`make doctor` 能自动发现） |
 | GOMODCACHE | 已固化 `go env -w GOMODCACHE=$env:USERPROFILE/go/pkg/mod2` |
 | 网络代理 | `socks5h://127.0.0.1:7890` 可用 —— 核心库下载失败时给 curl 加 `--proxy` |
+| proto 工具链 | **protoc 28.0 + protoc-gen-go v1.34.2 + protoc_plugin 23.0.0**（版本必须钉死，见 §4.3） |
 | 测试订阅 | cpdd：`https://cpdd.one/sub?token=5514a186947f1120701fbf821ec4d168`（**39 anytls**）；yfjc：`https://yfjc.xyz/api/v1/client/subscribe?token=9cb751f5196c21453de652aea84aa938`（21 vless + 15 hysteria2，**无 anytls 属正常**） |
 | 订阅 UA 机制 | App UA（`HiddifyNext/... sing-box v2ray`）→ 面板返回 sing-box JSON（anytls 保留）；浏览器 UA 会返回 Clash YAML（丢 anytls） |
 | 深链导入 | `hiddify://import/<订阅URL>` → 弹确认框 + 预填 sheet。**有防零点击 SSRF 的确认设计，需人工点两次，不要绕过** |
@@ -100,6 +101,41 @@ NekoBox 可做项复刻口径 ≈99%。剩：路由细粒度字段、wireguard �
 9. **`for (final x in list ?? const [])` 类型陷阱**：裸 `const []` 让 `??` 的类型 LUB 劣化，循环变量掉成 `Object?` → 4 个 error + dead_code。必须 `const <Map<String, dynamic>>[]` 或 `if (list != null)` 包裹。
 10. **全量 flutter analyze 被沙箱 reg.EXE 黑名单拦截** → 用 `dart analyze lib test tool` 分目录替代。
 11. **Windows 构建三关**（详见 .workbuddy/memory/MEMORY.md「Windows 构建链」）：hiddify-core.dll 不带 with_ech / 插件 junction 预建（tool/ensure_plugin_junctions.ps1）/ CMakeLists 两条 install 已注释。
+
+### 4.3 proto 生成工具链（改 .proto 才需要；版本必须钉死）
+
+**版本钉子**（改 proto 前先确认，用错版本会产出成百上千行噪声 diff，甚至直接编译失败）：
+
+| 工具 | 版本 | 与仓库关系 |
+|---|---|---|
+| `protoc` | **28.0** | 仓库多数 `*.pb.go` 头部的 `protoc v5.28.0` 就是它（protoc 28.0 的内部版本号打印为 5.28.0） |
+| `protoc-gen-go` | **v1.34.2** | 仓库多数 `*.pb.go` 头部一致（另有 2 个 v1.36.11、1 个 v1.33.0 是历史遗留，**不要重生成那两个**） |
+| `protoc_plugin`（protoc-gen-dart） | **23.0.0** | 仓库多数 `*.pb.dart` 一致。**24.0.0 删了 `createRepeated()`**；21.x 产 `@dart = 2.12` 旧风格；22.0.0 自带生成代码要 protobuf 5.x 而其 pubspec 写 `^3.1.0` → `pub global activate` 直接编译失败 |
+
+**换机器准备**（全部走包管理器/源码，无需手动下 zip）：
+```bash
+mise install                                                      # 按仓库内 .mise.toml：protoc=28.0、protoc-gen-go=1.34.2、go=1.25.6、flutter=3.38.5
+go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2   # 或 mise 的 aqua 版；两者版本一致
+dart pub global activate protoc_plugin 23.0.0
+# PATH 必须含 pub 全局 bin（protoc-gen-dart 在这里，pub 默认不加）：
+#   Windows: %LOCALAPPDATA%\Pub\Cache\bin    Linux/macOS: ~/.pub-cache/bin
+```
+> **`.mise.toml` 已入库**（项目钉版；上游那份 `.gitignore` 里的 ignore 行已移除，本机临时覆盖改用 `*.local.toml`，见 HANDOVER 同节说明）。
+
+**重生成（按文件定向，不要全量 `make protos`）**：
+```bash
+# Go（在 hiddify-core/ 内跑；-I . 是相对路径，protoc 是原生程序，绝对 POSIX 路径会报 directory does not exist）
+cd hiddify-core && protoc --go_opt=paths=source_relative --go_out=./ -I . v2/config/<你的>.proto
+# Dart（回仓库根跑）
+protoc --dart_out=grpc:lib/hiddifycore/generated --proto_path=hiddify-core/ v2/config/<你的>.proto
+```
+**校验技巧**：先输出到临时目录再比对，确认「工具链版本对 + 生成文件与 proto 同步」后再写回：
+```bash
+mkdir -p /tmp/g && (cd hiddify-core && protoc --go_opt=paths=source_relative --go_out=/tmp/g -I . v2/config/x.proto)
+diff --strip-trailing-cr /tmp/g/v2/config/x.pb.go hiddify-core/v2/config/x.pb.go   # Go 要忽略行尾：仓库 CRLF（autocrlf）vs 新生成 LF
+```
+**踩过的坑**：①`protoc-gen-dart` 是 `.bat`，bash 里不能按裸名调用，但 protoc 自己能找到它——只要它在 PATH 上；②bash 下把 `/s/test/...`、`/c/...` 当路径参数传给 protoc（原生 exe）必失败，命令一律用相对路径；③别用脚本自己下 zip：Git-Bash 的 curl 走 schannel 遇代理会握手失败甚至挂死（拿到截断包），下载要么交给 mise（aqua，带 checksum），要么手动放好。
+
 
 ---
 
