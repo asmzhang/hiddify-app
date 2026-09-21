@@ -53,7 +53,11 @@ sealed class CoreStatus with _$CoreStatus {
           MessageType.ERROR_PARSING_CONFIG => CoreAlert.emptyConfiguration,
           MessageType.ERROR_BUILDING_CONFIG => CoreAlert.emptyConfiguration,
           MessageType.EMPTY_CONFIGURATION => CoreAlert.emptyConfiguration,
-          MessageType.ALREADY_STOPPED => CoreAlert.createService,
+          // ALREADY_STOPPED = 对「本就没在跑」的内核调 stop 的正常应答（内核
+          // stop.go:32 发 STOPPED + 空消息），是良性状态回执而非故障。映射成
+          // createService 会凭空产生 `CONNECTION FAILURE: unexpected(createService - )`
+          // 假失败日志——reconnect 开头的「尽力停一下」必触发（2026-09-21 根因实证）。
+          MessageType.ALREADY_STOPPED => null,
           MessageType.ALREADY_STARTED => CoreAlert.startService,
 
           // MessageType.REQUEST_VPN_PERMISSION => SingboxAlert.requestVPNPermission,
