@@ -29,7 +29,11 @@ enum RuleEnum {
   domain,
   domainSuffix,
   domainKeyword,
-  domainRegex;
+  domainRegex,
+  // Batch 14 half 2: proto fields 19/20 (outbound_tag / config). The enum
+  // index must keep matching the proto field number (getIndex() = index + 1).
+  outboundTag,
+  config;
 
   int getIndex() => index + 1;
 
@@ -52,6 +56,8 @@ enum RuleEnum {
     domainSuffix => t.pages.settings.routing.routeRule.rule.tileTitle['domain_suffixe']!,
     domainKeyword => t.pages.settings.routing.routeRule.rule.tileTitle['domain_keyword']!,
     domainRegex => t.pages.settings.routing.routeRule.rule.tileTitle['domain_regex']!,
+    outboundTag => t.pages.settings.routing.routeRule.rule.tileTitle['outbound_tag']!,
+    config => t.pages.settings.routing.routeRule.rule.tileTitle['config']!,
   };
 
   FormFieldValidator<String>? validator(Translations t) => switch (this) {

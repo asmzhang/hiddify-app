@@ -38,6 +38,11 @@ Map<String, dynamic> _ruleToCoreJson(final Rule rule) {
     json['network'] = rule.network.value;
   }
 
+  // Batch 14 half 2: rule -> specific node/group tag (overrides the enum on
+  // the Go side) and per-rule sing-box config override. Strings, pass through.
+  if (rule.hasOutboundTag()) json['outbound_tag'] = rule.outboundTag;
+  if (rule.hasConfig()) json['config'] = rule.config;
+
   // Repeated string fields: emit only when non-empty, with the PLURAL Go tags.
   void addStrings(String key, Iterable<String> values) {
     if (values.isNotEmpty) json[key] = values.toList();
@@ -88,6 +93,8 @@ Rule _ruleFromCoreJson(final Map<String, dynamic> json) {
     final network = Network.valueOf(json['network'] as int);
     if (network != null) rule.network = network;
   }
+  if (json['outbound_tag'] is String) rule.outboundTag = json['outbound_tag'] as String;
+  if (json['config'] is String) rule.config = json['config'] as String;
 
   void readStrings(String key, void Function(List<String>) assign) {
     final value = json[key];

@@ -190,6 +190,28 @@ void main() {
   check('Go fixture 读回 #1', [fromGo[0].name, fromGo[0].outbound.value, fromGo[0].ruleSets.toList()], ['cn-direct', 1, ['https://x/cn.srs']]);
   check('Go fixture 读回 #2', [fromGo[1].name, fromGo[1].outbound.value, fromGo[1].network.value], ['block-ads', 3, 2]);
 
+  // ── 9. 批次 14 后半新字段：outbound_tag（19）+ config（20）────────────────
+  // 只发显式赋值字段；字符串直通 Go json tag（outbound_tag/config）。
+  final tagged = routeRuleToCoreJson([
+    rule(name: 'to-node', outbound: Outbound.direct),
+  ])['rules'][0] as Map;
+  check('未选节点不发 outbound_tag', tagged.containsKey('outbound_tag'), false);
+  check('无覆写不发 config', tagged.containsKey('config'), false);
+
+  final r = Rule();
+  r.name = 'tagged';
+  r.enabled = true;
+  r.outbound = Outbound.direct;
+  r.outboundTag = 'my-node';
+  r.config = '{"domain_suffix":["x.example.org"]}';
+  final taggedJson = routeRuleToCoreJson([r])['rules'][0] as Map;
+  check('outbound_tag 直通', taggedJson['outbound_tag'], 'my-node');
+  check('config 直通', taggedJson['config'], '{"domain_suffix":["x.example.org"]}');
+
+  final taggedBack = coreJsonToRules(routeRuleToCoreJson([r]));
+  check('outbound_tag 往返', taggedBack[0].outboundTag, 'my-node');
+  check('config 往返', taggedBack[0].config, '{"domain_suffix":["x.example.org"]}');
+
   print(failures());
 }
 

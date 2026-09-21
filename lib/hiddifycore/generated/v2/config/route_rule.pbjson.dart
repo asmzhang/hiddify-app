@@ -123,6 +123,8 @@ const Rule$json = {
     {'1': 'domain_suffixes', '3': 16, '4': 3, '5': 9, '10': 'domain_suffix'},
     {'1': 'domain_keywords', '3': 17, '4': 3, '5': 9, '10': 'domain_keyword'},
     {'1': 'domain_regexes', '3': 18, '4': 3, '5': 9, '10': 'domain_regex'},
+    {'1': 'outbound_tag', '3': 19, '4': 1, '5': 9, '10': 'outbound_tag'},
+    {'1': 'config', '3': 20, '4': 1, '5': 9, '10': 'config'},
   ],
 };
 
@@ -139,4 +141,5 @@ final $typed_data.Uint8List ruleDescriptor = $convert.base64Decode(
     'aXBfY2lkcnMYDSADKAlSB2lwX2NpZHISJwoPc291cmNlX2lwX2NpZHJzGA4gAygJUg5zb3VyY2'
     'VfaXBfY2lkchIXCgdkb21haW5zGA8gAygJUgZkb21haW4SJgoPZG9tYWluX3N1ZmZpeGVzGBAg'
     'AygJUg1kb21haW5fc3VmZml4EicKD2RvbWFpbl9rZXl3b3JkcxgRIAMoCVIOZG9tYWluX2tleX'
-    'dvcmQSJAoOZG9tYWluX3JlZ2V4ZXMYEiADKAlSDGRvbWFpbl9yZWdleA==');
+    'dvcmQSJAoOZG9tYWluX3JlZ2V4ZXMYEiADKAlSDGRvbWFpbl9yZWdleBIiCgxvdXRib3VuZF90'
+    'YWcYEyABKAlSDG91dGJvdW5kX3RhZxIWCgZjb25maWcYFCABKAlSBmNvbmZpZw==');

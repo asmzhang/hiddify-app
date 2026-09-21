@@ -446,8 +446,13 @@
               "domain": "Domain",
               "domain_suffixe": "Domain suffix",
               "domain_keyword": "Domain keyword",
-              "domain_regex": "Domain regex"
+              "domain_regex": "Domain regex",
+              "outbound_tag": "Route to node",
+              "config": "Custom config"
             },
+            "outboundTagNone": "Default (use outbound above)",
+            "configHint": "Per-rule override in sing-box rule semantics, e.g.\n{\n  \"domain_suffix\": [\"extra.example.com\"]\n}\nMerged over the assembled rule before parsing.",
+            "configInvalid": "Invalid JSON object",
             "outbound(map)": {
               "proxy": "Proxy",
               "direct": "Direct",
