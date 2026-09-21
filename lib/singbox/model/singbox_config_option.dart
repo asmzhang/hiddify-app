@@ -51,7 +51,11 @@ class SingboxConfigOption with _$SingboxConfigOption {
     required bool enableFakeDns,
     // required bool enableDnsRouting,
     required bool independentDnsCache,
-    required Map<String, dynamic> routeRule,
+    // Batch 13: user route rules in the hiddify-core JSON contract
+    // (v2/config/route_rules.go): top-level "rules" array, plural Go json
+    // tags, numeric proto enums. Built by routeRuleToCoreJson() — do NOT
+    // hand-roll entries or revert to proto3 JSON (silent drop on Go side).
+    required List<Map<String, dynamic>> rules,
     // required SingboxMuxOption mux,
     required SingboxTlsTricks tlsTricks,
     required ChainStatus chainStatus,

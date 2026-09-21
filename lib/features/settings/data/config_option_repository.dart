@@ -9,9 +9,9 @@ import 'package:hiddify/core/utils/json_converters.dart';
 import 'package:hiddify/core/utils/preferences_utils.dart';
 import 'package:hiddify/features/log/model/log_level.dart';
 import 'package:hiddify/features/profile/data/profile_parser.dart';
+import 'package:hiddify/features/route_rules/data/route_rule_json.dart';
 import 'package:hiddify/features/route_rules/notifier/rules_notifier.dart';
 import 'package:hiddify/features/settings/model/config_option_failure.dart';
-import 'package:hiddify/hiddifycore/generated/v2/config/route_rule.pb.dart';
 import 'package:hiddify/singbox/model/singbox_config_enum.dart';
 import 'package:hiddify/singbox/model/singbox_config_option.dart';
 import 'package:hiddify/utils/utils.dart';
@@ -569,7 +569,11 @@ abstract class ConfigOptions {
         ),
         profile: SingboxUnblockerProfileOption(id: ref.watch(unblockerProfileId)),
       ),
-      routeRule: RouteRule(rules: ref.watch(rulesNotifierProvider)).toProto3Json()! as Map<String, dynamic>,
+      // Batch 13: convert Rule pb messages into the hiddify-core JSON contract
+      // (route_rule_json.dart): top-level "rules" array after kebab fieldRename,
+      // plural Go tags + numeric enums. toProto3Json() was silently dropped by
+      // Go unmarshal (singular keys + enum names).
+      rules: routeRuleToCoreJson(ref.watch(rulesNotifierProvider))['rules'] as List<Map<String, dynamic>>,
     );
   });
 }
