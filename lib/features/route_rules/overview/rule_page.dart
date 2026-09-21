@@ -186,39 +186,18 @@ class RulePage extends HookConsumerWidget {
               ),
             ),
             const SettingDivider(),
+            // Batch 14: NekoBox routeDomain consolidation — ONE domain input
+            // with prefix semantics (geosite:/full:/domain:/regexp:/keyword:/
+            // bare value). The separate suffix/keyword/regex editing tiles are
+            // retired; data already stored in those pb fields still flows to
+            // the core and is merged (route_rules.go mergeUnique), it just has
+            // no editing UI anymore.
             SettingGenericList<String>(
               title: RuleEnum.domain.present(t),
               values: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.domains)),
               onTap: () => context.pushNamed(
                 'genericList',
                 pathParameters: {'orderId': ruleListOrder?.toString() ?? 'new', 'ruleEnum': RuleEnum.domain.name},
-              ),
-            ),
-            SettingGenericList<String>(
-              title: RuleEnum.domainSuffix.present(t),
-              values: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.domainSuffixes)),
-              onTap: () => context.pushNamed(
-                'genericList',
-                pathParameters: {'orderId': ruleListOrder?.toString() ?? 'new', 'ruleEnum': RuleEnum.domainSuffix.name},
-              ),
-            ),
-            SettingGenericList<String>(
-              title: RuleEnum.domainKeyword.present(t),
-              values: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.domainKeywords)),
-              onTap: () => context.pushNamed(
-                'genericList',
-                pathParameters: {
-                  'orderId': ruleListOrder?.toString() ?? 'new',
-                  'ruleEnum': RuleEnum.domainKeyword.name,
-                },
-              ),
-            ),
-            SettingGenericList<String>(
-              title: RuleEnum.domainRegex.present(t),
-              values: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.domainRegexes)),
-              onTap: () => context.pushNamed(
-                'genericList',
-                pathParameters: {'orderId': ruleListOrder?.toString() ?? 'new', 'ruleEnum': RuleEnum.domainRegex.name},
               ),
             ),
           ],
