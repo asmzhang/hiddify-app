@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -8,6 +9,7 @@ import 'package:hiddify/core/router/bottom_sheets/root_bottom_sheet.dart';
 import 'package:hiddify/features/proxy/data/config_assembly.dart';
 import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
+import 'package:hiddify/utils/custom_loggers.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 /// **config 编辑页** —— 对齐 NekoBox `ConfigSettingsActivity`（`ui/profile/`，
@@ -42,7 +44,7 @@ Future<void> showConfigSettingsSheet({
   isScrollControlled: true,
 );
 
-class ConfigSettingsModal extends HookConsumerWidget {
+class ConfigSettingsModal extends HookConsumerWidget with InfraLogger {
   const ConfigSettingsModal({
     super.key,
     required this.tag,
@@ -80,7 +82,9 @@ class ConfigSettingsModal extends HookConsumerWidget {
       Object? decoded;
       try {
         decoded = jsonDecode(payload);
-      } catch (_) {}
+      } catch (e) {
+        loggy.debug('config save: payload is not valid JSON (${e.runtimeType}), blocked by validation');
+      }
       if (decoded is! Map<String, dynamic>) {
         ref.read(inAppNotificationControllerProvider).showErrorToast(t.pages.proxies.customConfig.jsonInvalid);
         return;
@@ -208,6 +212,10 @@ _ConfigFormType _classify(String text) {
     if (decoded is Map<String, dynamic>) {
       return decoded['type'] is String ? _ConfigFormType.outbound : _ConfigFormType.full;
     }
-  } catch (_) {}
+  } catch (e) {
+    // Live-typing classification: invalid JSON mid-edit is the normal case,
+    // debug-level so it does not spam error reports (audit C).
+    stderr.writeln('config classify: not JSON yet (${e.runtimeType})');
+  }
   return _ConfigFormType.invalid;
 }

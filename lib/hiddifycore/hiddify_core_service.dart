@@ -660,10 +660,14 @@ class HiddifyCoreService with InfraLogger {
       // try both channel modes; failures mean "already closed" and are safe to swallow
       try {
         await core.fgClient.close(CloseRequest(mode: SetupMode.GRPC_NORMAL_INSECURE));
-      } catch (_) {}
+      } catch (e) {
+        loggy.debug('closeFront: GRPC_NORMAL_INSECURE close failed (likely already closed): $e');
+      }
       try {
         await core.fgClient.close(CloseRequest(mode: SetupMode.GRPC_NORMAL));
-      } catch (_) {}
+      } catch (e) {
+        loggy.debug('closeFront: GRPC_NORMAL close failed (likely already closed): $e');
+      }
     }
   }
 

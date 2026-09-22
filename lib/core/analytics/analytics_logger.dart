@@ -1,7 +1,6 @@
 import 'package:hiddify/utils/sentry_utils.dart';
 import 'package:loggy/loggy.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
-
 // modified version of https://github.com/getsentry/sentry-dart/tree/main/logging
 class SentryLoggyIntegration extends LoggyPrinter implements Integration<SentryOptions> {
   SentryLoggyIntegration({LogLevel minBreadcrumbLevel = LogLevel.info, LogLevel minEventLevel = LogLevel.error})
@@ -54,11 +53,13 @@ extension LogRecordX on LogRecord {
       type: 'debug',
       timestamp: time.toUtc(),
       level: level.toSentryLevel(),
-      message: message,
+      // audit C: log lines like "subscription restored from [url?token=…]"
+      // must not carry the private token out of the process.
+      message: scrubSensitiveUrls(message),
       data: <String, Object>{
-        if (object != null) 'LogRecord.object': object!,
-        if (error != null) 'LogRecord.error': error!,
-        if (stackTrace != null) 'LogRecord.stackTrace': stackTrace!,
+        if (object != null) 'LogRecord.object': scrubSensitiveUrls(object.toString()),
+        if (error != null) 'LogRecord.error': error!.toString(),
+        if (stackTrace != null) 'LogRecord.stackTrace': stackTrace.toString(),
         'LogRecord.loggerName': loggerName,
         'LogRecord.sequenceNumber': sequenceNumber,
       },
@@ -70,11 +71,11 @@ extension LogRecordX on LogRecord {
       timestamp: time.toUtc(),
       logger: loggerName,
       level: level.toSentryLevel(),
-      message: SentryMessage(message),
+      message: SentryMessage(scrubSensitiveUrls(message)),
       throwable: error,
       // ignore: deprecated_member_use
       extra: <String, Object>{
-        if (object != null) 'LogRecord.object': object!,
+        if (object != null) 'LogRecord.object': scrubSensitiveUrls(object.toString()),
         'LogRecord.sequenceNumber': sequenceNumber,
       },
     );

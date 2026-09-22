@@ -34,7 +34,7 @@ class StunClient {
     final socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
     try {
       final localPort = socket.port;
-      final txId = Uint8List.fromList(List<int>.generate(12, (_) => Random().nextInt(256)));
+      final txId = Uint8List.fromList(List<int>.generate(12, (_) => Random.secure().nextInt(256)));
 
       final request = Uint8List(20);
       final bd = ByteData.view(request.buffer);
