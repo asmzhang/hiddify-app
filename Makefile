@@ -370,7 +370,7 @@ doctor:
 	@echo "==> Core libs"
 	@if [ -n "$$(ls -A $(DESKTOP_OUT) 2>/dev/null | grep -v '^\.gitkeep$$')" ]; then echo "    OK   present ($(DESKTOP_OUT))"; else echo "    WARN missing         - run: make <platform>-prepare"; fi
 	@echo "==> Core from source (only needed for: make windows-prepare LOCAL_CORE=1)"
-	@if command -v go >/dev/null 2>&1; then GV=$$(go version | cut -d' ' -f3); case "$$GV" in go1.25*) echo "    OK   $$(go version)";; *) echo "    WARN go              - $${GV}: psiphon-tls 的布局断言要求 go1.25.x（重编核心会 panic），mise use -g go@1.25.6";; esac; else echo "    WARN go              - not in PATH: LOCAL_CORE=1 will fail"; fi
+	@if command -v go >/dev/null 2>&1; then GV=$$(go version | cut -d' ' -f3); case "$$GV" in go1.27*) echo "    OK   $$(go version)";; *) echo "    WARN go              - $${GV}: 需 go1.27.x（1.26 的 psiphon-tls 布局断言会让核心加载即 panic；1.25 已 EOL），mise use -g go@1.27.1";; esac; else echo "    WARN go              - not in PATH: LOCAL_CORE=1 will fail"; fi
 ifeq ($(OS),Windows_NT)
 	@if command -v $(CC_MINGW) >/dev/null 2>&1; then echo "    OK   $(CC_MINGW) (cgo compiler)"; elif [ -x "$(MINGW_BIN)/$(CC_MINGW).exe" ]; then echo "    OK   $(CC_MINGW) (cgo compiler) - $(MINGW_BIN)"; else echo "    WARN $(CC_MINGW)   - cgo compiler not found: pass MINGW_BIN=<dir>"; fi
 endif
@@ -816,7 +816,7 @@ android-aab-libs: android-libs
 #       —— 这里 unset 掉
 #     · 依赖：用 go mod tidy（正是上游 make 的 prepare 那一步），**不要**用
 #       -mod=mod —— 后者遇到没在 go.mod 里的 import 会去挑 @latest，实测把
-#       gvisor.dev/gvisor 拉到当天主干（要求 go >= 1.26.3，本机 1.25.6）→ 直接失败
+#       gvisor.dev/gvisor 拉到当天主干（历史实测：曾要求 go >= 1.26.3 而当时本机 1.25.6）→ 直接失败
 #     · 别改坏 go.mod/go.sum：tidy 和 build 全部写进替身文件（-modfile=go.verify.mod，
 #       go 会自动配同名的 go.verify.sum），原文件全程不动
 #

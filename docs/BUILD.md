@@ -20,7 +20,7 @@
 | 构建 | `curl` `tar` | Windows 10 1803+ 自带 |
 | 构建 | `unzip` | Git for Windows 自带（系统不带） |
 | 编译 | Visual Studio 2022 + C++ 工作负载 | 官网安装 |
-| 编核心 | Go **1.25.x**（全平台）+ 各平台工具链 | `mise use -g go@1.25.6`。**不要用 1.26+**：psiphon-tls 的布局断言会让核心在加载时 panic（App 启动即退 code 2），`make doctor` 会检查。见「从源码编译核心库」 |
+| 编核心 | Go **1.27.x**（全平台）+ 各平台工具链 | `mise use -g go@1.27.1`。**不要用 1.26**：psiphon-tls 的布局断言会让核心在加载时 panic（App 启动即退 code 2）；1.27 已修，1.25 已 EOL。`make doctor` 会检查（2026-09-22 重测结论）。见「从源码编译核心库」 |
 | 打包 | `fastforge` | `make windows-install-deps` |
 | 打包 exe | Inno Setup 6 | `winget install JRSoftware.InnoSetup` |
 | 打包 msix | `makeappx`（Windows SDK）+ **签名证书** | 证书只有 CI 有，见「打包安装包」 |
@@ -67,7 +67,7 @@ dart pub global activate fastforge
 ### 0. 装工具（一次性）
 
 按上面「环境要求」那张表装：**Git for Windows、GNU Make、Flutter 3.38.5、
-Visual Studio 2022（C++ 桌面开发）** 四样是编译必需；要源码编核心再加 **Go 1.25.6**，
+Visual Studio 2022（C++ 桌面开发）** 四样是编译必需；要源码编核心再加 **Go 1.27.1**，
 要打包再加 **`fastforge`**（`make windows-install-deps`）。
 
 ```powershell
@@ -379,8 +379,8 @@ flutter build windows --release
 
 **编核心成功、但 App 启动即退（code 2）或 CLI 报
 `panic: tls: ConnectionState ... struct field mismatch`**
-Go 版本不是 1.25.x（1.26 新增字段破坏了 psiphon-tls 的布局断言）。
-`go version` 确认后换 `mise use -g go@1.25.6` 重编核心，重跑 `flutter build windows --release`。
+Go 版本是 1.26（1.26 新增字段破坏了 psiphon-tls 的布局断言；**1.27 已修，1.25 已 EOL**）。
+`go version` 确认后换 `mise use -g go@1.27.1` 重编核心，重跑 `flutter build windows --release`。
 
 **编核心时报 `finding module for package ...` 或 `requires go >= 1.26.3`**
 不是源码或版本问题，是 Go 用错了模块缓存：

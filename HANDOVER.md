@@ -45,7 +45,7 @@ NekoBox 可做项复刻口径 ≈99%。剩：wireguard 实连（需真实凭据�
 | 架构参照 | `S:\test\Throne`（C++；看 configs / database / stats 的组织方式） |
 | 仓库 | 顶层 `asmzhang/hiddify-app` + 8 层子模块（hiddify-core / hiddify-sing-box / ray2sing / replace 下 4 个），**全部本地 `my` 分支跟踪 `origin/my`** |
 | Flutter | **3.38.5，mise 管理**（`mise use -g flutter@3.38.5`）；pub 走 `pub.flutter-io.cn` 镜像 |
-| Go | **1.25.x 硬约束**（`mise use -g go@1.25.6`）。**1.26 会让 psiphon-tls 布局断言 panic**（核心 DLL 加载即崩、App 启动即退 code 2）。`make doctor` 已加检查。⚠️ 1.25 已 EOL（2026-08-19），1.27 重测已排期（见 §3.9） |
+| Go | **1.27.x**（`mise use -g go@1.27.1`；仓库 `.mise.toml` 同源）。2026-09-22 重测结论：1.26 的 psiphon-tls 布局断言 panic 在 1.27 已消失（1.27.1 实测编 core + DLL 加载 + 内核启动零 panic），原 1.25 硬约束解除；**勿回退到 1.26**。`make doctor` 已改为查 1.27.x |
 | cgo 编译器 | `C:\platform\llvm-mingw-20260908-ucrt-x86_64`（`make doctor` 能自动发现） |
 | GOMODCACHE | 已固化 `go env -w GOMODCACHE=$env:USERPROFILE/go/pkg/mod2` |
 | 网络代理 | `socks5h://127.0.0.1:7890` 可用 —— 核心库下载失败时给 curl 加 `--proxy` |
@@ -132,14 +132,20 @@ NekoBox 可做项复刻口径 ≈99%。剩：wireguard 实连（需真实凭据�
    - **业务测试**：补齐 config_assembly 两大零覆盖区（+18 测试，31/31 绿）——`buildChainOutbounds`（两跳/三跳 detour 方向锚点、嵌套展平、环/自引用 null、endpoint/内置/组/full 形态拒绝、重复成员 #N 后缀、覆写合并、空链 null）+ `applyEntitiesToOutbounds` endpoints 段（legacy wg outbound 剔除 K1、覆盖/追加/stale 删除/坏 payload 跳过/不新建空段）。detour 方向期望按实现+ NekoBox 定案修正（落地穿过入口侧、UI 首行直连——写测试时理解反了被红测当场纠正，锚点价值即此）。drift 迁移已有 migration_test，未动。
    - **老审计（2026-09-15）遗留抽查**：#9 `startedByUser` 仍只写不读（唯一读取点 connection_wrapper.dart:52 在注释块里）；#11 IpInfoNotifier guard 语义未变。两者是上游 hiddify 自带行为且无功能损害，**降级为观察项不行动**（动它们 = 超出 NekoBox 对照范围的自由发挥）。
 8. 上游 PR（anytls 修复 + Makefile PATH 修复提给 hiddify 官方）。~~推送 origin/my~~ 已推送
-9. **Go 1.27 重测**（2026-09-22 排期）：Go 1.25 已 EOL（2026-08-19 起无安全补丁），钉死理由只是「1.26 编核心 psiphon-tls panic」的 1.26 实测。审计 C/D 收官后用 1.27 编 core + HiddifyCli 冒烟 + chain 三断言；panic 消失则升 1.27（.mise.toml/HANDOVER §1 同步），仍在则评估用 build tag 剔除 psiphon。CI 依赖解析失败时以 CI 报错为准重锁 lock，不手工猜版本
+9. ~~**Go 1.27 重测**~~ **已完成并升级**（2026-09-22）。**结论：panic 消失，已升 1.27.1**。
+   - 背景：Go 1.25 已 EOL（2026-08-19 起无安全补丁），原钉死理由仅「1.26 编核心 psiphon-tls 布局断言 panic」的 1.26 实测。
+   - 实测（1.27.1 + llvm-mingw + `make windows-libs-local`）：`go mod tidy` 过 → `hiddify-core.dll` 64.9MB / `HiddifyCli.exe` 编译通过 → **DLL 加载零 panic**（CLI 打印命令树 rc=0）→ 内核真启动 `sing-box started (7.73s)`，mixed 12334 / clash API 16756 / grpc 17078 全监听。
+   - **psiphon 确在构建内**（`go list -deps ./platform/desktop` 实测 1154 包含 `psiphon-tls` + `sing-box/protocol/psiphon` + 整棵 psiphon-tunnel-core）→ 探针有效，非"没编进去所以不炸"。
+   - **chain 三断言**：①内核起+三端口监听零 panic **PASS**；③clash API `/proxies/select` 的 `all` 只有 `chain:us-hk-us`、**零 §hide§** **PASS**；②出口 IP 本次 **INCONCLUSIVE**（09-21 那批节点/凭据已失效：3 个节点 TCP 全通但 anytls 会话 3.0s 后 `use of closed network connection`）——**A/B 对照证明非回归**：用 Go 1.25.6 编的旧 DLL（60.9MB，`build/windows/x64/runner/Debug/hiddify-core.dll`）跑同一配置，日志序列与失败点**逐字一致**。运行态链路由亦正确（日志可见 `chain:us-hk-us` → HK 成员 → 落地服务器 的拨号链）。
+   - 落地：`.mise.toml` go → 1.27.1；`Makefile` doctor 改查 go1.27*；§1 Go 行、§4 大坑 #2、§6 命令、docs/BUILD.md 同步。
+   - 待办（低优先）：换新订阅后补跑断言②（出口 IP 对照），以恢复 traffic-path 证据链。
 
 ---
 
 ## 4. 大坑实录（换机/新环境必读）
 
 1. **make 的 sh 里 PATH 被截断**：agent/IDE 注入 `\\?\` 设备路径条目 + Makefile 的 POSIX 前缀（`/usr/bin:/bin:`）→ MSYS 按冒号解析、在盘符冒号处整串切碎 → recipe 里 curl/git 全失踪，但 make 直启的命令正常（极具迷惑性）。已修（Makefile 15-38 行：Windows 格式前缀 + subst 剥离 `\\?\`）。
-2. **Go 版本**：1.26 编核心 → 运行时 panic（psiphon-tls 断言）。**永远用 1.25.x**，doctor 会查。
+2. **Go 版本**：**用 1.27.x**（1.26 编核心 → 运行时 panic，psiphon-tls 布局断言；1.27 已修，2026-09-22 实测）。doctor 会查。CI 依赖解析失败时以 CI 报错为准重锁 lock，不手工猜版本。
 3. **pubspec.lock 与镜像**：`PUB_HOSTED_URL=pub.flutter-io.cn` 与 lock 里 `pub.dev` 来源不匹配 → pub 每次 pub get 重解析（版本在约束内漂移）。已提交镜像版 lock 为基线；pub.dev 机器（CI）自行解析不回写。**不要试图"恢复干净 lock"——那是死循环**。
 4. **单实例**：旧实例还在跑时启动新构建 → 新进程握手后 exit 0（像闪退）。烟测前先杀干净 Hiddify 进程。
 5. **生成代码不入库**：新机器必须 `dart run build_runner build --delete-conflicting-outputs`（freezed/slang/drift/riverpod 全靠它），否则 analyze 报一堆 undefined。**必须全量跑**：`--build-filter` 会漏掉 slang 真正输出（lib/gen/translations_*.g.dart）。
@@ -163,7 +169,7 @@ NekoBox 可做项复刻口径 ≈99%。剩：wireguard 实连（需真实凭据�
 
 **换机器准备**（全部走包管理器/源码，无需手动下 zip）：
 ```bash
-mise install                                                      # 按仓库内 .mise.toml：protoc=28.0、protoc-gen-go=1.34.2、go=1.25.6、flutter=3.38.5
+mise install                                                      # 按仓库内 .mise.toml：protoc=28.0、protoc-gen-go=1.34.2、go=1.27.1、flutter=3.38.5
 go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2   # 或 mise 的 aqua 版；两者版本一致
 dart pub global activate protoc_plugin 23.0.0
 # PATH 必须含 pub 全局 bin（protoc-gen-dart 在这里，pub 默认不加）：
@@ -203,7 +209,7 @@ diff --strip-trailing-cr /tmp/g/v2/config/x.pb.go hiddify-core/v2/config/x.pb.go
 ```powershell
 # 0) 工具：Git for Windows + mise
 mise use -g flutter@3.38.5
-mise use -g go@1.25.6
+mise use -g go@1.27.1
 go env -w "GOMODCACHE=$env:USERPROFILE/go/pkg/mod2"
 # 1) 源码（全层 my）
 git clone -b my https://github.com/asmzhang/hiddify-app.git && cd hiddify-app

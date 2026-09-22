@@ -3,7 +3,7 @@
 # 换机器一次性准备：mise install
 # proto 生成相关的校验/重生成：tool/regen_protos.sh（详见该脚本头部注释）
 [tools]
-go = "1.25.6"            # 硬约束：Go 1.26 会让 psiphon-tls 布局断言 panic（DLL 加载即崩）
+go = "1.27.1"            # 2026-09-22 重测升级（原钉 1.25.6）：1.26 的 psiphon-tls 布局断言 panic 在 1.27 已消失（本机 1.27.1 实测：编 core + DLL 加载 + chain 三断言①③全过）
 flutter = "3.38.5"
 protoc = "28.0"          # aqua:protocolbuffers/protobuf/protoc —— 与仓库 pb.go 生成器一致（其内部版本号打印为 5.28.0）
 protoc-gen-go = "1.34.2" # aqua:protocolbuffers/protobuf-go/protoc-gen-go —— 与仓库多数 pb.go 头部一致
