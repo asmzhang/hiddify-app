@@ -45,7 +45,7 @@ NekoBox 可做项复刻口径 ≈99%。剩：wireguard 实连（需真实凭据�
 | 架构参照 | `S:\test\Throne`（C++；看 configs / database / stats 的组织方式） |
 | 仓库 | 顶层 `asmzhang/hiddify-app` + 8 层子模块（hiddify-core / hiddify-sing-box / ray2sing / replace 下 4 个），**全部本地 `my` 分支跟踪 `origin/my`** |
 | Flutter | **3.38.5，mise 管理**（`mise use -g flutter@3.38.5`）；pub 走 `pub.flutter-io.cn` 镜像 |
-| Go | **1.25.x 硬约束**（`mise use -g go@1.25.6`）。**1.26 会让 psiphon-tls 布局断言 panic**（核心 DLL 加载即崩、App 启动即退 code 2）。`make doctor` 已加检查 |
+| Go | **1.25.x 硬约束**（`mise use -g go@1.25.6`）。**1.26 会让 psiphon-tls 布局断言 panic**（核心 DLL 加载即崩、App 启动即退 code 2）。`make doctor` 已加检查。⚠️ 1.25 已 EOL（2026-08-19），1.27 重测已排期（见 §3.9） |
 | cgo 编译器 | `C:\platform\llvm-mingw-20260908-ucrt-x86_64`（`make doctor` 能自动发现） |
 | GOMODCACHE | 已固化 `go env -w GOMODCACHE=$env:USERPROFILE/go/pkg/mod2` |
 | 网络代理 | `socks5h://127.0.0.1:7890` 可用 —— 核心库下载失败时给 curl 加 `--proxy` |
@@ -104,7 +104,7 @@ NekoBox 可做项复刻口径 ≈99%。剩：wireguard 实连（需真实凭据�
 ### 3.0 定案清单（B 层：所有者决策，照办不推翻；实现细节可优化，方向性推翻先问用户）
 
 1. **NekoBox 壳 + hiddify 芯**：UI/信息架构 1:1 对照 NekoBoxForAndroid，底层沿用 hiddify 的 sing-box 内核与 Dart 分层。
-2. **规格源唯一 = NekoBoxForAndroid**：menu/preferences XML 是唯一规格准绳；nekoray 不进决策链。
+2. **规格源唯一 = NekoBoxForAndroid**：menu/preferences XML 是唯一规格准绳；nekoray 不进决策链。**当 NekoBox 规格与 sing-box 1.13 内核契约冲突时，以内核契约为准并记录**（已发生 3 起：legacy geo 移除、wg legacy outbound stub、wg allowed_ips 硬校验——2026-09-22 显性化，免于每次重新纠结）。
 3. **桌面第二规格源 = Throne**（C++）：NekoBox 是安卓-only，凡规格明显不适配桌面形态（交互/布局类）之处参考 Throne；协议/数据结构仍以 NekoBox 为准。
 4. **方案分歧决策链**：NekoBox 规格 → 复用已有机制 → 参考 Throne → 自己实现。能推导的自行定案，不退回用户。
 5. **FAB = 唯一连接开关**（四态：stopped▶/connecting 转圈禁点/connected⏹/disconnecting 转圈）；系统代理模式放设置。
@@ -124,9 +124,10 @@ NekoBox 可做项复刻口径 ≈99%。剩：wireguard 实连（需真实凭据�
 3. ~~chain 任意节点串联~~ **已完成 + 内核级验证闭环**（`428a2cb9` + `c0527aa6`，设计 docs/design/chain-2026-09-20.md §D2 含方向修正记录）
 4. ~~config 类型节点~~ **已完成**（`a779c2c8`，批次 11）。~~协议表单剩 http 可选~~ **已完成**（`a92bd582`，批次 12：host/path 是 NekoBox 构建期死字段 V2RayFmt.kt:628-637 不消费、内核 HTTPOutboundOptions 也无 Host，不移植）。~~geo 资源管理~~ **不移植（批次 13 定案）**：sing-box 1.13 内核 legacy geo 已移除（本地 .db 无读取通道）、Throne 同架构也无资产页（2197 条名称→.srs URL 目录编译进 srslist.h）——等价物 = **路由规则活通 + NekoBox 全语义（前缀/指向节点/每规则覆写），已完成**（批次 13 + 14；远程 .srs 缓存进内核 cache.db 无用户可见文件）。路由规则 UI 对照差异仅剩：domain 列可收敛为单一输入框（语义层已生效，纯 UI 形态问题）
 5. ~~审计 B 供应链包~~ **已完成**（`4b9e6c2e`）：CORE_FETCH 加 GitHub release asset digest sha256 校验（mismatch 删文件失败退出、取不到 WARN 降级、curl rc 显式检查防截断文件进后续步骤；make recipe 里 `\${VAR##*/}` 会被 make 吞掉，tag 用 `\$(notdir ...)` 派生）；circle_flags/installed_apps git 依赖锁 ref（与 pubspec.lock resolved-ref 对齐）；build.yml 删 FLUTTER_VERSION env、两 job 改 `flutter-version-file: pubspec.yaml`（单事实源=pubspec environment.flutter，Makefile REQUIRED_VER/Dockerfile 同源）；CI 缓存 `.cache/core-libs`（key=channel+hash(dependencies.properties+Makefile)，test job 先写 build job 读）。配套：rule_page_test 断言跟上批次 14 UI（SettingText 2 个/SettingGenericList 9 个，`ac30738f`）。**sha256-OK 全绿路径留 CI 首跑验证**（本机网络下载 26MB 不动，失败路径 curl-56 已实证）
-6. 审计 C 安全包：gRPC 明文+固定端口 17078+`Random()` 非安全随机、Sentry 默认上送订阅内容、3 处空 catch 补日志
+6. 审计 C 安全包：gRPC 明文+固定端口 17078+`Random()` 非安全随机、Sentry 默认上送订阅内容、3 处空 catch 补日志。**前置待定案：威胁模型**（App 仅自用还是分发给他人？决定安全项做多深，2026-09-22 提出，等所有者拍板；所有发现是审计时点静态观察，修复前先重新确认）
 7. 审计 D 架构包：core→features 14 处逆依赖、FFI 门面收敛、riverpod 风格统一、json_editor.dart 拆分、3 个业务测试
-8. 上游 PR（anytls 修复 + Makefile PATH 修复提给 hiddify 官方）。~~推送 origin/my~~ 已推送至 `4b9e6c2e`
+8. 上游 PR（anytls 修复 + Makefile PATH 修复提给 hiddify 官方）。~~推送 origin/my~~ 已推送
+9. **Go 1.27 重测**（2026-09-22 排期）：Go 1.25 已 EOL（2026-08-19 起无安全补丁），钉死理由只是「1.26 编核心 psiphon-tls panic」的 1.26 实测。审计 C/D 收官后用 1.27 编 core + HiddifyCli 冒烟 + chain 三断言；panic 消失则升 1.27（.mise.toml/HANDOVER §1 同步），仍在则评估用 build tag 剔除 psiphon。CI 依赖解析失败时以 CI 报错为准重锁 lock，不手工猜版本
 
 ---
 
