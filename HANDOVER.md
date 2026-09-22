@@ -1,6 +1,6 @@
 # 交接文档 — hiddify-app（新机器迁移 + NekoBox UI 复刻）
 
-> 写于 2026-09-14 晚，2026-09-22 刷新（新增阅读规则 + 定案清单 + 未验证清单）。上一份 anytls 修复交接（D:\ 时代）已被本文取代，
+> 写于 2026-09-14 晚，2026-09-22 刷新（新增阅读规则 + 定案清单 + 未验证清单；**同日二刷**：功能①⋮ 菜单 1:1 完成 + zh-CN 翻译基准定案 + slang 测试大坑 + 未推送提交盘点）。上一份 anytls 修复交接（D:\ 时代）已被本文取代,
 > 旧版可在 git 历史找回：`git show d3e958a5~40:HANDOVER.md` 附近。
 > 目的：任何人（或没有上下文的 AI）读完就能接着干。
 
@@ -26,10 +26,10 @@
 
 ## 0. 一句话现状
 
-**工程完整可构建可测（Windows debug 版），NekoBox 复刻推进到批次 14 路由规则 NekoBox 全语义完成 + wireguard endpoint 结构验证通关 + 审计 B 供应链包完成（主仓库已推送至 4b9e6c2e，core 至 eb52b62）；
-实体层（分组/节点编辑/分享/去重/组装）+ 协议表单（15 类中 13 可用）+ 节点覆写（8.5）+ chain 串联已落地并经 HiddifyCli 实连验证（三断言全过）；
-用户路由规则（rules UI → 内核）Go+Dart 双侧贯通并有契约校验；wireguard endpoint 配置结构经 HiddifyCli 真启动验证（`missing allowed ips` 内核契约 bug 已修 eb52b62）；
-NekoBox 可做项复刻口径 ≈99%。剩：wireguard 实连（需真实凭据）、审计 C/D 两包、上游 PR。**
+**工程完整可构建可测（Windows debug 版），NekoBox 复刻的可做项已全部落地（批次 1-14 + 审计 B/C/D + Go 1.27 升级），主仓库已推送至 f020a526（core eb52b62）；
+2026-09-22 起 UI 复刻进入**「1:1 逐功能对比」新阶段（用户定案，见 §3.0#11）：功能①节点页 ⋮ 菜单已完成（`5bac7b54`）——8 项权威顺序 + radio 排序子菜单 + 文案对齐 + 删「路由」项，L1 结构测试 5 用例 + 全量 111/111 绿；
+**翻译策略定案（§3.0#12）：测试与验收一律以 zh-CN 为基准，en 仅作 slang base_locale 保键同步，其余 8 语言键已脱节（runtime 回退 en 不炸），翻译批次放最后。**
+剩：**本地 2 个提交未推送**（`87a0743f` URL 测速修复 + `5bac7b54` 功能①）、8 语言翻译批次、集成测试 smoke 重跑、wireguard 真实握手、上游 PR、后续功能②③…。
 
 > 接手前必读上方「接手须知」：本文内容分 A（实证事实）/ B（所有者定案，见 §3.0）/ C（推断待验证，见 §7）三层，采信方式各不同。
 
@@ -96,6 +96,13 @@ NekoBox 可做项复刻口径 ≈99%。剩：wireguard 实连（需真实凭据�
   - **抓到并修复批次 9 遗留 bug**：sing-box 内核对 wireguard endpoint 的每个 peer **硬校验 allowed_ips**（`transport/wireguard/endpoint.go:82` "missing allowed ips for peer N"），而批次 9 表单 8 字段没有 allowed_ips（NekoBox Bean 也没有——它的 legacy 扁平 outbound 形态无此约束）。修复 = 内核 `patchWarp` 给缺失 allowed_ips 的 peer 补默认 `0.0.0.0/0 + ::/0`（full-tunnel，与 WARP builder warp.go:57 同语义），在 parse 与 final 两阶段都生效（parse 阶段的 CheckConfigOptions 也会初始化 endpoint 校验）。
   - **验证闭环**：不带 allowed_ips 的 wg endpoint 配置 → HiddifyCli 真启动成功（`sing-box started 5.05s`）→ endpoint 进 selector 组 → final 配置里 allowed_ips 已自动补上。go test 全绿无回归。
   - **实连清单（剩）**：需用户提供真实 wireguard 凭据（private_key/peer public_key/endpoint host:port/local address CIDR），在 app 表单填入真节点后 FAB 连接验证握手；测试残留已清理（bin/wg-test 删除）。
+- **`87a0743f` URL 测速无反应修复（本地，未推送）**：⋮ 菜单「URL Test」点了只闪一下对话框、零进度零报错——**双重重入 guard**：页面外层包了一次 `runUrlTest`，`proxiesOverviewNotifier.urlTest()` 内部又包一次；外层置 running=true 后内层 guard 误判「已在跑」直接 return，核心 RPC 从未发出（外层还报成功）。tcpPingNodes 只有一层 guard 所以 TCPing 一直正常——同组对照定位的关键。修复：`urlTest()` 变纯测试体，guard+对话框归调用方（页面），规则钉进注释「**一次用户动作 = 恰好一层 guard**」；「already running」分支现在显式打出嵌套提示；新增 `test/features/proxy/connection_test_notifier_test.dart`（4 用例钉死嵌套拒绝/单层执行/guard 必复位/抛异常也复位）。flutter test 106/106。
+- **功能① 节点页 ⋮ 菜单 1:1（`5bac7b54`，本地，未推送；1:1 逐功能对比阶段第一项）**：
+  - **规格源**：`S:\test\NekoBoxForAndroid\app\src\main\res\menu\add_profile_menu.xml`（`action_misc` 内层 8 项，顺序权威）+ 三语词表 `values/strings.xml` / `values-zh-rCN` / `values-zh-rTW`（TCPing/URL Test 是 `translatable="false"` 固定词，全语言不译）。行为参照 `ConfigurationFragment.kt`（更新订阅 460-475 / 清流量 495-532 / 去重 534-580 / TCPing 694-832 / URL Test 834-901 / 清理 1110-1155）。
+  - **产出**：菜单从页面内联 `PopupMenuButton<String>`（9 项乱序 + 'sort' 弹窗 + 'route' 项）抽成 `lib/features/proxy/widget/proxies_menu_button.dart`（MenuAnchor + MenuItemButton + SubmenuButton radio 子菜单，✓ 标当前排序项）；页面只留 `const ProxiesMenuButton()`。
+  - **八项权威顺序**：更新当前组订阅 → 清空流量统计数据 → 删除重复的服务器 → TCPing → URL Test → 清理测试结果 → 清理不可用配置 → 排序（子菜单 原始/以名称/以延时，`checkableBehavior="single"` 语义；hiddify 遗留 usage 排序枚举保留但不进菜单）。**删「路由」项**（NekoBox 路由在抽屉，`nav_items.dart` 确认可达性不破坏）。
+  - **测试**：`test/features/proxy/proxies_menu_test.dart` 5 用例（L1 结构对等：项数/顺序/逐词文案 vs zh-rCN 词表/无「路由」回归/子菜单无 usage/勾选态跟随/组件可独立构建）；全量 111/111 绿；analyze 干净。
+  - **slang 键变更**：删 `sort`/`testDelay`/`testAll`/`updateSubscriptions` 及 orderOptions 旧值；增 `urlTest`("URL Test")/`order`/`orderOptions.origin|name|delay`/`tcpPing`("TCPing")/`updateSubscription`("Update current Group's subscription")。en/zh-CN/zh-TW 三语已对齐；**其余 8 语言键脱节未动**（见 §7）。
 
 ---
 
@@ -113,10 +120,12 @@ NekoBox 可做项复刻口径 ≈99%。剩：wireguard 实连（需真实凭据�
 8. **不移植清单（已定案，勿重新讨论）**：SN Link `sn://`（Kryo 专有二进制，分享用标准链接顶上）；geo 资产管理页（等价物 = 远程 .srs + 路由规则全语义）；http 表单 host/path（NekoBox 构建期死字段）；推广位。
 9. **路由**：保留 hiddify RuleEntity 模型 + 补字段编辑表单（复用 ProtocolFormSpec）；不做 geo Assets 管线。
 10. **工具纪律**：生成代码不入库（build_runner 全量跑）；小状态优先 shared_preferences 不轻易动 drift schema；不用裸下载/自造脚本（用 mise/pub/仓库已有命令）。
+11. **UI 复刻新阶段 = 「1:1 逐功能对比」**（2026-09-22 拍板）：逐功能抽 NekoBox 规格 → L1 结构测试红灯 → 修正 → 全绿提交。节奏 = 一个功能一个功能推进（功能①⋮ 菜单已完成）。
+12. **翻译基准 = zh-CN**（2026-09-22 拍板）：**先只考虑 zh-CN，翻译放最后**。测试断言直接用 zh-CN 文案（对齐 NekoBox values-zh-rCN 词表）；en 仅作 slang base_locale 保持键同步；其余 8 语言（ar/es/fa/fr/id/pt-BR/ru/tr）本轮不碰，runtime 靠 `fallback_strategy: base_locale` 回退 en 不炸。
 
 **设计原则（同 B 层，浓缩版）**：NekoBox 壳 + hiddify 芯 / FAB 四态唯一开关 / 手机 Drawer + PC(≥600dp) NavigationRail / 归一原则 / 每步一提交。规格源唯一 = NekoBoxForAndroid（nekoray 不进决策链）。
 
-**已完成**：主题色板/主壳/主页卡片/分组页（滑删+拖拽）/导航命名 ‖ 实体层（分组+节点+编辑+分享+删除+去重+组装）‖ ⋮ 菜单 8/8、抽屉 10/11 ‖ 协议表单 14/15（socks/http/ss/vless/vmess/trojan/hy1/hy2/tuic/shadowtls/anytls/mieru/naive/ssh/wireguard）‖ 设置页审计归一 ‖ custom_config 全局（两阶段 raw）‖ 节点级覆写（切片 8.5）‖ wireguard endpoint 通路 ‖ **chain 任意串联**（批次 10）‖ **config 类型节点**（批次 11）‖ **http 表单**（批次 12，`a92bd582`）‖ Windows 构建 + 冒烟测试。
+**已完成**：主题色板/主壳/主页卡片/分组页（滑删+拖拽）/导航命名 ‖ 实体层（分组+节点+编辑+分享+删除+去重+组装）‖ ⋮ 菜单 8/8（功能①1:1 收口 `5bac7b54`）、抽屉 10/11 ‖ 协议表单 14/15（socks/http/ss/vless/vmess/trojan/hy1/hy2/tuic/shadowtls/anytls/mieru/naive/ssh/wireguard）‖ 设置页审计归一 ‖ custom_config 全局（两阶段 raw）‖ 节点级覆写（切片 8.5）‖ wireguard endpoint 通路 ‖ **chain 任意串联**（批次 10）‖ **config 类型节点**（批次 11）‖ **http 表单**（批次 12，`a92bd582`）‖ Windows 构建 + 冒烟测试 ‖ 审计 B/C/D + Go 1.27.1 升级。
 
 **剩余（按优先级）**：
 1. ~~实机验证 custom_config raw 通道 + 节点级覆写~~ **已完成**（`2bf37a8b`）。~~wireguard 表单结构验证~~ **已完成**（core `eb52b62`：allowed_ips 缺省契约 bug 修复 + HiddifyCli 真启动验证）。**剩余 wireguard 真实握手**（需用户提供真实凭据/端点，其余链路已全通）
@@ -139,6 +148,7 @@ NekoBox 可做项复刻口径 ≈99%。剩：wireguard 实连（需真实凭据�
    - **chain 三断言**：①内核起+三端口监听零 panic **PASS**；③clash API `/proxies/select` 的 `all` 只有 `chain:us-hk-us`、**零 §hide§** **PASS**；②出口 IP 本次 **INCONCLUSIVE**（09-21 那批节点/凭据已失效：3 个节点 TCP 全通但 anytls 会话 3.0s 后 `use of closed network connection`）——**A/B 对照证明非回归**：用 Go 1.25.6 编的旧 DLL（60.9MB，`build/windows/x64/runner/Debug/hiddify-core.dll`）跑同一配置，日志序列与失败点**逐字一致**。运行态链路由亦正确（日志可见 `chain:us-hk-us` → HK 成员 → 落地服务器 的拨号链）。
    - 落地：`.mise.toml` go → 1.27.1；`Makefile` doctor 改查 go1.27*；§1 Go 行、§4 大坑 #2、§6 命令、docs/BUILD.md 同步。
    - 待办（低优先）：换新订阅后补跑断言②（出口 IP 对照），以恢复 traffic-path 证据链。
+10. **「1:1 逐功能对比」序列（功能①已完成，下一个 AI 从这里续）**：已做 = 节点页 ⋮ 菜单（§2 `5bac7b54`）。**候选功能②起点（按 NekoBox 主界面信息架构排）**：①抽屉核验收口（`nav_drawer.xml` 三段 vs `nav_items.dart`，此前盘点 10/11——推广位不移植，需逐项 1:1 确认顺序/分组标题/图标语义）；②分组页（分组列表 + 底部菜单 vs `GroupsActivity`/`GroupSettingsActivity`）；③订阅页（`SettingsActivity` 的订阅更新周期等）；④设置页 38 项逐项 1:1 复核（批次 7 只做了覆盖审计，未做文案/布局 1:1）；⑤协议表单字段级 1:1（15 类表单只做了功能对齐）。**方法纪律**：每功能先抽规格（menu XML/preferences XML/Activity 源码 + strings 词表）→ L1 结构测试红灯 → 修正 → 全绿提交；测试断言一律 zh-CN（§3.0#12）。
 
 ---
 
@@ -164,6 +174,17 @@ NekoBox 可做项复刻口径 ≈99%。剩：wireguard 实连（需真实凭据�
               "windows\flutter\ephemeral\cpp_client_wrapper\" -Recurse -Force
     ```
     （本机 SDK 缓存 = `C:\Users\Administrator\AppData\Local\mise\installs\flutter\3.38.5\bin\cache\artifacts\engine\windows-x64\cpp_client_wrapper`；含 core_implementations.cc / standard_codec.cc / plugin_registrar.cc / flutter_engine.cc / flutter_view_controller.cc / engine_method_result.cc + 若干 .h + include/）
+13. **slang 非 base 语言是 deferred 库，widget 测试直接 `buildSync()` 必炸**（2026-09-22，功能①测试的最大坑）：
+    - 机制：base_locale=en，其他语言是延迟加载库——`AppLocale.zhCn.buildSync()` 抛 `_DeferredNotLoadedError`（`l_zh_CN was not loaded`）；`AppLocale.zhCn.build()` 内的 `loadLibrary()` 是真异步，在 testWidgets 的 **FakeAsync zone 里永不完成** → 用例 30s 静默超时（输出只有用例名就断流）。`AppLocale.zhCN` 也不存在——生成枚举值是 camelCase `zhCn`。
+    - **正确泵法**（proxies_menu_test.dart 可抄）：
+      ```dart
+      final t = await tester.runAsync(() => AppLocale.zhCn.build());  // runAsync = 真实事件循环
+      translationsProvider.overrideWith((ref) => Future.value(t)),
+      // override 后必须 pre-warm，否则首帧 requireValue 炸 AsyncLoading：
+      await container.read(translationsProvider.future);
+      ```
+    - 连带坑：`MenuItemButton` 的勾选参数名是 `leadingIcon` 不是 `leading`；`find.ancestor(of: 文本, matching: Row)` 会双命中（MenuItemButton 内部 Row 外还有行级 Row），表达「图标与文本同行」用**祖先 Row 集合交集非空**。
+14. **flutter test 输出被截断/被掐时判真跑完的方法**：用户发消息会掐断前台命令，PowerShell stdout 又不被捕获（`*> file.txt 2>&1` 落盘再 Read）——但文件也可能是中途快照，**唯一可信判据 = 文件尾部 grep 到 `All tests passed`**；断流（只有用例名）多半是 FakeAsync 卡异步（见坑 13）而非环境故障。
 
 ### 4.3 proto 生成工具链（改 .proto 才需要；版本必须钉死）
 
@@ -238,6 +259,9 @@ flutter build windows --release
 ## 7. 未验证清单（C 层：待验证假设 + 未跑过的通道；新会话优先用"新眼睛"审这里）
 
 **未跑过的通道（证据真空，勿默认可用）**：
+- **本地 2 个提交未推送**（2026-09-22 ls-remote 实证：远端 `my` = `f020a526`，本地 tracking ref 显示 `[gone]` 是 §4.12 沙箱幻象）：`87a0743f`（URL 测速双重 guard 修复）+ `5bac7b54`（功能①⋮ 菜单 1:1）。推送时机/代理连通在用户手上；推送用 `git -c http.proxy=http://127.0.0.1:35496 push` 覆盖全局 7890 配置，推后用 `git ls-remote origin my` 核对。
+- **集成测试 smoke_test.dart 本体未重跑**：功能①改了 8 项 en 文案与 more_vert 定位方式（`find.byType(PopupMenuButton<String>)` → `find.byIcon(Icons.more_vert)`），单测 111/111 绿但集成流未跑（需 ensure_plugin_junctions + Windows device + 孤儿 Hiddify.exe 先杀）。
+- **8 语言翻译批次（明确放最后）**：ar/es/fa/fr/id/pt-BR/ru/tr 的 proxies 相关键已脱节——缺 `urlTest`/`order`/`orderOptions.*`/`tcpPing` 新词，多 `sort`/`testDelay`/`testAll`/`updateSubscriptions` 旧键。**现状可安全运行**（slang fallback 回退 en），只在做翻译批次时才需要补；届时 NekoBox `values-ar/-es/-fa/-fr/-in/-pt-rBR/-ru/-tr/strings.xml` 是对应词表来源。
 - **CI 全绿未背书**：审计 B 的 sha256-OK 校验路径、flutter-version-file、core-libs 缓存都只在本地静态验证过（pyyaml 解析/失败路径实证），**push 后首次 CI 才是最终背书**。
 - **Android/iOS/Linux/macOS 构建链**：新机器全未实测（流程在 BUILD.md/CI 里）。批次 9-14 的新 UI（表单/chain/config）从未在真机/安卓上跑过。
 - **wireguard 真实握手**：结构验证通关（假凭据真启动），但真隧道未通过——需真实凭据（private_key/peer pubkey/endpoint/local address CIDR）或本地起 wg server 端点。
@@ -250,3 +274,12 @@ flutter build windows --release
 - 审计 C/D 的发现（gRPC 明文 17078、Sentry 上送、14 处逆依赖等）是**审计时点的静态观察**，修复前先重新确认现状。
 
 **发布工程（完全未建）**：签名、版本号策略、release 通道——目前唯一产物形态 = Windows debug 目录便携；msix 打包 CI-only（签名证书），本地 `make windows-zip-release`（需 `dart pub global activate fastforge`）。
+
+---
+
+## 8. 下一个 AI 的第一分钟（操作序列）
+
+1. 读本文 §0 现状 + §3.0 定案清单（12 条）+ §4 大坑实录（尤其 #8 代理变量 / #13 slang deferred / #12 git ref 幻象）。
+2. `git -C S:\test\1\hiddify-app status --short` 确认干净；`git log --oneline -3` 应见 `5bac7b54`（功能①）在顶；`git ls-remote origin my` 核对推送状态（tracking `[gone]` 是幻象，别信）。
+3. 用户说「继续」时：按 §3 剩余 #10 的候选序列选功能②（推荐抽屉核验收口，规格 `S:\test\NekoBoxForAndroid\app\src\main\res\menu\nav_drawer.xml`），**先给方案再动手**；测试写法照抄 `test/features/proxy/proxies_menu_test.dart`（含 §4.13 slang 泵法）。
+4. 跑测试前记得 unset 四个代理变量；跑完以输出尾部 `All tests passed` 为准。
