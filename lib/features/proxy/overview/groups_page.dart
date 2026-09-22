@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -6,7 +7,6 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/db/db.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/failures.dart';
@@ -18,32 +18,35 @@ import 'package:hiddify/core/widget/adaptive_menu.dart';
 import 'package:hiddify/core/widget/nekobox/nk_card.dart';
 import 'package:hiddify/features/common/qr_code_dialog.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
+import 'package:hiddify/features/profile/notifier/profile_notifier.dart';
+import 'package:hiddify/features/profile/notifier/profiles_update_notifier.dart';
 import 'package:hiddify/features/profile/overview/profiles_notifier.dart';
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
 import 'package:hiddify/features/proxy/data/proxy_entity_import.dart';
+import 'package:hiddify/features/proxy/overview/groups_page_spec.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 /// **分组页** —— 对应 NekoBox `ui/GroupFragment.kt`（抽屉里的 `nav_group`）。
 ///
-/// NekoBox 的结构（本页照它来）：
-/// - 工具栏 `res/menu/add_group_menu.xml`：更新所有订阅 / **创建分组**
-/// - 列表项 `LayoutGroupItem`：组名 + 状态（`group_status_empty` =「空」/
-///   「N 个配置」）+ ✎ 编辑 + 动作菜单（`group_action_menu.xml`：分享/导出/清空）
-/// - 点一项 = 打开那个分组（本项目的落点是"切到代理页的对应 Tab"）
+/// NekoBox 结构（本页照它来；规格投影 = `groups_page_spec.dart` 唯一数据源）：
+/// - 工具栏 `add_group_menu.xml`：更新所有订阅（**带确认框**）/ 创建分组；**无 FAB**
+/// - 列表项 `LayoutGroupItem`：组名 + 状态（空 / 从未更新 / N 个配置）+
+///   「更新」按钮（仅订阅组）+ ✎ 编辑（ungrouped 隐藏）+ ⋮ 动作菜单
+///   （`group_action_menu.xml`：分享订阅[订阅组]/导出/清空）
+/// - 右滑删除 + 还原 snackbar（undo 窗口过后才落库）；卡片点击**无动作**
+/// - 拖拽排序（userOrder，ungrouped 除外）
 ///
 /// 与 NekoBox 的差异（已记档）：
-/// - 订阅在本项目是**独立导航项**（NekoBox 里订阅只是 `type = SUBSCRIPTION` 的分组），
-///   所以"更新所有订阅"留在订阅页，本页只放"创建分组"。
-/// - **universal link 不做**：NekoBox 的 `sn://subscription?` 是 Kryo 序列化的专有格式
-///   （`UniversalFmt.kt`），本项目无对应实现；订阅分享走订阅 URL（等价能力）。
-/// - **导出的是出站 JSON** 而不是 std links：本项目实体 `payload` 是完整出站 JSON
-///   （parity §8.6 已记档的差异），没有 `toStdLink(compact)` 的每协议 toUri 生成器。
-/// - 排序（拖拽 `userOrder`）✅ 已做（本页 ReorderableListView，见下方拖拽排序注释块）；
-///   前后置代理（`frontProxy`/`landingProxy`）未做 —— 等 chain 语义定案
-///   （见 `nekobox-parity.md` §7 的术语纠正）。
+/// - universal link 不做：`sn://subscription?` 是 Kryo 序列化专有格式
+///   （`UniversalFmt.kt`）；订阅分享走订阅 URL（等价能力）
+/// - 导出的是出站 JSON 而不是 std links（实体 payload 即完整出站 JSON，parity §8.6）
+/// - 订阅组不参与本页拖拽排序（订阅次序跟订阅页——架构差异：订阅是一等实体）
+/// - 卡片「更新中」进度指示不做（更新走前台通知通道，无进度回流本页）
+/// - 前后置代理（frontProxy/landingProxy）未做 —— 等 chain 语义定案
+///   （见 `nekobox-parity.md` §7 的术语纠正）
 class GroupsPage extends HookConsumerWidget {
   const GroupsPage({super.key});
 
@@ -63,12 +66,14 @@ class GroupsPage extends HookConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(t.pages.groups.title),
+        // NekoBox add_group_menu.xml：两枚常驻工具栏动作（顺序权威；无 FAB）。
         actions: [
-          IconButton(
-            tooltip: t.pages.groups.create,
-            onPressed: () => _createGroup(context, ref),
-            icon: const Icon(FluentIcons.add_24_regular),
-          ),
+          for (final action in nkGroupToolbarActions())
+            IconButton(
+              tooltip: action.label(t),
+              onPressed: () => _runToolbarAction(context, ref, action.action),
+              icon: Icon(action.icon),
+            ),
         ],
       ),
       body: groups.when(
@@ -100,20 +105,54 @@ class GroupsPage extends HookConsumerWidget {
             ),
             itemBuilder: (context, index) {
               final row = rows[index];
-              // NekoBox `getDragDirs`：ungrouped 与更新中的组不可拖 ——
-              // 本项目订阅组由订阅排序（订阅页），这里只允许拖手动组。
+              // NekoBox `getDragDirs`：ungrouped 不可拖；订阅组次序跟订阅页
+              //（架构差异记档：订阅是一等实体），也不拖。
               final draggable = row.group.type != ProxyGroupType.subscription && !row.group.ungrouped;
-              return Container(
-                // ReorderableListView 要求每个子项有 key（拖拽识别用）
+              // NekoBox `getSwipeDirs`：右滑删除（ungrouped 除外）→ undo snackbar，
+              // undo 窗口过后才落库（UndoSnackbarManager.commit 对应点）。
+              return Dismissible(
                 key: ValueKey('group-${row.group.id}'),
-                child: _GroupTile(
+                direction: DismissDirection.endToStart,
+                // 3.38 的 Dismissible 无 enabled 参数 —— confirmDismiss=false 等价禁用。
+                confirmDismiss: (direction) async => nkGroupCardSwipable(ungrouped: row.group.ungrouped),
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 24),
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  child: Icon(FluentIcons.delete_24_regular, color: Theme.of(context).colorScheme.onErrorContainer),
+                ),
+                onDismissed: (_) async {
+                  final displayName = groupDisplayName(row.group, ungroupedLabel: t.pages.groups.defaultName);
+                  // 本地移除（provider 未动）；还原 = 回插原位，不落库。
+                  final restored = [...rows]..removeAt(index);
+                  localRows.value = restored;
+                  var undone = false;
+                  final snackBar = ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(t.pages.groups.deleteUndoMsg(name: displayName)),
+                      action: SnackBarAction(
+                        label: t.pages.groups.undo,
+                        onPressed: () {
+                          undone = true;
+                          final current = [...(localRows.value ?? restored)];
+                          current.insert(index.clamp(0, current.length), row);
+                          localRows.value = current;
+                        },
+                      ),
+                    ),
+                  );
+                  await snackBar.closed; // controller.closed 即 Future<SnackBarClosedReason>
+                  if (!undone && context.mounted) {
+                    await ref.read(proxiesOverviewNotifierProvider.notifier).removeGroup(row.group.id);
+                  }
+                },
+                child: NkGroupTile(
                   group: row.group,
                   nodeCount: row.nodeCount,
                   index: index,
                   dragHandle: draggable,
-                  onOpen: () => _openGroup(context, ref, row.group),
                   onRename: () => _renameGroup(context, ref, row.group),
-                  onDelete: () => _deleteGroup(context, ref, row.group),
+                  onUpdate: () => _updateSubscriptionGroup(context, ref, row.group),
                   actionItems: buildGroupActionItems(context, ref, row.group),
                 ),
               );
@@ -123,35 +162,36 @@ class GroupsPage extends HookConsumerWidget {
         error: (error, stackTrace) => Center(child: Text(t.presentShortError(error))),
         loading: () => const Center(child: CircularProgressIndicator()),
       ),
-      // 订阅在本项目是独立导航项，所以"更新所有订阅"不重复放在这里（见类注释）。
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _createGroup(context, ref),
-        icon: const Icon(FluentIcons.add_24_regular),
-        label: Text(t.pages.groups.create),
-      ),
     );
   }
 
   /// HookConsumerWidget 没有 setState —— 本地副本靠 useState。
   void setStateLike(void Function() fn) => fn();
 
-  /// 打开分组 = 切到代理页的对应 Tab（NekoBox 是打开这个分组的配置页）。
-  ///
-  /// 订阅分组也在这张表里（NekoBox 的 `groupDao.allGroups()` 不分类型），
-  /// 所以除了按 `groupId` 匹配手动分组，还要按 `subscription` 里的 `profileId`
-  /// 匹配订阅分组 —— 否则订阅组点了没反应。
-  Future<void> _openGroup(BuildContext context, WidgetRef ref, ProxyGroupEntry group) async {
-    final tabs = ref.read(proxyGroupTabsProvider).valueOrNull ?? const <ProxyGroupTab>[];
-    final ownerProfileId = profileIdOfSubscription(group.subscription);
-    final match = tabs
-        .where((tab) => group.type == ProxyGroupType.subscription
-            ? (ownerProfileId != null && tab.profileId == ownerProfileId)
-            : tab.groupId == group.id)
-        .firstOrNull;
-    if (match != null) {
-      await ref.read(selectedProxyGroupTagProvider.notifier).update(match.key);
+  /// 工具栏动作接线（add_group_menu.xml）。
+  void _runToolbarAction(BuildContext context, WidgetRef ref, NkGroupToolbarAction action) {
+    switch (action) {
+      case NkGroupToolbarAction.updateAllSubscriptions:
+        unawaited(_updateAllSubscriptions(context, ref));
+      case NkGroupToolbarAction.createGroup:
+        unawaited(_createGroup(context, ref));
     }
-    if (context.mounted) context.goNamed('home');
+  }
+
+  /// 更新所有订阅（add_group_menu.xml `action_update_all`）：确认框（title=确认、
+  /// message=更新所有订阅，GroupFragment.kt:116-128 同构）→ 更新全部订阅组。
+  Future<void> _updateAllSubscriptions(BuildContext context, WidgetRef ref) async {
+    final t = ref.read(translationsProvider).requireValue;
+    final confirmed = await ref.read(dialogNotifierProvider.notifier).showConfirmation(title: t.pages.groups.confirm, message: t.pages.groups.updateAll);
+    if (!confirmed) return;
+    await ref.read(foregroundProfilesUpdateNotifierProvider.notifier).trigger();
+  }
+
+  /// 卡片「更新」按钮：仅订阅组（GroupFragment.kt:396-398 → startUpdate）。
+  Future<void> _updateSubscriptionGroup(BuildContext context, WidgetRef ref, ProxyGroupEntry group) async {
+    final profile = await _remoteProfileOf(ref, group);
+    if (profile == null) return;
+    await ref.read(updateProfileNotifierProvider(profile.id).notifier).updateProfile(profile);
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -209,22 +249,6 @@ class GroupsPage extends HookConsumerWidget {
     }
   }
 
-  Future<void> _deleteGroup(BuildContext context, WidgetRef ref, ProxyGroupEntry group) async {
-    final t = ref.read(translationsProvider).requireValue;
-    final confirmed = await ref
-        .read(dialogNotifierProvider.notifier)
-        .showConfirmation(title: t.pages.groups.deleteConfirm, message: groupDisplayName(group, ungroupedLabel: t.pages.groups.defaultName));
-    if (!confirmed || !context.mounted) return;
-    final ok = await ref.read(proxiesOverviewNotifierProvider.notifier).removeGroup(group.id);
-    if (!context.mounted) return;
-    final notifier = ref.read(inAppNotificationControllerProvider);
-    if (ok) {
-      notifier.showSuccessToast(t.pages.groups.deleted);
-    } else {
-      notifier.showErrorToast(t.errors.unexpected);
-    }
-  }
-
   // ───────────────────────────────────────────────────────────────────────────
   // 分组动作菜单（NekoBox `group_action_menu.xml` + `GroupFragment.kt:330-378`）。
   // 三组动作：分享订阅链接（订阅组限定）/ 导出节点（剪贴板·文件）/ 清空分组。
@@ -232,47 +256,36 @@ class GroupsPage extends HookConsumerWidget {
   // 交互用 AdaptiveMenu 的 subItems —— 对应 NekoBox 菜单里 share/export 的子项结构。
   // ───────────────────────────────────────────────────────────────────────────
 
-  /// 组卡片的 ⋮ 动作菜单。订阅组多一个「分享订阅链接」子菜单
-  /// （NekoBox 的 share 组只在 `type == SUBSCRIPTION` 时显示，同判定）。
+  /// 组卡片的 ⋮ 动作菜单 = `nkGroupActionMenu` 规格树 → AdaptiveMenuItem。
+  /// 结构/词表由 groups_page_spec 钉死（L1 测试打它）；这里只接线叶子动作。
+  /// NekoBox PopupMenu 是纯文本菜单（无 leading 图标）。
   List<AdaptiveMenuItem> buildGroupActionItems(BuildContext context, WidgetRef ref, ProxyGroupEntry group) {
-    final t = ref.read(translationsProvider).requireValue;
     final isSubscription = group.type == ProxyGroupType.subscription && profileIdOfSubscription(group.subscription) != null;
-    return [
-      if (isSubscription)
-        AdaptiveMenuItem(
-          title: t.common.share,
-          leadingIcon: const Icon(FluentIcons.share_24_regular),
-          subItems: [
-            AdaptiveMenuItem(
-              title: t.pages.profiles.share.urlToClipboard,
-              onTap: () => _copySubscriptionUrl(context, ref, group),
-            ),
-            AdaptiveMenuItem(
-              title: t.pages.profiles.share.showUrlQr,
-              onTap: () => _showSubscriptionQr(context, ref, group),
-            ),
-          ],
-        ),
-      AdaptiveMenuItem(
-        title: t.common.export,
-        leadingIcon: const Icon(FluentIcons.arrow_export_24_regular),
-        subItems: [
-          AdaptiveMenuItem(
-            title: t.pages.proxies.msg.exportToClipboard,
-            onTap: () => _exportNodesToClipboard(context, ref, group),
-          ),
-          AdaptiveMenuItem(
-            title: t.pages.proxies.msg.exportToFile,
-            onTap: () => _exportNodesToFile(context, ref, group),
-          ),
-        ],
-      ),
-      AdaptiveMenuItem(
-        title: t.pages.groups.clearNodes,
-        leadingIcon: const Icon(FluentIcons.bin_recycle_24_regular),
-        onTap: () => _clearGroup(context, ref, group),
-      ),
-    ];
+    return nkGroupActionMenu(isSubscription: isSubscription).map((spec) => _menuFromSpec(context, ref, group, spec)).toList();
+  }
+
+  AdaptiveMenuItem _menuFromSpec(BuildContext context, WidgetRef ref, ProxyGroupEntry group, NkGroupMenuSpec spec) {
+    final t = ref.read(translationsProvider).requireValue;
+    final children = spec.children;
+    if (children != null) {
+      return AdaptiveMenuItem(title: spec.label(t), subItems: children.map((c) => _menuFromSpec(context, ref, group, c)).toList());
+    }
+    return AdaptiveMenuItem(title: spec.label(t), onTap: () => _runGroupAction(context, ref, group, spec.action!));
+  }
+
+  void _runGroupAction(BuildContext context, WidgetRef ref, ProxyGroupEntry group, NkGroupMenuAction action) {
+    switch (action) {
+      case NkGroupMenuAction.shareUrlToClipboard:
+        unawaited(_copySubscriptionUrl(context, ref, group));
+      case NkGroupMenuAction.shareQr:
+        unawaited(_showSubscriptionQr(context, ref, group));
+      case NkGroupMenuAction.exportToClipboard:
+        unawaited(_exportNodesToClipboard(context, ref, group));
+      case NkGroupMenuAction.exportToFile:
+        unawaited(_exportNodesToFile(context, ref, group));
+      case NkGroupMenuAction.clearNodes:
+        unawaited(_clearGroup(context, ref, group));
+    }
   }
 
   /// 订阅组对应的 `RemoteProfileEntity`（拿分享 URL 用）。找不到返回 null。
@@ -381,16 +394,18 @@ class GroupsPage extends HookConsumerWidget {
   }
 }
 
-/// 列表项 —— 照 NekoBox `LayoutGroupItem`：组名 + 状态 + ✎ + ⋮ + 🗑。
-/// ⋮ 是动作菜单（`group_action_menu.xml`：分享/导出/清空），子项结构见
-/// [GroupsPage.buildGroupActionItems]。
-class _GroupTile extends ConsumerWidget {
-  const _GroupTile({
+/// 列表项 —— 照 NekoBox `LayoutGroupItem` + `GroupHolder.bind`：
+/// 组名 + 状态 + 「更新」（仅订阅组，invisible 保占位）+ ✎（ungrouped 隐藏）+ ⋮。
+/// ⋮ = 动作菜单（`group_action_menu.xml`，纯文本）。
+/// 卡片点击无动作（spec `GroupFragment.kt:384 setOnClickListener { }`）；
+/// 删除 = 右滑（页面层 Dismissible + undo），**无 🗑 按钮**。
+class NkGroupTile extends ConsumerWidget {
+  const NkGroupTile({
+    super.key,
     required this.group,
     required this.nodeCount,
-    required this.onOpen,
     required this.onRename,
-    required this.onDelete,
+    required this.onUpdate,
     required this.actionItems,
     required this.index,
     this.dragHandle = false,
@@ -398,15 +413,14 @@ class _GroupTile extends ConsumerWidget {
 
   final ProxyGroupEntry group;
   final int nodeCount;
-  final VoidCallback onOpen;
   final VoidCallback onRename;
-  final VoidCallback onDelete;
+  final VoidCallback onUpdate;
   final List<AdaptiveMenuItem> actionItems;
 
   /// 在 ReorderableListView 中的下标（拖拽把手 [ReorderableDragStartListener] 必需）。
   final int index;
 
-  /// 是否显示拖拽把手（NekoBox `getDragDirs`：ungrouped / 更新中不可拖；
+  /// 是否显示拖拽把手（NekoBox `getDragDirs`：ungrouped 不可拖；
   /// 本项目订阅组的次序跟订阅页，也不拖）。false = 不渲染把手 ⇒ 拖不动。
   final bool dragHandle;
 
@@ -414,11 +428,12 @@ class _GroupTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translationsProvider).requireValue;
     final theme = Theme.of(context);
+    final isSubscription = group.type == ProxyGroupType.subscription;
     // 状态文案照 NekoBox `GroupFragment.kt:518-540`：
     // BASIC 组空 ⇒ 「空」，否则「N 个配置」；订阅组空 ⇒ 「从未更新」。
     final String status;
     if (nodeCount == 0) {
-      status = group.type == ProxyGroupType.subscription ? t.pages.groups.neverUpdated : t.pages.groups.empty;
+      status = isSubscription ? t.pages.groups.neverUpdated : t.pages.groups.empty;
     } else {
       status = t.pages.groups.nodeCount(n: nodeCount);
     }
@@ -429,7 +444,7 @@ class _GroupTile extends ConsumerWidget {
       child: ListTile(
         title: Text(groupDisplayName(group, ungroupedLabel: t.pages.groups.defaultName), style: theme.textTheme.bodyLarge),
         subtitle: Text(status, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-        onTap: onOpen,
+        // NekoBox：卡片点击无动作（GroupFragment.kt:384）。
         // 拖拽把手（NekoBox 是整行长按拖动；Flutter 的 ReorderableListView 默认
         // 也是长按，但那与"点行打开分组"冲突 ⇒ 用显式把手，长按仅在把手上生效）。
         leading: dragHandle
@@ -441,7 +456,22 @@ class _GroupTile extends ConsumerWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            NkCardAction(icon: FluentIcons.edit_24_regular, tooltip: t.pages.groups.edit, onTap: onRename),
+            // 「更新」仅订阅组（GroupFragment.kt:387 invisible 保占位语义）。
+            Visibility(
+              visible: nkGroupCardShowsUpdate(isSubscription: isSubscription),
+              maintainSize: true,
+              maintainAnimation: true,
+              maintainState: true,
+              child: TextButton(onPressed: onUpdate, child: Text(t.pages.groups.cardUpdate)),
+            ),
+            // ✎ 编辑：ungrouped 组隐藏（GroupFragment.kt:386 isGone）。
+            Visibility(
+              visible: nkGroupCardShowsEdit(ungrouped: group.ungrouped),
+              maintainSize: true,
+              maintainAnimation: true,
+              maintainState: true,
+              child: NkCardAction(icon: FluentIcons.edit_24_regular, tooltip: t.pages.groups.edit, onTap: onRename),
+            ),
             AdaptiveMenu(
               items: actionItems,
               builder: (context, toggleVisibility, child) => NkCardAction(
@@ -451,7 +481,6 @@ class _GroupTile extends ConsumerWidget {
               ),
               child: null,
             ),
-            NkCardAction(icon: FluentIcons.delete_24_regular, tooltip: t.common.delete, onTap: onDelete),
           ],
         ),
       ),
