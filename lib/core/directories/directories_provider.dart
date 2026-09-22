@@ -59,7 +59,11 @@ class AppDirectories extends _$AppDirectories with InfraLogger {
       if (extDir.existsSync()) return extDir;
       await extDir.create(recursive: true);
       return extDir;
-    } catch (_) {}
+    } catch (e) {
+      // Fallback to app documents; silent swallow here would hide why the
+      // working directory differs from expected (audit C).
+      stderr.writeln('android working directory fallback: $e');
+    }
     return getApplicationDocumentsDirectory();
   }
 

@@ -6,6 +6,21 @@ import 'package:hiddify/features/proxy/model/proxy_failure.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
+/// Scrubs subscription credentials before anything leaves the process (audit C).
+///
+/// Log messages like `subscription restored from [https://panel/sub?token=…]`
+/// used to reach Sentry breadcrumbs verbatim. Query strings of subscription /
+/// deep links carry the private token, so every `?…` / `&…` tail on an
+/// http(s) URL is replaced regardless of parameter name (no allowlist to
+/// forget). Returns the input unchanged when nothing matches.
+/// Query part stops at whitespace / `)` / `]` so log wrappers like
+/// `[…?token=x]` keep their closing bracket.
+final RegExp _tokenizedUrlPattern = RegExp(r'(https?://[^\s?]+)\?([^\s\])]*)');
+
+String scrubSensitiveUrls(String input) {
+  return input.replaceAllMapped(_tokenizedUrlPattern, (m) => '${m.group(1)}?…');
+}
+
 FutureOr<SentryEvent?> sentryBeforeSend(SentryEvent event, {Hint? hint}) {
   if (canSendEvent(event.throwable)) return event;
   return null;

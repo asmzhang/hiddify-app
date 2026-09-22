@@ -33,10 +33,15 @@
 // 纯 Dart（不 import drift/Flutter），可被 `dart run tool/check_config_assembly.dart` 校验。
 // ---------------------------------------------------------------------------
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:hiddify/core/utils/json_merge.dart';
 import 'package:hiddify/features/proxy/data/proxy_entity_import.dart';
 import 'package:hiddify/features/proxy/data/runtime_outbound_tags.dart';
+
+/// Assembly-level stderr logging (audit C): pure-Dart module, no loggy —
+/// skipped payloads/overlays previously vanished without a trace.
+void _assemblyLog(String message) => stderr.writeln('[config_assembly] $message');
 
 /// 组装结果。
 class ConfigAssemblyResult {
@@ -295,7 +300,9 @@ List<String>? chainProxiesOf(String payload) {
     try {
       final decoded = jsonDecode(rawChainOverlay);
       if (decoded is Map<String, dynamic>) chainOverlay = decoded;
-    } catch (_) {}
+    } catch (e) {
+      _assemblyLog('chain ${chainEntity.tag}: customOutbound is not valid JSON, overlay skipped ($e)');
+    }
   }
 
   final memberOutbounds = <Map<String, dynamic>>[];
@@ -312,7 +319,8 @@ List<String>? chainProxiesOf(String payload) {
       final recoded = jsonDecode(jsonEncode(decoded)); // 深拷贝，别污染实体索引
       if (recoded is! Map<String, dynamic>) return null;
       outbound = recoded;
-    } catch (_) {
+    } catch (e) {
+      _assemblyLog('chain ${chainEntity.tag}: member $memberTag payload unparsable, chain skipped ($e)');
       return null;
     }
 
@@ -322,7 +330,9 @@ List<String>? chainProxiesOf(String payload) {
       try {
         final decoded = jsonDecode(rawOverlay);
         if (decoded is Map<String, dynamic>) deepMergeJson(outbound, decoded);
-      } catch (_) {}
+      } catch (e) {
+        _assemblyLog('chain member $memberTag: customOutbound not valid JSON, overlay skipped ($e)');
+      }
     }
 
     final outboundTag = outboundTags[i];
@@ -423,8 +433,9 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
         if (entity.type == kConfigEntityType) decoded['tag'] = entity.tag;
         payloadByTag[entity.tag] = decoded;
       }
-    } catch (_) {
-      // 单条坏 payload 不该毁掉整份配置：跳过它
+    } catch (e) {
+      // 单条坏 payload 不该毁掉整份配置：跳过它（audit C：不再静默）
+      _assemblyLog('node ${entity.tag}: payload unparsable, skipped ($e)');
     }
   }
   final entityTags = nodeEntities.map((e) => e.tag).where(payloadByTag.containsKey).toList();
@@ -442,8 +453,9 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
       try {
         final decoded = jsonDecode(raw);
         if (decoded is Map<String, dynamic>) index[entity.tag] = decoded;
-      } catch (_) {
-        // 坏覆写：跳过（等价于停用），不记进组装结果
+      } catch (e) {
+        // 坏覆写：跳过（等价于停用），不记进组装结果（audit C：不再静默）
+        _assemblyLog('node ${entity.tag}: customOutbound not valid JSON, overlay skipped ($e)');
       }
     }
     return index;
@@ -458,7 +470,9 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
     try {
       final decoded = jsonDecode(entity.payload);
       if (decoded is Map<String, dynamic>) endpointPayloadByTag[entity.tag] = decoded;
-    } catch (_) {}
+    } catch (e) {
+      _assemblyLog('endpoint ${entity.tag}: payload unparsable, skipped ($e)');
+    }
   }
   final endpointEntityTags = endpointEntities.map((e) => e.tag).where(endpointPayloadByTag.containsKey).toList();
 

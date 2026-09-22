@@ -58,7 +58,10 @@ class CoreInterfaceDesktop extends CoreInterface with InfraLogger {
   final port = 17078;
   static String generateRandomPassword(int length) {
     const characters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final random = Random();
+    // Random.secure() (audit C): dart:math Random() is predictable, which made
+    // this gRPC secret guessable in principle. Loopback-only today, but the
+    // secret is the only auth on the port -- generate it from the CSPRNG.
+    final random = Random.secure();
     return List.generate(length, (_) => characters[random.nextInt(characters.length)]).join();
   }
 
