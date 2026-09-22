@@ -16,7 +16,18 @@ class SettingDivider extends ConsumerWidget {
         const Expanded(child: Divider(indent: 16, endIndent: 8, height: 1)),
         const Icon(size: 16, Icons.warning_rounded, color: Colors.amber),
         const Gap(2),
-        Text(title!, style: theme.textTheme.titleSmall!.copyWith(color: theme.colorScheme.onSurface)),
+        // 必须弹性 + ellipsis：标题是本地化长句（en 的 onlyTunMode
+        // "Only available in TUN mode"），手机宽度下会顶穿 Row
+        // （实测 360dp 溢 25px、320dp 溢 65px）。两侧 Divider 已是
+        // Expanded，文本不弹性时整行仍会溢出。
+        Flexible(
+          child: Text(
+            title!,
+            style: theme.textTheme.titleSmall!.copyWith(color: theme.colorScheme.onSurface),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
+        ),
         const Expanded(child: Divider(indent: 8, endIndent: 16, height: 1)),
       ],
     );

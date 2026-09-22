@@ -41,11 +41,17 @@ class SettingGenericList<T extends Object> extends ConsumerWidget {
                           children: [
                             const Icon(size: 16, Icons.warning_rounded, color: Colors.amber),
                             const Gap(2),
-                            Text(
-                              t.pages.settings.routing.routeRule.rule.notAvailabeInThisPlatform,
-                              style: theme.textTheme.labelSmall!.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
+                            // 必须弹性：英文文案 "Not available in this platform"
+                            // 在手机宽度（≤360dp）下会顶穿 Row（实测 360dp 溢 75px、
+                            // 320dp 溢 115px）—— 安卓是主要目标平台，警告 Tile 必然
+                            // 走到这条路。ellipsis 只在弹性约束下才生效。
+                            Flexible(
+                              child: Text(
+                                t.pages.settings.routing.routeRule.rule.notAvailabeInThisPlatform,
+                                style: theme.textTheme.labelSmall!.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
                             ),
                           ],
                         ),

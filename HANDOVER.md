@@ -233,7 +233,7 @@ flutter build windows --release
 - **CI 全绿未背书**：审计 B 的 sha256-OK 校验路径、flutter-version-file、core-libs 缓存都只在本地静态验证过（pyyaml 解析/失败路径实证），**push 后首次 CI 才是最终背书**。
 - **Android/iOS/Linux/macOS 构建链**：新机器全未实测（流程在 BUILD.md/CI 里）。批次 9-14 的新 UI（表单/chain/config）从未在真机/安卓上跑过。
 - **wireguard 真实握手**：结构验证通关（假凭据真启动），但真隧道未通过——需真实凭据（private_key/peer pubkey/endpoint/local address CIDR）或本地起 wg server 端点。
-- **小屏（<600dp）形态**：所有新 UI 只在 Windows ≥600dp 验证过；手机 Drawer 形态的表现（表单布局/菜单溢出）未检查。
+- **小屏（<600dp）形态**：**部分已补**（2026-09-22）。路由规则页现带小屏回归测试（`rule_page_test.dart` 的「小屏手机形态」组：360×640dp + 320×568dp，溢出会以 FlutterError 让用例失败），并借此抓出并修掉两个**真实溢出 bug**——`SettingDivider` 的本地化长标题行（360dp 溢 25px / 320dp 溢 65px）、`SettingGenericList` 的平台警告行（`Flexible` 缺失：360dp 溢 75px / 320dp 溢 115px，安卓正是走这条路）。**仍未见小屏**：协议表单 / chain 设置弹窗 / config 弹窗 / 主壳 NavigationDrawer。
 
 **推断性结论（本文与记忆里的因果解释，采信前建议复现）**：
 - 复刻口径百分比（≈99%）是盘点印象，非逐项 diff 结论。
