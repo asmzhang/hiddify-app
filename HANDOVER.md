@@ -1,8 +1,26 @@
 # 交接文档 — hiddify-app（新机器迁移 + NekoBox UI 复刻）
 
-> 写于 2026-09-14 晚，2026-09-21 刷新（chain 方向修正 + 内核级验证后）。上一份 anytls 修复交接（D:\ 时代）已被本文取代，
+> 写于 2026-09-14 晚，2026-09-22 刷新（新增阅读规则 + 定案清单 + 未验证清单）。上一份 anytls 修复交接（D:\ 时代）已被本文取代，
 > 旧版可在 git 历史找回：`git show d3e958a5~40:HANDOVER.md` 附近。
 > 目的：任何人（或没有上下文的 AI）读完就能接着干。
+
+---
+
+## 接手须知（先读：如何采信本文与记忆文件）
+
+本文与 `.workbuddy/memory/MEMORY.md`（新会话自动注入）里的内容**不等于同等可信**。按三层采信：
+
+| 层 | 内容特征 | 采信方式 |
+|---|---|---|
+| **A 实证事实** | 带 commit SHA / 测试名 / 命令复现路径 / 日志输出（本文 §1 环境事实、§2 提交清单、§4 大坑实录的复现步骤） | 可直接引用，因为可复现 |
+| **B 所有者定案** | 见下方「定案清单」——是**项目所有者的决策**，不是技术真理 | 照办；实现细节可以优化；**方向性推翻必须先问用户** |
+| **C 推断/评估** | 根因分析的因果解释、复刻口径百分比、性能印象、"应该没问题"类表述 | **视为待验证假设**，动手改代码前先用测试/日志/命令复现证据 |
+
+原始证据链：`.workbuddy/memory/YYYY-MM-DD.md` 每日日志比 MEMORY.md 更细（含验证输出、命令、失败尝试），存疑时回溯它。
+
+**如果你是新会话的 AI 且用户只说「继续」**：先读完本文与 MEMORY.md，按上表分层采信，然后从 §3「剩余」清单顶部选活，**先给方案再动手**；方案分歧按「NekoBox 规格 → 复用已有机制 → 参考 Throne → 自己实现」自行推导定案，不要把可推导的问题退回给用户。
+
+快速验证工具（A 层结论的复现入口）：`make doctor`（环境）/ `flutter test test/`（Dart，**先 unset 代理变量**）/ `dart analyze lib test tool`（分目录）/ `go test ./...`（在 hiddify-core/）/ `HiddifyCli.exe run -c <cfg> -d <settings> --log info`（内核配置验证）。
 
 ---
 
@@ -12,6 +30,8 @@
 实体层（分组/节点编辑/分享/去重/组装）+ 协议表单（15 类中 13 可用）+ 节点覆写（8.5）+ chain 串联已落地并经 HiddifyCli 实连验证（三断言全过）；
 用户路由规则（rules UI → 内核）Go+Dart 双侧贯通并有契约校验；wireguard endpoint 配置结构经 HiddifyCli 真启动验证（`missing allowed ips` 内核契约 bug 已修 eb52b62）；
 NekoBox 可做项复刻口径 ≈99%。剩：wireguard 实连（需真实凭据）、审计 C/D 两包、上游 PR。**
+
+> 接手前必读上方「接手须知」：本文内容分 A（实证事实）/ B（所有者定案，见 §3.0）/ C（推断待验证，见 §7）三层，采信方式各不同。
 
 ---
 
@@ -81,7 +101,20 @@ NekoBox 可做项复刻口径 ≈99%。剩：wireguard 实连（需真实凭据�
 
 ## 3. 进度与剩余（按优先级）
 
-**设计原则（已与用户定案，不要推翻）**：NekoBox 壳 + hiddify 芯 / FAB 四态唯一开关 / 手机 Drawer + PC(≥600dp) NavigationRail / 归一原则 / 每步一提交。规格源唯一 = NekoBoxForAndroid（nekoray 不进决策链）。
+### 3.0 定案清单（B 层：所有者决策，照办不推翻；实现细节可优化，方向性推翻先问用户）
+
+1. **NekoBox 壳 + hiddify 芯**：UI/信息架构 1:1 对照 NekoBoxForAndroid，底层沿用 hiddify 的 sing-box 内核与 Dart 分层。
+2. **规格源唯一 = NekoBoxForAndroid**：menu/preferences XML 是唯一规格准绳；nekoray 不进决策链。
+3. **桌面第二规格源 = Throne**（C++）：NekoBox 是安卓-only，凡规格明显不适配桌面形态（交互/布局类）之处参考 Throne；协议/数据结构仍以 NekoBox 为准。
+4. **方案分歧决策链**：NekoBox 规格 → 复用已有机制 → 参考 Throne → 自己实现。能推导的自行定案，不退回用户。
+5. **FAB = 唯一连接开关**（四态：stopped▶/connecting 转圈禁点/connected⏹/disconnecting 转圈）；系统代理模式放设置。
+6. **多平台形态**：手机 = NavigationDrawer；PC ≥600dp = NavigationRail 常驻；统一 Flutter 代码库。**「先 PC」= 先在 Windows 平台构建、跑起来、测试**。
+7. **归一原则**：每个能力只允许一个数据源/入口；退役 UI 不删码只降权；每步一提交。
+8. **不移植清单（已定案，勿重新讨论）**：SN Link `sn://`（Kryo 专有二进制，分享用标准链接顶上）；geo 资产管理页（等价物 = 远程 .srs + 路由规则全语义）；http 表单 host/path（NekoBox 构建期死字段）；推广位。
+9. **路由**：保留 hiddify RuleEntity 模型 + 补字段编辑表单（复用 ProtocolFormSpec）；不做 geo Assets 管线。
+10. **工具纪律**：生成代码不入库（build_runner 全量跑）；小状态优先 shared_preferences 不轻易动 drift schema；不用裸下载/自造脚本（用 mise/pub/仓库已有命令）。
+
+**设计原则（同 B 层，浓缩版）**：NekoBox 壳 + hiddify 芯 / FAB 四态唯一开关 / 手机 Drawer + PC(≥600dp) NavigationRail / 归一原则 / 每步一提交。规格源唯一 = NekoBoxForAndroid（nekoray 不进决策链）。
 
 **已完成**：主题色板/主壳/主页卡片/分组页（滑删+拖拽）/导航命名 ‖ 实体层（分组+节点+编辑+分享+删除+去重+组装）‖ ⋮ 菜单 8/8、抽屉 10/11 ‖ 协议表单 14/15（socks/http/ss/vless/vmess/trojan/hy1/hy2/tuic/shadowtls/anytls/mieru/naive/ssh/wireguard）‖ 设置页审计归一 ‖ custom_config 全局（两阶段 raw）‖ 节点级覆写（切片 8.5）‖ wireguard endpoint 通路 ‖ **chain 任意串联**（批次 10）‖ **config 类型节点**（批次 11）‖ **http 表单**（批次 12，`a92bd582`）‖ Windows 构建 + 冒烟测试。
 
@@ -181,9 +214,18 @@ flutter build windows --release
 
 ---
 
-## 7. 已知未修（诚实清单）
+## 7. 未验证清单（C 层：待验证假设 + 未跑过的通道；新会话优先用"新眼睛"审这里）
 
-- CI 上这批提交还没实际跑过（push 后首次 CI 才是最终背书）
-- Android/iOS/Linux/macOS 构建链未在新机器实测（流程在 BUILD.md/CI 里）
-- 路由页 geo 资源管理、分组手动实体：需模型/后端设计，勿在 UI 层硬凑
-- msix 打包永远 CI-only（签名证书）；本地用 `make windows-zip-release`（需 `dart pub global activate fastforge`）
+**未跑过的通道（证据真空，勿默认可用）**：
+- **CI 全绿未背书**：审计 B 的 sha256-OK 校验路径、flutter-version-file、core-libs 缓存都只在本地静态验证过（pyyaml 解析/失败路径实证），**push 后首次 CI 才是最终背书**。
+- **Android/iOS/Linux/macOS 构建链**：新机器全未实测（流程在 BUILD.md/CI 里）。批次 9-14 的新 UI（表单/chain/config）从未在真机/安卓上跑过。
+- **wireguard 真实握手**：结构验证通关（假凭据真启动），但真隧道未通过——需真实凭据（private_key/peer pubkey/endpoint/local address CIDR）或本地起 wg server 端点。
+- **小屏（<600dp）形态**：所有新 UI 只在 Windows ≥600dp 验证过；手机 Drawer 形态的表现（表单布局/菜单溢出）未检查。
+
+**推断性结论（本文与记忆里的因果解释，采信前建议复现）**：
+- 复刻口径百分比（≈99%）是盘点印象，非逐项 diff 结论。
+- 大订阅（数百节点）下列表渲染/去重/启动时间的性能无实测数据。
+- 沙箱 git ref 创建拦截的机制解释（§4.12）基于行为实证，但底层拦截者身份未最终确认。
+- 审计 C/D 的发现（gRPC 明文 17078、Sentry 上送、14 处逆依赖等）是**审计时点的静态观察**，修复前先重新确认现状。
+
+**发布工程（完全未建）**：签名、版本号策略、release 通道——目前唯一产物形态 = Windows debug 目录便携；msix 打包 CI-only（签名证书），本地 `make windows-zip-release`（需 `dart pub global activate fastforge`）。
