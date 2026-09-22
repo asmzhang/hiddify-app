@@ -154,6 +154,39 @@ void main() {
       );
     });
   });
+
+  // 小屏形态自检（§7 未验证清单：新 UI 此前只在 Windows ≥600dp 看过）。
+  // 溢出会以 FlutterError 抛回测试 ⇒ 用例失败，所以「能渲染完」本身就是断言。
+  group('小屏手机形态', () {
+    Future<void> pumpAt(WidgetTester tester, Size dp, double dpr) async {
+      tester.view.physicalSize = Size(dp.width * dpr, dp.height * dpr);
+      tester.view.devicePixelRatio = dpr;
+      addTearDown(tester.view.reset);
+      await pumpTestApp(tester, child: const RulePage());
+    }
+
+    testWidgets('360×640dp（常见安卓最小逻辑宽度）渲染无溢出、控件齐全', (tester) async {
+      await pumpAt(tester, const Size(360, 640), 3.0);
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(SettingText), findsNWidgets(2));
+      expect(find.byType(SettingRadio<Outbound>), findsOneWidget);
+      expect(find.byType(SettingGenericList<String>), findsNWidgets(9));
+      expect(
+        find.ancestor(of: find.byIcon(Icons.check), matching: find.byType(IconButton)),
+        findsOneWidget,
+        reason: '保存键在手机宽度下仍应可达（AppBar 上不被挤掉）',
+      );
+    });
+
+    testWidgets('320×568dp（iPhone SE 级最窄）渲染无溢出', (tester) async {
+      await pumpAt(tester, const Size(320, 568), 2.0);
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(SettingRadio<Outbound>), findsOneWidget);
+      expect(find.byType(SettingGenericList<String>), findsNWidgets(9));
+    });
+  });
 }
 
 /// 按 en 文案找控件（tile 标题来自 RuleEnum.present(t)，是 String）。
