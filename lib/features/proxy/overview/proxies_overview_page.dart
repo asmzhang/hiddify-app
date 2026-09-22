@@ -4,12 +4,10 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:gap/gap.dart';
-import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/failures.dart';
 import 'package:hiddify/core/notification/in_app_notification_controller.dart';
 import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
-import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/core/utils/preferences_utils.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
@@ -17,17 +15,15 @@ import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/connection/notifier/connection_summary.dart';
 import 'package:hiddify/features/profile/add/add_profile_modal.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
-import 'package:hiddify/features/profile/notifier/profiles_update_notifier.dart';
 import 'package:hiddify/features/proxy/data/config_assembly.dart' show chainProxiesOf, kChainEntityType, kConfigEntityType;
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/data/protocol_form.dart';
 import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
-import 'package:hiddify/features/proxy/notifier/connection_test_notifier.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
 import 'package:hiddify/features/proxy/widget/chain_settings_page.dart';
 import 'package:hiddify/features/proxy/widget/config_settings_page.dart';
-import 'package:hiddify/features/proxy/widget/connection_test_dialog.dart';
 import 'package:hiddify/features/proxy/widget/protocol_form_modal.dart';
+import 'package:hiddify/features/proxy/widget/proxies_menu_button.dart';
 import 'package:hiddify/features/proxy/widget/proxy_tile.dart';
 import 'package:hiddify/features/settings/overview/quick_settings_modal.dart';
 import 'package:hiddify/features/stats/notifier/stats_notifier.dart';
@@ -57,7 +53,6 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
         ? ""
         : (tabs.any((t) => t.key == selectedKey) ? selectedKey : tabs.first.key);
     final proxies = ref.watch(proxiesOverviewNotifierProvider);
-    final sortBy = ref.watch(proxiesSortNotifierProvider);
 
     // 筛选条件是纯本地的：这个 provider 在连接后会每秒重发一次（核心要刷新每个
     // 出口的字节数），所以不能把输入框内容塞进 provider 里，否则输入焦点会被冲掉。
@@ -124,194 +119,10 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
             tooltip: t.pages.proxies.search,
           ),
           const IconButton(onPressed: showAddProfileSheet, icon: Icon(Icons.add_rounded)),
-          // 更多菜单：批量测速 / 排序 / 路由规则（原工具条上的散装按钮收拢于此）。
-          // NekoBox 对照（`res/menu/add_profile_menu.xml` ⋮ 八项）：更新订阅、清流量统计、
-          // 去重、tcp ping、url test、清结果、删不可用、排序。已补：更新订阅 / 清结果 /
-          // 删不可用 / 去重 / tcp ping / url test / 排序 + hiddify 特有的路由入口；
-          // 余项（清流量统计）待后续批次。
-          PopupMenuButton<String>(
-            onSelected: (value) => switch (value) {
-              'urltest' => () async {
-                // NekoBox `urlTest()`（ConfigurationFragment.kt:834-901）：先弹进度框
-                // 再开测。本项目的内核 RPC 拿不到逐条进度，对话框只有转圈 + 文案。
-                try {
-                  await runConnectionTest(
-                    context,
-                    ref,
-                    // runUrlTest：null = 防重入拒绝（对话框随即退回），true = 完成。
-                    // 包成 int?：urlTest 无计数语义，完成即 0（对话框不显示计数）。
-                    start: () async {
-                      final ok = await ref
-                          .read(connectionTestNotifierProvider.notifier)
-                          .runUrlTest(body: () => ref.read(proxiesOverviewNotifierProvider.notifier).urlTest());
-                      return ok == true ? 0 : null;
-                    },
-                  );
-                } catch (_) {
-                  if (context.mounted) {
-                    ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
-                  }
-                }
-              }(),
-              'clearResults' => () async {
-                final tab0 = activeTab;
-                final ok = await ref
-                    .read(proxiesOverviewNotifierProvider.notifier)
-                    .clearTestResults(
-                      profileId: tab0 == null || tab0.profileId.isEmpty ? null : tab0.profileId,
-                      groupId: tab0?.groupId,
-                    );
-                if (!ok) {
-                  ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
-                }
-              }(),
-              'clearTraffic' => () async {
-                final tab0 = activeTab;
-                // NekoBox `ConfigurationFragment.kt:460-475`：无确认框静默执行，
-                // 失败也不弹（本项目失败时提示一次，超出规格的防御性）。
-                final ok = await ref
-                    .read(proxiesOverviewNotifierProvider.notifier)
-                    .clearTrafficStats(
-                      profileId: tab0 == null || tab0.profileId.isEmpty ? null : tab0.profileId,
-                      groupId: tab0?.groupId,
-                    );
-                if (!ok) {
-                  ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
-                }
-              }(),
-              'removeDuplicate' => () async {
-                final tab0 = activeTab;
-                // NekoBox `ConfigurationFragment.kt:545-559`：先列重复者名单确认（上限 20 条），
-                // 同意后才真删。空名单不弹框（NekoBox `toClear.isNotEmpty()` 判定）。
-                final duplicates = await ref
-                    .read(proxiesOverviewNotifierProvider.notifier)
-                    .findDuplicateNodes(
-                      profileId: tab0 == null || tab0.profileId.isEmpty ? null : tab0.profileId,
-                      groupId: tab0?.groupId,
-                    );
-                if (!context.mounted) return;
-                if (duplicates.isEmpty) {
-                  ref.read(inAppNotificationControllerProvider).showInfoToast(t.pages.proxies.msg.noDuplicates);
-                  return;
-                }
-                final names = [
-                  for (final (index, node) in duplicates.indexed)
-                    if (index < 20) node.displayName else if (index == 20) '......' else null,
-                ].whereType<String>();
-                final confirmed = await ref
-                    .read(dialogNotifierProvider.notifier)
-                    .showConfirmation(
-                      title: t.dialogs.confirmation.deduplicate.title,
-                      message: '${t.dialogs.confirmation.deduplicate.msg}\n${names.join('\n')}',
-                    );
-                if (!confirmed || !context.mounted) return;
-                final ok = await ref.read(proxiesOverviewNotifierProvider.notifier).deleteNodes(duplicates);
-                if (!ok) {
-                  ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
-                  return;
-                }
-                // 出站表少了节点 ⇒ 内核要换配置（与删组/清空分组同理）。
-                if (tab0?.groupId != null) {
-                  await ref
-                      .read(proxiesOverviewNotifierProvider.notifier)
-                      .reloadCoreForGroup(tab0!.groupId!);
-                } else if (tab0?.profileId case final String pid) {
-                  await ref.read(proxiesOverviewNotifierProvider.notifier).reloadCoreForProfile(pid);
-                }
-              }(),
-              'tcpPing' => () async {
-                // NekoBox `pingTest(false)`（ConfigurationFragment.kt:694-832）：
-                // 先弹进度框再开测，逐条回报（转圈 + 节点名 + n/N 计数），
-                // 取消时已测结果照落库。无确认框，结果写实体列。
-                final tab0 = activeTab;
-                try {
-                  final count = await runConnectionTest(
-                    context,
-                    ref,
-                    start: () => ref
-                        .read(proxiesOverviewNotifierProvider.notifier)
-                        .tcpPingNodes(
-                          profileId: tab0 == null || tab0.profileId.isEmpty ? null : tab0.profileId,
-                          groupId: tab0?.groupId,
-                        ),
-                  );
-                  if (count != null && count < 0 && context.mounted) {
-                    ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
-                  }
-                } catch (_) {
-                  if (context.mounted) {
-                    ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
-                  }
-                }
-              }(),
-              'deleteUnavailable' => () async {
-                // NekoBox `ConfigurationFragment.kt:495-532`：先确认（一句
-                // delete_confirm_prompt，不带名单），同意后真删。
-                // 空名单不弹框（toClear.isNotEmpty() 判定），只 toast。
-                final tab0 = activeTab;
-                final unavailable = await ref
-                    .read(proxiesOverviewNotifierProvider.notifier)
-                    .findUnavailableNodes(
-                      profileId: tab0 == null || tab0.profileId.isEmpty ? null : tab0.profileId,
-                      groupId: tab0?.groupId,
-                    );
-                if (!context.mounted) return;
-                if (unavailable.isEmpty) {
-                  ref.read(inAppNotificationControllerProvider).showInfoToast(t.pages.proxies.msg.noUnavailable);
-                  return;
-                }
-                final confirmed = await ref
-                    .read(dialogNotifierProvider.notifier)
-                    .showConfirmation(
-                      title: t.dialogs.confirmation.deleteUnavailable.title,
-                      message: t.dialogs.confirmation.deleteUnavailable.msg,
-                    );
-                if (!confirmed || !context.mounted) return;
-                final ok = await ref.read(proxiesOverviewNotifierProvider.notifier).deleteNodes(unavailable);
-                if (!ok) {
-                  ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
-                  return;
-                }
-                // 出站表少了节点 ⇒ 内核要换配置（与去重同理）。
-                if (tab0?.groupId != null) {
-                  await ref
-                      .read(proxiesOverviewNotifierProvider.notifier)
-                      .reloadCoreForGroup(tab0!.groupId!);
-                } else if (tab0?.profileId case final String pid) {
-                  await ref.read(proxiesOverviewNotifierProvider.notifier).reloadCoreForProfile(pid);
-                }
-              }(),
-              'updateSubscriptions' =>
-                ref.read(foregroundProfilesUpdateNotifierProvider.notifier).trigger(),
-              'sort' => () async {
-                final selected = await ref
-                    .read(dialogNotifierProvider.notifier)
-                    .showSettingPicker<ProxiesSort>(
-                      title: t.pages.proxies.sort,
-                      selected: sortBy,
-                      onReset: () => ref.read(proxiesSortNotifierProvider.notifier).update(ProxiesSort.values.first),
-                      options: ProxiesSort.values,
-                      getTitle: (e) => e.present(t),
-                    );
-                if (selected != null) {
-                  await ref.read(proxiesSortNotifierProvider.notifier).update(selected);
-                }
-              }(),
-              'route' => context.goNamed('routingOptions'),
-              _ => null,
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(value: 'urltest', child: Text(t.pages.proxies.testAll)),
-              PopupMenuItem(value: 'clearResults', child: Text(t.pages.proxies.clearTestResults)),
-              PopupMenuItem(value: 'clearTraffic', child: Text(t.pages.proxies.clearTrafficStats)),
-              PopupMenuItem(value: 'deleteUnavailable', child: Text(t.pages.proxies.deleteUnavailable)),
-              PopupMenuItem(value: 'removeDuplicate', child: Text(t.pages.proxies.removeDuplicate)),
-              PopupMenuItem(value: 'tcpPing', child: Text(t.pages.proxies.tcpPing)),
-              PopupMenuItem(value: 'updateSubscriptions', child: Text(t.pages.proxies.updateSubscriptions)),
-              PopupMenuItem(value: 'sort', child: Text(t.pages.proxies.sort)),
-              PopupMenuItem(value: 'route', child: Text(t.pages.settings.routing.title)),
-            ],
-          ),
+          // 更多菜单：NekoBox 复刻 · 1:1 八项（规格 = add_profile_menu.xml 的
+          // action_misc，顺序/文案/排序 radio 子菜单全照源）。结构与行为抽到
+          // [ProxiesMenuButton] —— 可独立做结构对等测试（无路由/无搜索依赖）。
+          const ProxiesMenuButton(),
           const Gap(8),
         ],
         // NekoBox 复刻 · 分组 Tab 紧贴 Toolbar、同 primary 底、<2 组隐藏（layout_group_list.xml）。

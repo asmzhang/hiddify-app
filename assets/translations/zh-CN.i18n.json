@@ -124,16 +124,20 @@
     },
     "proxies": {
       "title": "配置",
-      "sort": "排序代理",
-      "testDelay": "测试延迟",
       "search": "搜索",
-      "testAll": "全部测速",
-      "clearTestResults": "清除测试结果",
+      "urlTest": "URL Test",
+      "clearTestResults": "清理测试结果",
       "clearTrafficStats": "清空流量统计数据",
       "deleteUnavailable": "清理不可用配置",
       "removeDuplicate": "删除重复的服务器",
-      "tcpPing": "TCP 测速",
-      "updateSubscriptions": "更新订阅",
+      "tcpPing": "TCPing",
+      "updateSubscription": "更新当前组订阅",
+      "order": "排序",
+      "orderOptions": {
+        "origin": "原始",
+        "name": "以名称",
+        "delay": "以延时"
+      },
       "testAfterConnect": "连接后才能测速",
       "preselect": "未连接 · 已选",
       "empty": "无可用代理",
@@ -225,9 +229,9 @@
       "activeProxy": "当前代理",
       "unknownIp": "未知 IP",
       "sortOptions": {
-        "unsorted": "默认",
-        "name": "按名称",
-        "delay": "按延迟",
+        "unsorted": "原始",
+        "name": "以名称",
+        "delay": "以延时",
         "usage": "按用量"
       },
       "ipInfo": {

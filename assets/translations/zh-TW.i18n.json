@@ -123,16 +123,20 @@
     },
     "proxies": {
       "title": "代理",
-      "sort": "排序代理",
-      "testDelay": "測試延遲",
       "search": "搜尋",
-      "testAll": "全部測速",
+      "urlTest": "URL Test",
       "clearTestResults": "清除測試結果",
-      "clearTrafficStats": "清空流量統計資料",
+      "clearTrafficStats": "清除流量統計資料",
       "deleteUnavailable": "清理不可用配置",
       "removeDuplicate": "刪除重複的伺服器",
-      "tcpPing": "TCP 測速",
-      "updateSubscriptions": "更新訂閱",
+      "tcpPing": "TCPing",
+      "updateSubscription": "更新當前組訂閱",
+      "order": "順序",
+      "orderOptions": {
+        "origin": "原始",
+        "name": "以名稱",
+        "delay": "以延遲"
+      },
       "testAfterConnect": "連線後才能測速",
       "preselect": "未連線 · 已選",
       "empty": "無可用代理",
@@ -216,9 +220,9 @@
       "activeProxy": "當前代理",
       "unknownIp": "未知 IP",
       "sortOptions": {
-        "unsorted": "預設",
-        "name": "按名稱",
-        "delay": "按延遲",
+        "unsorted": "原始",
+        "name": "以名稱",
+        "delay": "以延遲",
         "usage": "按用量"
       },
       "ipInfo": {

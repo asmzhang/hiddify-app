@@ -124,16 +124,20 @@
     },
     "proxies": {
       "title": "Profiles",
-      "sort": "Sort proxies",
-      "testDelay": "Test delay",
       "search": "Search",
-      "testAll": "Test all delays",
+      "urlTest": "URL Test",
       "clearTestResults": "Clear test results",
       "clearTrafficStats": "Clear traffic statistics",
       "deleteUnavailable": "Clear unavailable",
       "removeDuplicate": "Remove duplicate servers",
-      "tcpPing": "TCP ping",
-      "updateSubscriptions": "Update subscriptions",
+      "tcpPing": "TCPing",
+      "updateSubscription": "Update current Group's subscription",
+      "order": "Order",
+      "orderOptions": {
+        "origin": "Origin",
+        "name": "By Name",
+        "delay": "By Delay"
+      },
       "testAfterConnect": "Connect first to test delays",
       "preselect": "Not connected · selected",
       "empty": "No proxies available",
@@ -225,9 +229,9 @@
       "activeProxy": "Active proxy",
       "unknownIp": "Unknown IP",
       "sortOptions": {
-        "unsorted": "Default",
-        "name": "Alphabetically",
-        "delay": "By delay",
+        "unsorted": "Origin",
+        "name": "By Name",
+        "delay": "By Delay",
         "usage": "By usage"
       },
       "ipInfo": {

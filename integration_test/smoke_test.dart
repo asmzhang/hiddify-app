@@ -46,13 +46,16 @@ Future<void> settleBounded(WidgetTester tester, {Duration timeout = const Durati
   }
 }
 
-/// ⋮ 菜单八项可达断言（en 文案；NekoBox 对照。UI 语言由 startHiddifyApp 钉在 en）。
+/// ⋮ 菜单八项可达断言（en 文案；NekoBox 1:1 对照。UI 语言由 startHiddifyApp 钉在 en）。
+///
+/// 2026-09-22 功能①：⋮ 菜单从 PopupMenuButton 改为 MenuAnchor（排序带 radio 子菜单），
+/// 文案对齐 NekoBox strings.xml（en）：URL Test / TCPing / Update current Group's
+/// subscription / Order 等。八项顺序断言在 widget 测试层（proxies_menu_test.dart，zh-CN），
+/// 这里只做可达性冒烟（en 固定词）。
 Future<void> smokeOverflowMenu(WidgetTester tester) async {
   await settleBounded(tester);
-  // 用类型定位（对图标形态免疫）：SDK 里 PopupMenuButton 无 icon 参数时
-  // 用 Icon(Icons.adaptive.more)，Windows 上解析为 Material Icons.more_vert，
-  // 但仍以类型查找为准，不受主题/图标集变化影响。
-  final menuButton = find.byType(PopupMenuButton<String>);
+  // 新组件的图标显式用了 Icons.more_vert（MenuAnchor 包 IconButton）。
+  final menuButton = find.byIcon(Icons.more_vert);
   expect(menuButton, findsOneWidget, reason: '⋮ 菜单按钮必须在 AppBar');
   await tester.tap(menuButton);
   await settleBounded(tester);
@@ -65,19 +68,18 @@ Future<void> smokeOverflowMenu(WidgetTester tester) async {
   debugPrint('SMOKE-MENU texts: [$menuTexts]');
 
   const items = [
-    'Test all delays', // url_test
-    'Clear test results', // clear_results
-    'Clear traffic statistics', // clear_traffic_statistics
-    'Clear unavailable', // delete_unavailable
-    'Remove duplicate servers', // remove_duplicate
-    'TCP ping', // tcp_ping
-    'Update subscriptions', // update_subscription
+    "Update current Group's subscription", // action_update_subscription
+    'Clear traffic statistics', // action_clear_traffic_statistics
+    'Remove duplicate servers', // action_remove_duplicate
+    'TCPing', // action_connection_tcp_ping（translatable=false）
+    'URL Test', // action_connection_url_test（同上）
+    'Clear test results', // action_connection_test_clear_results
+    'Clear unavailable', // action_connection_test_delete_unavailable
+    'Order', // action_order（含 radio 子菜单：Origin / By Name / By Delay）
   ];
   for (final item in items) {
     expect(find.text(item).hitTestable(), findsOneWidget, reason: '⋮ 菜单缺项：$item');
   }
-  // 排序项可能带不同文案（Sort proxies / 排序代理），软校验留痕不断言。
-  debugPrint('sort item present: ${tester.any(find.text("Sort proxies"))}');
 
   // 收起菜单（点空白处）。
   await tester.tapAt(const Offset(10, 10));
