@@ -122,7 +122,7 @@ NekoBox 可做项复刻口径 ≈99%。剩：wireguard 实连（需真实凭据�
 1. ~~实机验证 custom_config raw 通道 + 节点级覆写~~ **已完成**（`2bf37a8b`）。~~wireguard 表单结构验证~~ **已完成**（core `eb52b62`：allowed_ips 缺省契约 bug 修复 + HiddifyCli 真启动验证）。**剩余 wireguard 真实握手**（需用户提供真实凭据/端点，其余链路已全通）
 2. ~~切片 8.5~~ **已完成**（`43215367`）
 3. ~~chain 任意节点串联~~ **已完成 + 内核级验证闭环**（`428a2cb9` + `c0527aa6`，设计 docs/design/chain-2026-09-20.md §D2 含方向修正记录）
-4. ~~config 类型节点~~ **已完成**（`a779c2c8`，批次 11）。~~协议表单剩 http 可选~~ **已完成**（`a92bd582`，批次 12：host/path 是 NekoBox 构建期死字段 V2RayFmt.kt:628-637 不消费、内核 HTTPOutboundOptions 也无 Host，不移植）。~~geo 资源管理~~ **不移植（批次 13 定案）**：sing-box 1.13 内核 legacy geo 已移除（本地 .db 无读取通道）、Throne 同架构也无资产页（2197 条名称→.srs URL 目录编译进 srslist.h）——等价物 = **路由规则活通 + NekoBox 全语义（前缀/指向节点/每规则覆写），已完成**（批次 13 + 14；远程 .srs 缓存进内核 cache.db 无用户可见文件）。路由规则 UI 对照差异仅剩：domain 列可收敛为单一输入框（语义层已生效，纯 UI 形态问题）
+4. ~~config 类型节点~~ **已完成**（`a779c2c8`，批次 11）。~~协议表单剩 http 可选~~ **已完成**（`a92bd582`，批次 12：host/path 是 NekoBox 构建期死字段 V2RayFmt.kt:628-637 不消费、内核 HTTPOutboundOptions 也无 Host，不移植）。~~geo 资源管理~~ **不移植（批次 13 定案）**：sing-box 1.13 内核 legacy geo 已移除（本地 .db 无读取通道）、Throne 同架构也无资产页（2197 条名称→.srs URL 目录编译进 srslist.h）——等价物 = **路由规则活通 + NekoBox 全语义（前缀/指向节点/每规则覆写），已完成**（批次 13 + 14；远程 .srs 缓存进内核 cache.db 无用户可见文件）。路由规则 UI 对照差异：~~domain 列收敛为单一输入框~~ **已完成**（Task #49，`610279bd`：domainSuffix/domainKeyword/domainRegex 三 tile 退役 → 单一 domain 输入框 + 前缀语义，`rule_page.dart:189` §Batch 14/NekoBox routeDomain；旧 pb 字段数据仍流向内核，只是无编辑 UI）。至此**可做项**对照差异清零（协议表单 14/15—trojan_go 内核缺出站不移植；不移植清单见 §3.0#8。复刻口径百分比仍是盘点印象，见 §7）
 5. ~~审计 B 供应链包~~ **已完成**（`4b9e6c2e`）：CORE_FETCH 加 GitHub release asset digest sha256 校验（mismatch 删文件失败退出、取不到 WARN 降级、curl rc 显式检查防截断文件进后续步骤；make recipe 里 `\${VAR##*/}` 会被 make 吞掉，tag 用 `\$(notdir ...)` 派生）；circle_flags/installed_apps git 依赖锁 ref（与 pubspec.lock resolved-ref 对齐）；build.yml 删 FLUTTER_VERSION env、两 job 改 `flutter-version-file: pubspec.yaml`（单事实源=pubspec environment.flutter，Makefile REQUIRED_VER/Dockerfile 同源）；CI 缓存 `.cache/core-libs`（key=channel+hash(dependencies.properties+Makefile)，test job 先写 build job 读）。配套：rule_page_test 断言跟上批次 14 UI（SettingText 2 个/SettingGenericList 9 个，`ac30738f`）。**sha256-OK 全绿路径留 CI 首跑验证**（本机网络下载 26MB 不动，失败路径 curl-56 已实证）
 6. ~~审计 C 安全包~~ **必修项已完成**（2026-09-22，见下）。原「威胁模型待定案」提法撤销——本地构建 sentry_dsn 为空编译期常量 → Sentry 全禁用，不存在「分发二选一」的现状问题。**必修三项落地**：①`Random.secure()`——gRPC secret（core_interface_desktop.dart）+ STUN txId（stun_client.dart），全库仅此两处 `Random()`；②9 处空/吞异常 catch 补日志（原审计说 3 处已过时）：closeFront×2（debug 级）、ip_utils（注释说明兜底语义）、directories_provider（stderr）、config_settings_page×2（debug/stderr）、config_assembly×5（`_assemblyLog` stderr helper——纯 Dart 模块不引 loggy）；③Sentry token 泄漏堵住：`scrubSensitiveUrls`（sentry_utils.dart，regex 剥 http(s) URL 的 query 尾巴，log 包裹符 `)]` 不误伤）接进 `SentryLoggyIntegration` 的 breadcrumb+event 出口——实测 3 处日志消息嵌订阅 URL（profiles_notifier×2/profile_notifier），6 个单测钉住（test/utils/sentry_utils_test.dart）。flutter test 82/82 + analyze 干净。**分发时才修（未做）**：gRPC mTLS/随机端口（上游 mTLS 代码在 core_interface 被注释）、分发版 Sentry 配置审查。**不修**：loopback 明文 gRPC（127.0.0.1:17078 + secret 鉴权，自用维持现状）
 7. ~~审计 D 架构包~~ **复核完成**（2026-09-23，全部按「先复核现状再动手」原则逐项验证）：
@@ -214,7 +214,8 @@ go env -w "GOMODCACHE=$env:USERPROFILE/go/pkg/mod2"
 # 1) 源码（全层 my）
 git clone -b my https://github.com/asmzhang/hiddify-app.git && cd hiddify-app
 git submodule update --init --recursive --remote
-# 2) 自检（Required 无 FAIL 即可；go module cache 的 FAIL 是保守启发式）
+# 2) 自检（「Required」段无 FAIL 即可；Core-from-source 段的 go module cache FAIL 是保守启发式，
+#    2026-09-22 实测该 FAIL 与 make windows-libs-local 全绿并存 —— 不阻塞，介意再 go clean -modcache）
 make doctor
 # 3) 准备（pub get + 代码生成 + 核心库；本地编核心加 LOCAL_CORE=1）
 make windows-prepare LOCAL_CORE=1 CORE_GOPROXY=https://goproxy.cn,direct
