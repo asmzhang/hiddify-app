@@ -156,6 +156,14 @@ NekoBox 可做项复刻口径 ≈99%。剩：wireguard 实连（需真实凭据�
 10. **全量 flutter analyze 被沙箱 reg.EXE 黑名单拦截** → 用 `dart analyze lib test tool` 分目录替代。
 11. **Windows 构建三关**（详见 .workbuddy/memory/MEMORY.md「Windows 构建链」）：hiddify-core.dll 不带 with_ech / 插件 junction 预建（tool/ensure_plugin_junctions.ps1）/ CMakeLists 两条 install 已注释。
 12. **沙箱里 git 的 ref **创建**类操作静默失败**（2026-09-21 实证）：`git update-ref`（创建）、`git fetch` 的 ref-store 事务 rc=0 但不写盘——删除/修改能落盘，于是 fetch 后 tracking ref 可能停在旧值甚至被删（status 幻象 `ahead N` / `[gone]`）。**判据**：push 成功与否用 `git ls-remote origin <branch>` 核对真实远端，别信 status；**修复**：`mkdir -p .git/refs/remotes/origin && printf '<sha>\n' > .git/refs/remotes/origin/<branch>` 手工写松散文件（目录可能已被删，要先建）。另注意本机 PATH 里 git 实际解析到 `/c/platform/Git/cmd/git`（2.55），导出的 PortableGit usr/bin 只提供 sh 工具链、不含 git.exe。
+    - 补充（2026-09-22）：**子模块的 tracking ref 不在 `hiddify-core/.git/`（那是 gitfile，指向主仓 `.git/modules/hiddify-core`）**，要写到 `<父仓>/.git/modules/hiddify-core/refs/remotes/origin/my`；且 `origin/my` 可能只存在于 **packed-refs**（旧值），需同时建 loose ref 才盖得住。
+13. **`flutter build windows` 报 `cpp_client_wrapper\*.cc` 无法打开（C1083）**（2026-09-22 实证，两次构建间复现一次）：`windows\flutter\ephemeral\cpp_client_wrapper\` 丢了 6 个 `.cc` 源文件（只剩 `include/`），而 **flutter 工具不会自动补**——引擎版本未变时它认为 ephemeral 已是最新，直接跳过重拷（`.plugin_symlinks` 的 junction 和 `generated_config.cmake` 都还在，极易误判成插件问题）。修法 = 从 SDK 引擎产物拷回：
+    ```powershell
+    $sdk = (Get-Command flutter).Source | Split-Path | Split-Path   # <flutter>/bin
+    Copy-Item "$sdk\cache\artifacts\engine\windows-x64\cpp_client_wrapper\*" `
+              "windows\flutter\ephemeral\cpp_client_wrapper\" -Recurse -Force
+    ```
+    （本机 SDK 缓存 = `C:\Users\Administrator\AppData\Local\mise\installs\flutter\3.38.5\bin\cache\artifacts\engine\windows-x64\cpp_client_wrapper`；含 core_implementations.cc / standard_codec.cc / plugin_registrar.cc / flutter_engine.cc / flutter_view_controller.cc / engine_method_result.cc + 若干 .h + include/）
 
 ### 4.3 proto 生成工具链（改 .proto 才需要；版本必须钉死）
 
