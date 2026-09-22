@@ -98,7 +98,12 @@ class ConnectionTestNotifier extends _$ConnectionTestNotifier with AppLogger {
     required Future<int?> Function(bool Function() isCancelled, void Function(String node, String result) onProgress) body,
   }) async {
     if (state.running) {
-      loggy.warning("connection test already running, ignored");
+      // 见到这行 = 同一次用户动作被套了两层守卫（典型：调用方已包 runUrlTest，
+      // 被调方法里又包一层）⇒ **测试体永不执行**，界面表现为"点了没反应"。
+      loggy.warning(
+        "connection test already running, ignored"
+        " (nested runTcpPing/runUrlTest? one user action must take exactly one guard)",
+      );
       return null;
     }
     final cancel = Completer<void>();
@@ -146,7 +151,12 @@ class ConnectionTestNotifier extends _$ConnectionTestNotifier with AppLogger {
   /// 不可中途取消（内核侧无该 RPC）——requestCancel 对它无效。
   Future<bool?> runUrlTest({required Future<void> Function() body}) async {
     if (state.running) {
-      loggy.warning("connection test already running, ignored");
+      // 同上：嵌套守卫 = 测试体永不执行。urlTest 侧的这个坑在 2026-09-22 修过
+      // （overview notifier 里再包一层 → 测速无反应）。
+      loggy.warning(
+        "connection test already running, ignored"
+        " (nested runTcpPing/runUrlTest? one user action must take exactly one guard)",
+      );
       return null;
     }
     // URL test 不可中途取消（内核侧无该 RPC）——cancel completer 不接。

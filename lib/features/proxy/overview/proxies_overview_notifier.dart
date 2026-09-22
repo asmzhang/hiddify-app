@@ -517,27 +517,31 @@ class ProxiesOverviewNotifier extends _$ProxiesOverviewNotifier with AppLogger {
   /// 所以这里不再接收组名：NekoBox 侧也没有"按组测速"这个概念，
   /// 组只是订阅（`GroupType` 只有 BASIC/SUBSCRIPTION），测速是工具栏的 URL Test。
   ///
-  /// 进度对话框接线：防重入走 [connectionTestNotifierProvider]（NekoBox
-  /// `DataStore.runningTest`）。NekoBox 的 urlTest 是应用侧逐节点 HTTP 探测、
-  /// 有逐条 update；本项目的对应物是内核 RPC 空 tag 一次测全部 —— 拿不到
-  /// 逐条回调，对话框只显示转圈 + 文案（计数不显示）。
+  /// 进度对话框接线：防重入与进度框由**调用方**统一承担（页面层
+  /// `runConnectionTest` + `connectionTestNotifier.runUrlTest`）。
+  ///
+  /// ⚠️ **本方法绝不能再包 `runUrlTest`**（2026-09-22 修的真实 bug）：
+  /// 页面层已置 `state.running = true`，这里若再包一层，内层守卫会读到
+  /// running=true 直接 `return null` —— **RPC 从不发出**，表现为"点测速
+  /// 毫无反应"（对话框秒开秒关、无进度、无报错），日志里只有一句
+  /// `connection test already running, ignored`。同理 [tcpPingNodes] 也只
+  /// 包一层。判据：**一次用户动作 = 恰好一层守卫**。
   Future<void> urlTest() async {
-    loggy.debug("testing all nodes of the active config");
-    if (state case AsyncData()) {
-      await ref.read(hapticServiceProvider.notifier).lightImpact();
-      await ref
-          .read(connectionTestNotifierProvider.notifier)
-          .runUrlTest(
-            body: () => ref
-                .read(proxyRepositoryProvider)
-                .urlTest('')
-                .getOrElse((err) {
-                  loggy.error("error testing group", err);
-                  throw err;
-                })
-                .run(),
-          );
+    if (state is! AsyncData) {
+      // 不静默：旧实现在这里直接什么都不做，与"没反应"无法区分。
+      loggy.warning("urlTest skipped: overview not ready (${state.runtimeType})");
+      return;
     }
+    loggy.debug("testing all nodes of the active config");
+    await ref.read(hapticServiceProvider.notifier).lightImpact();
+    await ref
+        .read(proxyRepositoryProvider)
+        .urlTest('')
+        .getOrElse((err) {
+          loggy.error("error testing group", err);
+          throw err;
+        })
+        .run();
   }
 
   /// 清除测试结果（NekoBox ⋮ 菜单 `Clear test results`）。
