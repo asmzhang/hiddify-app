@@ -5,8 +5,9 @@
 # 判定方法
 #   go 把 @v/<ver>.info 当作「这个版本已下载」的凭证之一。缺了它，go 就认为
 #   该版本从没下载过，于是解析这个模块的包时转去查 @latest —— 抓到一个要求
-#   `go >= 1.26.x` 的新版本，然后直接报：
+#   更高 Go 版本的新版本，然后直接报：
 #       go: toolchain upgrade needed to resolve <package>
+#   （历史上踩坑时它报的是 `requires go >= 1.26.x`，所以别把这句当成版本断言。）
 #   本仓库踩过这个坑：gvisor.dev/gvisor、metacubex/utls、psiphon-tunnel-core、
 #   gonum 的 .info 都不见了（半途中断的下载留下的）。因为 .mod/.zip 还在，
 #   表面完全看不出问题，报错又指向"版本不对"，极易误判。
@@ -72,6 +73,9 @@ printf '%s\n' "$BAD" | grep . | head -n 6 | while IFS= read -r l; do echo "     
 [ "$N" -gt 6 ] && echo "           ... and $((N - 6)) more"
 echo "         (!x in a path means uppercase X - that is go's module-name escaping)"
 echo "         effect: go treats them as 'not downloaded', re-resolves @latest,"
-echo "                 then dies with 'requires go >= 1.26.x'"
+echo "                 then may die with 'toolchain upgrade needed to resolve ...'"
+echo "         note  : conservative heuristic - a non-empty list does NOT block a"
+echo "                 build by itself (2026-09-22: this FAIL coexisted with a"
+echo "                 fully green 'make windows-libs-local')"
 echo "         fix   : go clean -modcache        (then re-run this doctor)"
 exit 1
