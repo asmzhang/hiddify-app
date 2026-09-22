@@ -123,7 +123,7 @@
       "cleared": "Group cleared"
     },
     "proxies": {
-      "title": "Profiles",
+      "title": "Configuration",
       "search": "Search",
       "urlTest": "URL Test",
       "clearTestResults": "Clear test results",
@@ -332,7 +332,7 @@
       "title": "Subscriptions"
     },
     "traffic": {
-      "title": "Dashboard"
+      "title": "sing-box Dashboard"
     },
     "about": {
       "coreVersion": "Core version",

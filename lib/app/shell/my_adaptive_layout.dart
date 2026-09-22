@@ -72,28 +72,28 @@ class MyAdaptiveLayout extends HookConsumerWidget {
             ? FocusScope(
                 node: navScopeNode,
                 child: NavigationDrawer(
-                  selectedIndex: navSel < 0 ? null : navSel,
+                  // NekoBox 复刻 · 选中索引映射：faq 动作项插在关于之前，其后目标 +1。
+                  selectedIndex: nkDrawerSelectedIndex(showProfilesAction, navSel),
                   onDestinationSelected: (index) {
-                    // NekoBox 复刻 · 抽屉尾部的 FAQ 项（`main_drawer_menu.xml` 的
-                    // nav_faq，`MainActivity.kt:343` → launchCustomTab）。
-                    // 它是**动作**不是路由分支，索引固定排在全部可见导航项之后。
-                    if (index == navVisibleMetas(showProfilesAction).length) {
+                    // NekoBox 复刻 · nav_faq 动作项（`MainActivity.kt:343` →
+                    // launchCustomTab）：文档站外部打开，不是路由分支。位置 =
+                    // 关于**之前**（main_drawer_menu.xml 组 3 顺序 [faq, about]）。
+                    if (index == nkFaqDestinationIndex(showProfilesAction)) {
                       rootDrawerScaffoldKey.currentState?.closeDrawer();
                       UriUtils.tryLaunch(Uri.parse(Constants.faqUrl));
                       return;
                     }
-                    final branch = branchIndexForNav(showProfilesAction, index);
+                    // faq 不占分支：其后目标索引回退 1 映射到可见 metas。
+                    final faqPos = nkFaqDestinationIndex(showProfilesAction);
+                    final metaIndex = index > faqPos ? index - 1 : index;
+                    final branch = branchIndexForNav(showProfilesAction, metaIndex);
                     if (branch >= 0) _onTap(context, branch);
                     rootDrawerScaffoldKey.currentState?.closeDrawer();
                   },
-                  children: [
-                    // NekoBox 复刻 · 抽屉头（main_drawer_menu.xml 的 dhead）：
-                    // 深主色底 + 应用名 + 一行连接状态（"已连接 · 香港-01 · 200ms"）。
-                    // 数据走 connectionSummaryProvider —— 与配置页底部状态栏同一份口径。
-                    _NkDrawerHeader(t: t),
-                    // NekoBox 复刻 · 抽屉按三组分段（配置组/工具组/关于），组间画分隔线。
-                    ..._drawerChildren(t, showProfilesAction),
-                  ],
+                  // NekoBox 复刻 · 抽屉**无头**：规格实证 NekoBox NavigationView
+                  // 只有 app:menu，无 headerLayout（旧「dhead」引用不存在，
+                  // 2026-09-22）——直接渲染 nkDrawerEntries（三组 + 分隔线）。
+                  children: _drawerChildren(t, showProfilesAction),
                 ),
               )
             : null,
@@ -133,32 +133,20 @@ class MyAdaptiveLayout extends HookConsumerWidget {
     navigationShell.goBranch(index, initialLocation: index == navigationShell.currentIndex);
   }
 
-  // NekoBox 复刻 · 抽屉分组：组与组之间画一条分隔线（对标 main_drawer_menu.xml 的三段）。
-  List<Widget> _drawerChildren(Translations t, bool showProfilesAction) {
-    final metas = navVisibleMetas(showProfilesAction);
-    final actions = _actions(t, showProfilesAction);
-    final children = <Widget>[];
-    NkNavGroup? last;
-    for (var i = 0; i < metas.length; i++) {
-      if (last != null && metas[i].group != last) {
-        children.add(const Divider(indent: 28, endIndent: 28));
-      }
-      last = metas[i].group;
-      final e = actions[i];
-      children.add(NavigationDrawerDestination(icon: Icon(e.icon), label: Text(e.title)));
-    }
-    // NekoBox 复刻 · 抽屉尾部的「文档」项（`main_drawer_menu.xml` 第三段的 nav_faq，
-    // 在 nav_about 之后）。它是动作（外部浏览器打开文档站），不是路由分支 ——
-    // 选中索引由 onDestinationSelected 里的特判处理（= 可见导航项数量）。
-    // NekoBox 第三段还有 nav_tuiguang（推广）—— 广告位不移植。
-    children.add(
-      NavigationDrawerDestination(
-        icon: const Icon(Icons.menu_book_rounded),
-        label: Text(t.pages.about.faq),
-      ),
-    );
-    return children;
-  }
+  // NekoBox 复刻 · 抽屉条目直接渲染 nkDrawerEntries（唯一数据源：三组分段 +
+  // 分隔线 + faq 在关于之前）。Rail（桌面）不走这里，仍用 _actions 平铺。
+  List<Widget> _drawerChildren(Translations t, bool showProfilesAction) =>
+      nkDrawerEntries(showProfilesAction)
+          .map(
+            (e) => switch (e) {
+              NkNavEntry(:final meta) =>
+                NavigationDrawerDestination(icon: Icon(meta.icon), label: Text(meta.label(t))),
+              NkFaqEntry(:final label, :final icon) =>
+                NavigationDrawerDestination(icon: Icon(icon), label: Text(label(t))),
+              NkDividerEntry() => const Divider(indent: 28, endIndent: 28),
+            },
+          )
+          .toList();
 
   // 导航项完全由 navMetas 推导（唯一数据源）；这里只取**可见**项（navVisible）。
   // 顺序/显隐/图标/标签都在 nav_items.dart 一处定义。
@@ -169,14 +157,14 @@ class MyAdaptiveLayout extends HookConsumerWidget {
       actions.map((e) => NavigationRailDestination(icon: Icon(e.icon), label: Text(e.title))).toList();
 }
 
-/// 抽屉头（对标 NekoBox `main_drawer_menu.xml` 的 `dhead`）：深主色底、白字，
-/// 上行应用名，下行连接状态。
+/// 退役实现（2026-09-22）：深色抽屉头（应用名 + 连接状态行）。
 ///
-/// 放在 app 层而不是 core：它要读 feature 的连接状态（[connectionSummaryProvider]）。
-/// 深主色用 `NkPalette.primaryDark`（即 NekoBox 的 `colorPrimaryDark`），
-/// 与工具栏的 `colorPrimary` 拉开层次。
-class _NkDrawerHeader extends ConsumerWidget {
-  const _NkDrawerHeader({required this.t});
+/// 规格复核证明 NekoBox 抽屉**无头**：layout_main.xml 的 NavigationView 只有
+/// `app:menu`、无 headerLayout，Kotlin 无 addHeaderView，此前引用的「dhead」
+/// 不存在 —— 按 1:1 定案从抽屉移除；按「退役不删码」保留本类供回滚参考。
+/// 连接状态仍由配置页底部状态栏承载（归一原则：一个数据源一个入口）。
+class NkDrawerHeaderLegacy extends ConsumerWidget {
+  const NkDrawerHeaderLegacy({required this.t});
 
   final Translations t;
 
