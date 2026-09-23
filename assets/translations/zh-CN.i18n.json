@@ -135,6 +135,14 @@
     },
     "proxies": {
       "title": "配置",
+      "addMenu": {
+        "addProfile": "添加服务器配置",
+        "scanQr": "扫描二维码",
+        "importClipboard": "从剪切板导入",
+        "importFile": "从文件中导入",
+        "manualInput": "手动输入",
+        "addSubscription": "添加订阅"
+      },
       "search": "搜索",
       "urlTest": "URL Test",
       "clearTestResults": "清理测试结果",

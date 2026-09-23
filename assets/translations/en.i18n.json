@@ -135,6 +135,14 @@
     },
     "proxies": {
       "title": "Configuration",
+      "addMenu": {
+        "addProfile": "Add Profile",
+        "scanQr": "Scan QR code",
+        "importClipboard": "Import from Clipboard",
+        "importFile": "Import from file",
+        "manualInput": "Manual Settings",
+        "addSubscription": "Add subscription"
+      },
       "search": "Search",
       "urlTest": "URL Test",
       "clearTestResults": "Clear test results",

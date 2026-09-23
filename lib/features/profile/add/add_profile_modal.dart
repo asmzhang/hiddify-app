@@ -15,9 +15,12 @@ import 'package:hiddify/utils/utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 class AddProfileModal extends HookConsumerWidget {
-  const AddProfileModal({super.key, this.url});
+  const AddProfileModal({super.key, this.url, this.startInManual = false});
   // static const warpConsentGiven = "warp_consent_given";
   final String? url;
+
+  /// 「＋ → 添加订阅」直达手动订阅表单页（post-frame 触发 goManual，避免首帧闪烁）。
+  final bool startInManual;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -31,6 +34,16 @@ class AddProfileModal extends HookConsumerWidget {
         });
       }
     });
+
+    // startInManual：进入即切到手动订阅表单页（＋菜单「添加订阅」入口）。
+    useEffect(() {
+      if (startInManual) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) ref.read(addProfilePageNotifierProvider.notifier).goManual();
+        });
+      }
+      return null;
+    }, const []);
 
     useMemoized(() async {
       await Future.delayed(const Duration(milliseconds: 200));
@@ -251,8 +264,9 @@ class AddProfileManual extends HookConsumerWidget {
 }
 
 /// 弹出"新增配置"底部弹窗（业务入口留在 feature 侧）。
-Future<void> showAddProfileSheet({String? url}) =>
-    showRootBottomSheet<void>(child: AddProfileModal(url: url), isScrollControlled: true);
+/// [manual] = 直达手动订阅表单页（＋菜单「添加订阅」）。
+Future<void> showAddProfileSheet({String? url, bool manual = false}) =>
+    showRootBottomSheet<void>(child: AddProfileModal(url: url, startInManual: manual), isScrollControlled: true);
 
 /// 深链入口：**必须先人工确认**再打开 —— 防零点击 SSRF。
 ///

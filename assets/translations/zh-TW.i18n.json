@@ -132,6 +132,14 @@
     },
     "proxies": {
       "title": "代理",
+      "addMenu": {
+        "addProfile": "新增設定檔",
+        "scanQr": "掃描 QR 碼",
+        "importClipboard": "自剪貼簿匯入",
+        "importFile": "自檔案匯入",
+        "manualInput": "手動設定",
+        "addSubscription": "新增訂閱"
+      },
       "search": "搜尋",
       "urlTest": "URL Test",
       "clearTestResults": "清除測試結果",

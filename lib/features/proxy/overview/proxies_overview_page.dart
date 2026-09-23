@@ -1,7 +1,12 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:gap/gap.dart';
 import 'package:hiddify/core/localization/translations.dart';
@@ -10,18 +15,22 @@ import 'package:hiddify/core/notification/in_app_notification_controller.dart';
 import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/core/utils/preferences_utils.dart';
+import 'package:hiddify/features/common/qr_code_scanner_screen.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/connection/notifier/connection_summary.dart';
 import 'package:hiddify/features/profile/add/add_profile_modal.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
+import 'package:hiddify/features/profile/notifier/profile_notifier.dart';
 import 'package:hiddify/features/proxy/data/config_assembly.dart' show chainProxiesOf, kChainEntityType, kConfigEntityType;
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/data/protocol_form.dart';
 import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
+import 'package:hiddify/features/proxy/overview/add_profile_menu_spec.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
 import 'package:hiddify/features/proxy/widget/chain_settings_page.dart';
 import 'package:hiddify/features/proxy/widget/config_settings_page.dart';
+import 'package:hiddify/features/proxy/widget/manual_node_flow.dart';
 import 'package:hiddify/features/proxy/widget/protocol_form_modal.dart';
 import 'package:hiddify/features/proxy/widget/proxies_menu_button.dart';
 import 'package:hiddify/features/proxy/widget/proxy_tile.dart';
@@ -60,6 +69,8 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
     final searchController = useTextEditingController();
     // 搜索行显隐（NekoBox：搜索由 toolbar 图标触发，行默认收起）
     final showSearch = useState(false);
+    // ＋ 菜单控制器（NekoBox action_add）
+    final addMenuController = useMemoized(MenuController.new);
     // 列表 / 网格（落盘，见 proxiesListViewProvider）
     final listView = ref.watch(proxiesListViewProvider);
 
@@ -118,7 +129,25 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
             icon: const Icon(FluentIcons.search_24_regular),
             tooltip: t.pages.proxies.search,
           ),
-          const IconButton(onPressed: showAddProfileSheet, icon: Icon(Icons.add_rounded)),
+          // ＋ 菜单：NekoBox 复刻 · add_profile_menu.xml 的 action_add 子树
+          //（扫码/剪贴板/文件/手动输入▸16协议；末项「添加订阅」为本项目
+          // 架构差异追加——订阅是一等实体，NekoBox 走分组设置）。规格投影 =
+          // add_profile_menu_spec.dart（L1 测试打它）。
+          MenuAnchor(
+            controller: addMenuController,
+            menuChildren: [
+              for (final entry in nkAddProfileMenu(showScanQr: !PlatformUtils.isDesktop))
+                MenuItemButton(
+                  onPressed: () => _runAddProfileAction(context, ref, entry.action),
+                  child: Text(entry.label(t)),
+                ),
+            ],
+            child: IconButton(
+              onPressed: addMenuController.open,
+              tooltip: t.pages.proxies.addMenu.addProfile,
+              icon: const Icon(Icons.note_add_rounded),
+            ),
+          ),
           // 更多菜单：NekoBox 复刻 · 1:1 八项（规格 = add_profile_menu.xml 的
           // action_misc，顺序/文案/排序 radio 子菜单全照源）。结构与行为抽到
           // [ProxiesMenuButton] —— 可独立做结构对等测试（无路由/无搜索依赖）。
@@ -470,6 +499,32 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
         ),
       ),
     );
+  }
+
+  /// ＋ 菜单执行器 —— NekoBox `ConfigurationFragment` 的 action_add 对应路径：
+  /// 扫码/剪贴板/文件都汇入 `addClipboard`（订阅与单节点链接的统一解析入口）；
+  /// 手动输入 = [startManualNodeFlow]（16 协议选择 → 表单创建，含归属组解析）；
+  /// 添加订阅 = 订阅表单（本项目架构差异入口）。
+  Future<void> _runAddProfileAction(BuildContext context, WidgetRef ref, NkAddProfileAction action) async {
+    switch (action) {
+      case NkAddProfileAction.scanQr:
+        final content = await showQrCodeScanner();
+        if (content == null || content.isEmpty) return;
+        unawaited(ref.read(addProfileNotifierProvider.notifier).addClipboard(content));
+      case NkAddProfileAction.importClipboard:
+        final content = await Clipboard.getData(Clipboard.kTextPlain).then((value) => value?.text ?? '');
+        unawaited(ref.read(addProfileNotifierProvider.notifier).addClipboard(content));
+      case NkAddProfileAction.importFile:
+        final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['txt', 'json']);
+        if (result == null) return;
+        final file = File(result.files.single.path!);
+        if (!await file.exists()) return;
+        unawaited(ref.read(addProfileNotifierProvider.notifier).addClipboard(utf8.decode(await file.readAsBytes())));
+      case NkAddProfileAction.manualNode:
+        await startManualNodeFlow(context, ref);
+      case NkAddProfileAction.addSubscription:
+        await showAddProfileSheet(manual: true);
+    }
   }
 }
 
