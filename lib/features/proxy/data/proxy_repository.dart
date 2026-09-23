@@ -19,7 +19,7 @@ abstract interface class ProxyRepository {
   Stream<Either<ProxyFailure, List<OutboundGroup>>> watchActiveProxies();
   TaskEither<ProxyFailure, oldipinfo.IpInfo> getCurrentIpInfo(CancelToken cancelToken);
   TaskEither<ProxyFailure, Unit> selectProxy(String groupTag, String outboundTag);
-  TaskEither<ProxyFailure, Unit> urlTest(String groupTag);
+  TaskEither<ProxyFailure, int> urlTest(String groupTag);
 }
 
 class ProxyRepositoryImpl with ExceptionHandler, InfraLogger implements ProxyRepository {
@@ -53,7 +53,7 @@ class ProxyRepositoryImpl with ExceptionHandler, InfraLogger implements ProxyRep
   }
 
   @override
-  TaskEither<ProxyFailure, Unit> urlTest(String groupTag) {
+  TaskEither<ProxyFailure, int> urlTest(String groupTag) {
     return exceptionHandler(
       () => singbox.urlTest(groupTag).mapLeft(ProxyUnexpectedFailure.new).run(),
       ProxyUnexpectedFailure.new,

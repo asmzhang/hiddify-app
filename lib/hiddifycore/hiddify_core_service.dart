@@ -484,14 +484,17 @@ class HiddifyCoreService with InfraLogger {
     });
   }
 
-  TaskEither<String, Unit> urlTest(String tag) {
+  /// 测单个节点（内核**同步独立探针**：直接拨号穿该出站量延迟，5s 封顶，
+  /// 不进 monitor 共享队列）。返回延迟毫秒数（Message 携带）。
+  TaskEither<String, int> urlTest(String tag) {
     return TaskEither(() async {
       loggy.debug("url test");
       try {
         final res = await core.bgClient.urlTest(UrlTestRequest(tag: tag));
         if (res.code != ResponseCode.OK) return left("${res.code} ${res.message}");
-
-        return right(unit);
+        final delay = int.tryParse(res.message);
+        if (delay == null) return left("invalid url test result: ${res.message}");
+        return right(delay);
       } catch (e) {
         loggy.error("error in url test: $e");
         // 同 setSystemProxyEnabled：TaskEither 体内不能抛，必须返回 Left

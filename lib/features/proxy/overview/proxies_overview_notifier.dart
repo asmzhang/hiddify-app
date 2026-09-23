@@ -514,65 +514,59 @@ class ProxiesOverviewNotifier extends _$ProxiesOverviewNotifier with AppLogger {
   /// 同上，订阅组版本（只有那份订阅正被加载时才真重载）。
   Future<void> reloadCoreForProfile(String profileId) => _reloadCoreIfAffected(profileId: profileId);
 
-  /// 测整组（内核 URL test，一次 RPC）。
+  /// 测整组（NekoBox `urlTest` 的**应用侧逐节点**移植，`ConfigurationFragment.kt:835-875`）。
   ///
-  /// **必须传空 tag**：内核 `commands.go` 的 `UrlTest` 在 `in.Tag == ""` 时走
-  /// `UrlTestActive()`（内部硬编码用常量 `select`）；传组名会被当成**节点 tag**
-  /// 去 `monitor.TestNow(组名)` —— 测一个不存在的出站。
+  /// 每节点一次**同步独立探针 RPC**（内核 `TestNowSync`：直接拨号穿该出站量
+  /// 延迟，5s 封顶，不进 monitor 共享队列、不动运行中 box 的其它状态），
+  /// 返回真实延迟 → 逐条进度 + 列表实时重排。并发 5（NekoBox
+  /// `connectionTestConcurrent` 默认值，`DataStore.kt:159`）。
   ///
-  /// 为什么不用逐节点 RPC（2026-09-23 实测回退）：应用侧 5 worker × 48 个
-  /// `UrlTest(tag)` 会在内核里同时点燃 48 路测试连接，把内核事件循环打满，
-  /// 应用侧所有数据流被饿死 → **整个 UI 卡死**。内核 `UrlTestActive` 一次
-  /// RPC 由 sing-box 自己控制并发/超时，进度由 overview 的实时延迟计数承担
-  /// （对话框按 `urlTestDelay > 0` 的节点数显示 n/N）。
+  /// 为什么不走 `UrlTestActive` 一次 RPC：全组测完才返回（死节点多的订阅 =
+  /// 对话框阻塞数分钟只有转圈）；为什么不开 48 路并发独立探针：内核事件循环
+  /// 打满 → 应用数据流被饿死 → UI 卡死（2026-09-23 两轮实机教训）。
+  /// 5 worker × 5s 封顶 = 全组上限 ~50s，进度逐条可见，可取消。
   ///
-  /// 进度对话框接线：防重入与进度框由**调用方**统一承担（页面层
-  /// `runConnectionTest` + `connectionTestNotifier.runUrlTest`）。
-  ///
-  /// ⚠️ **本方法绝不能再包 `runUrlTest`**（2026-09-22 修的真实 bug）：
-  /// 页面层已置 `state.running = true`，这里若再包一层，内层守卫会读到
-  /// running=true 直接 `return null` —— **RPC 从不发出**，表现为"点测速
-  /// 毫无反应"。判据：**一次用户动作 = 恰好一层守卫**。
-  Future<void> urlTest({void Function(int finished)? onAbsoluteProgress}) async {
-    if (state is! AsyncData) {
+  /// ⚠️ **守卫纪律**（一次用户动作 = 恰好一层守卫，`87a0743f`）：防重入与
+  /// 进度框由 [connectionTestNotifierProvider.runTcpPing] 承担（本方法内部），
+  /// 调用方（页面层 [runConnectionTest]）只负责弹框/收尾，不得再包一层。
+  Future<int?> urlTest() async {
+    final group = state.valueOrNull;
+    if (group == null) {
       // 不静默：旧实现在这里直接什么都不做，与"没反应"无法区分。
       loggy.warning("urlTest skipped: overview not ready (${state.runtimeType})");
-      return;
+      return null;
     }
-    final snapshotItems = state.valueOrNull?.items.where((e) => !e.isGroup).toList() ?? const <OutboundInfo>[];
-    final total = snapshotItems.length;
-    if (total == 0) return;
-    // 开测快照：进度 = 延迟相对快照发生变化的节点数（500ms 轮询）。
-    final before = {for (final e in snapshotItems) e.tag: e.urlTestDelay};
-    loggy.debug("testing $total nodes of the active config");
+    final tags = group.items.where((e) => !e.isGroup).map((e) => e.tag).toList();
+    if (tags.isEmpty) return 0;
+    loggy.debug("testing ${tags.length} nodes one-by-one (NekoBox style)");
     await ref.read(hapticServiceProvider.notifier).lightImpact();
-    var settled = false;
-    Timer? progressTimer;
-    if (onAbsoluteProgress != null) {
-      progressTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
-        if (settled) return;
-        var changed = 0;
-        for (final item in state.valueOrNull?.items ?? const <OutboundInfo>[]) {
-          final previous = before[item.tag];
-          if (previous != null && previous != item.urlTestDelay) changed++;
-        }
-        onAbsoluteProgress(changed.clamp(0, total));
-      });
-    }
-    try {
-      await ref
-          .read(proxyRepositoryProvider)
-          .urlTest('')
-          .getOrElse((err) {
-            loggy.error("error testing group", err);
-            throw err;
-          })
-          .run();
-    } finally {
-      settled = true;
-      progressTimer?.cancel();
-      onAbsoluteProgress?.call(total);
-    }
+    return ref
+        .read(connectionTestNotifierProvider.notifier)
+        .runTcpPing(
+          total: tags.length,
+          body: (isCancelled, onProgress) async {
+            final queue = List.of(tags);
+            var tested = 0;
+            Future<void> worker() async {
+              while (queue.isNotEmpty && !isCancelled()) {
+                final tag = queue.removeAt(0);
+                final delay = await ref
+                    .read(proxyRepositoryProvider)
+                    .urlTest(tag)
+                    .getOrElse((err) {
+                      loggy.debug("url test failed for [$tag]: $err");
+                      return -1;
+                    })
+                    .run();
+                tested++;
+                onProgress(tag, delay >= 0 ? '$delay' : 'timeout');
+              }
+            }
+
+            await Future.wait([for (var i = 0; i < 5; i++) worker()]);
+            return tested;
+          },
+        );
   }
 
   /// 清除测试结果（NekoBox ⋮ 菜单 `Clear test results`）。
