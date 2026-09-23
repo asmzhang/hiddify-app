@@ -59,6 +59,13 @@ class RulePage extends HookConsumerWidget {
       ),
       body: SingleChildScrollView(
         child: Column(
+          // 字段顺序 = NekoBox `res/xml/route_preferences.xml` 权威序：
+          // routeName → serverConfig(config) → [cag_route] routePackages →
+          // routeDomain → routeIP → routePort → routeSource → routeSourcePort →
+          // routeNetwork → routeProtocol → routeOutbound。
+          // 本项目追加项紧随同类项：processName/Path（跟 packages，hiddify 补充）、
+          // ruleSet（跟 domain，预定义规则选择器）、outboundTag（跟 outbound，
+          // 批次 14「路由到节点」）、只TUN 分节头（hiddify 补充语义）。
           children: [
             SettingText(
               title: RuleEnum.name.present(t),
@@ -66,25 +73,18 @@ class RulePage extends HookConsumerWidget {
               setValue: (value) =>
                   ref.read(ruleNotifierProvider(ruleListOrder).notifier).update<String>(RuleEnum.name, value),
             ),
-            SettingRadio<Outbound>(
-              title: RuleEnum.outbound.present(t),
-              values: Outbound.values,
-              value: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.outbound)),
+            SettingText(
+              title: RuleEnum.config.present(t),
+              value: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.config)),
               setValue: (value) =>
-                  ref.read(ruleNotifierProvider(ruleListOrder).notifier).update<Outbound>(RuleEnum.outbound, value),
-              defaultValue: Outbound.direct,
-              t: t.pages.settings.routing.routeRule.rule.outbound,
+                  ref.read(ruleNotifierProvider(ruleListOrder).notifier).update<String>(RuleEnum.config, value),
+              validator: (value) =>
+                  _isValidJsonConfig(value ?? '') ? null : t.pages.settings.routing.routeRule.rule.configInvalid,
             ),
             const SettingDivider(),
-            SettingGenericList<String>(
-              title: RuleEnum.ruleSet.present(t),
-              values: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.ruleSets)),
-              useEllipsis: true,
-              onTap: () => context.pushNamed(
-                'genericList',
-                pathParameters: {'orderId': ruleListOrder?.toString() ?? 'new', 'ruleEnum': RuleEnum.ruleSet.name},
-              ),
-            ),
+            // ── cag_route（路由条件段）──
+            // spec `routePackages`（AppListPreference）—— 仅 TUN 模式生效的分节头
+            // 沿用原实现（hiddify 语义）。
             SettingDivider(title: t.pages.settings.routing.routeRule.rule.onlyTunMode),
             SettingGenericList<String>(
               title: RuleEnum.packageName.present(t),
@@ -116,76 +116,6 @@ class RulePage extends HookConsumerWidget {
               ),
               showPlatformWarning: !PlatformUtils.isDesktop,
             ),
-            const SettingDivider(),
-            SettingRadio<Network>(
-              title: RuleEnum.network.present(t),
-              values: Network.values,
-              value: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.network)),
-              setValue: (value) =>
-                  ref.read(ruleNotifierProvider(ruleListOrder).notifier).update<Network>(RuleEnum.network, value),
-              defaultValue: Network.all,
-              t: t.pages.settings.routing.routeRule.rule.network,
-            ),
-            // Batch 14 half 2: rule -> specific node/group (NekoBox
-            // OutboundPreference "3" -> ProfileSelectActivity): a picker over
-            // existing outbound tags, NOT free text — an unknown tag would
-            // fail sing-box validation at start. Per-rule custom config
-            // (NekoBox EditConfigPreference serverConfig) is a JSON edit.
-            _OutboundTagTile(ruleListOrder: ruleListOrder),
-            SettingText(
-              title: RuleEnum.config.present(t),
-              value: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.config)),
-              setValue: (value) =>
-                  ref.read(ruleNotifierProvider(ruleListOrder).notifier).update<String>(RuleEnum.config, value),
-              validator: (value) =>
-                  _isValidJsonConfig(value ?? '') ? null : t.pages.settings.routing.routeRule.rule.configInvalid,
-            ),
-            SettingGenericList<String>(
-              title: RuleEnum.portRange.present(t),
-              values: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.portRanges)),
-              onTap: () => context.pushNamed(
-                'genericList',
-                pathParameters: {'orderId': ruleListOrder?.toString() ?? 'new', 'ruleEnum': RuleEnum.portRange.name},
-              ),
-            ),
-            SettingGenericList<String>(
-              title: RuleEnum.sourcePortRange.present(t),
-              values: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.sourcePortRanges)),
-              onTap: () => context.pushNamed(
-                'genericList',
-                pathParameters: {
-                  'orderId': ruleListOrder?.toString() ?? 'new',
-                  'ruleEnum': RuleEnum.sourcePortRange.name,
-                },
-              ),
-            ),
-            SettingCheckbox(
-              title: RuleEnum.protocol.present(t),
-              values: Protocol.values,
-              selectedValues: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.protocols)),
-              setValue: (value) => ref
-                  .read(ruleNotifierProvider(ruleListOrder).notifier)
-                  .update<List<ProtobufEnum>>(RuleEnum.protocol, value),
-              t: t.pages.settings.routing.routeRule.rule.protocol,
-            ),
-            const SettingDivider(),
-            SettingGenericList<String>(
-              title: RuleEnum.ipCidr.present(t),
-              values: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.ipCidrs)),
-              onTap: () => context.pushNamed(
-                'genericList',
-                pathParameters: {'orderId': ruleListOrder?.toString() ?? 'new', 'ruleEnum': RuleEnum.ipCidr.name},
-              ),
-            ),
-            SettingGenericList<String>(
-              title: RuleEnum.sourceIpCidr.present(t),
-              values: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.sourceIpCidrs)),
-              onTap: () => context.pushNamed(
-                'genericList',
-                pathParameters: {'orderId': ruleListOrder?.toString() ?? 'new', 'ruleEnum': RuleEnum.sourceIpCidr.name},
-              ),
-            ),
-            const SettingDivider(),
             // Batch 14: NekoBox routeDomain consolidation — ONE domain input
             // with prefix semantics (geosite:/full:/domain:/regexp:/keyword:/
             // bare value). The separate suffix/keyword/regex editing tiles are
@@ -200,6 +130,82 @@ class RulePage extends HookConsumerWidget {
                 pathParameters: {'orderId': ruleListOrder?.toString() ?? 'new', 'ruleEnum': RuleEnum.domain.name},
               ),
             ),
+            SettingGenericList<String>(
+              title: RuleEnum.ruleSet.present(t),
+              values: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.ruleSets)),
+              useEllipsis: true,
+              onTap: () => context.pushNamed(
+                'genericList',
+                pathParameters: {'orderId': ruleListOrder?.toString() ?? 'new', 'ruleEnum': RuleEnum.ruleSet.name},
+              ),
+            ),
+            SettingGenericList<String>(
+              title: RuleEnum.ipCidr.present(t),
+              values: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.ipCidrs)),
+              onTap: () => context.pushNamed(
+                'genericList',
+                pathParameters: {'orderId': ruleListOrder?.toString() ?? 'new', 'ruleEnum': RuleEnum.ipCidr.name},
+              ),
+            ),
+            SettingGenericList<String>(
+              title: RuleEnum.portRange.present(t),
+              values: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.portRanges)),
+              onTap: () => context.pushNamed(
+                'genericList',
+                pathParameters: {'orderId': ruleListOrder?.toString() ?? 'new', 'ruleEnum': RuleEnum.portRange.name},
+              ),
+            ),
+            SettingGenericList<String>(
+              title: RuleEnum.sourceIpCidr.present(t),
+              values: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.sourceIpCidrs)),
+              onTap: () => context.pushNamed(
+                'genericList',
+                pathParameters: {'orderId': ruleListOrder?.toString() ?? 'new', 'ruleEnum': RuleEnum.sourceIpCidr.name},
+              ),
+            ),
+            SettingGenericList<String>(
+              title: RuleEnum.sourcePortRange.present(t),
+              values: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.sourcePortRanges)),
+              onTap: () => context.pushNamed(
+                'genericList',
+                pathParameters: {
+                  'orderId': ruleListOrder?.toString() ?? 'new',
+                  'ruleEnum': RuleEnum.sourcePortRange.name,
+                },
+              ),
+            ),
+            SettingRadio<Network>(
+              title: RuleEnum.network.present(t),
+              values: Network.values,
+              value: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.network)),
+              setValue: (value) =>
+                  ref.read(ruleNotifierProvider(ruleListOrder).notifier).update<Network>(RuleEnum.network, value),
+              defaultValue: Network.all,
+              t: t.pages.settings.routing.routeRule.rule.network,
+            ),
+            SettingCheckbox(
+              title: RuleEnum.protocol.present(t),
+              values: Protocol.values,
+              selectedValues: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.protocols)),
+              setValue: (value) => ref
+                  .read(ruleNotifierProvider(ruleListOrder).notifier)
+                  .update<List<ProtobufEnum>>(RuleEnum.protocol, value),
+              t: t.pages.settings.routing.routeRule.rule.protocol,
+            ),
+            SettingRadio<Outbound>(
+              title: RuleEnum.outbound.present(t),
+              values: Outbound.values,
+              value: ref.watch(ruleNotifierProvider(ruleListOrder).select((value) => value.outbound)),
+              setValue: (value) =>
+                  ref.read(ruleNotifierProvider(ruleListOrder).notifier).update<Outbound>(RuleEnum.outbound, value),
+              defaultValue: Outbound.direct,
+              t: t.pages.settings.routing.routeRule.rule.outbound,
+            ),
+            // Batch 14 half 2: rule -> specific node/group (NekoBox
+            // OutboundPreference "3" -> ProfileSelectActivity): a picker over
+            // existing outbound tags, NOT free text — an unknown tag would
+            // fail sing-box validation at start. 本项目追加项，紧随 outbound。
+            _OutboundTagTile(ruleListOrder: ruleListOrder),
           ],
         ),
       ),
