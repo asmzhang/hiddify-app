@@ -24,6 +24,7 @@ import 'package:hiddify/features/profile/overview/profiles_notifier.dart';
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
 import 'package:hiddify/features/proxy/data/proxy_entity_import.dart';
+import 'package:hiddify/features/proxy/overview/group_settings_sheet.dart';
 import 'package:hiddify/features/proxy/overview/groups_page_spec.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
 import 'package:hiddify/utils/utils.dart';
@@ -151,7 +152,7 @@ class GroupsPage extends HookConsumerWidget {
                   nodeCount: row.nodeCount,
                   index: index,
                   dragHandle: draggable,
-                  onRename: () => _renameGroup(context, ref, row.group),
+                  onEdit: () => _openGroupSettings(context, ref, row.group),
                   onUpdate: () => _updateSubscriptionGroup(context, ref, row.group),
                   actionItems: buildGroupActionItems(context, ref, row.group),
                 ),
@@ -227,26 +228,48 @@ class GroupsPage extends HookConsumerWidget {
     }
   }
 
-  Future<void> _renameGroup(BuildContext context, WidgetRef ref, ProxyGroupEntry group) async {
+  /// ✎ 编辑 = 分组设置（NekoBox `GroupSettingsActivity` 对位；字段映射见
+  /// `group_settings_sheet.dart` 头注释）。
+  Future<void> _openGroupSettings(BuildContext context, WidgetRef ref, ProxyGroupEntry group) async {
     final t = ref.read(translationsProvider).requireValue;
-    final name = await ref
-        .read(dialogNotifierProvider.notifier)
-        .showSettingText(
-          lable: t.pages.groups.name,
-          value: group.name ?? '',
-          validator: (v) => (v?.trim().isNotEmpty ?? false) ? null : t.pages.groups.name,
-        );
-    if (name == null || name.trim().isEmpty) return;
-    final ok = await ref
-        .read(proxiesOverviewNotifierProvider.notifier)
-        .renameGroup(groupId: group.id, name: name.trim());
-    if (!context.mounted) return;
+    final isSubscription = group.type == ProxyGroupType.subscription && profileIdOfSubscription(group.subscription) != null;
+    await showDialog<void>(
+      context: context,
+      builder: (sheetContext) => NkGroupSettingsSheet(
+        initialName: groupDisplayName(group, ungroupedLabel: t.pages.groups.defaultName),
+        isSubscription: isSubscription,
+        onSave: (name) => _applyRename(ref, group, name),
+        onDelete: () => _confirmAndDeleteGroup(context, ref, group, sheetContext),
+      ),
+    );
+  }
+
+  /// 应用重命名（toast 反馈照旧）。
+  Future<void> _applyRename(WidgetRef ref, ProxyGroupEntry group, String name) async {
+    final t = ref.read(translationsProvider).requireValue;
+    final ok = await ref.read(proxiesOverviewNotifierProvider.notifier).renameGroup(groupId: group.id, name: name);
+    if (!ref.context.mounted) return;
     final notifier = ref.read(inAppNotificationControllerProvider);
     if (ok) {
       notifier.showSuccessToast(t.pages.groups.renamed);
     } else {
       notifier.showErrorToast(t.errors.unexpected);
     }
+  }
+
+  /// 删除：确认框（`delete_group_prompt` 对齐）→ removeGroup；
+  /// 返回是否已删（sheet 据此关闭自己）。
+  Future<bool> _confirmAndDeleteGroup(BuildContext context, WidgetRef ref, ProxyGroupEntry group, BuildContext sheetContext) async {
+    final t = ref.read(translationsProvider).requireValue;
+    final confirmed = await ref
+        .read(dialogNotifierProvider.notifier)
+        .showConfirmation(title: t.pages.groups.deleteConfirm, message: groupDisplayName(group, ungroupedLabel: t.pages.groups.defaultName));
+    if (!confirmed) return false;
+    final ok = await ref.read(proxiesOverviewNotifierProvider.notifier).removeGroup(group.id);
+    if (ok && !sheetContext.mounted) {
+      ref.read(inAppNotificationControllerProvider).showSuccessToast(t.pages.groups.deleted);
+    }
+    return ok;
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -404,7 +427,7 @@ class NkGroupTile extends ConsumerWidget {
     super.key,
     required this.group,
     required this.nodeCount,
-    required this.onRename,
+    required this.onEdit,
     required this.onUpdate,
     required this.actionItems,
     required this.index,
@@ -413,7 +436,7 @@ class NkGroupTile extends ConsumerWidget {
 
   final ProxyGroupEntry group;
   final int nodeCount;
-  final VoidCallback onRename;
+  final VoidCallback onEdit;
   final VoidCallback onUpdate;
   final List<AdaptiveMenuItem> actionItems;
 
@@ -470,7 +493,7 @@ class NkGroupTile extends ConsumerWidget {
               maintainSize: true,
               maintainAnimation: true,
               maintainState: true,
-              child: NkCardAction(icon: FluentIcons.edit_24_regular, tooltip: t.pages.groups.edit, onTap: onRename),
+              child: NkCardAction(icon: FluentIcons.edit_24_regular, tooltip: t.pages.groups.edit, onTap: onEdit),
             ),
             AdaptiveMenu(
               items: actionItems,
