@@ -151,6 +151,7 @@
       "removeDuplicate": "Remove duplicate servers",
       "tcpPing": "TCPing",
       "updateSubscription": "Update current Group's subscription",
+      "groupNotSubscription": "Group type is not subscription",
       "order": "Order",
       "orderOptions": {
         "origin": "Origin",

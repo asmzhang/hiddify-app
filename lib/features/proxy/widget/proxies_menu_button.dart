@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/notification/in_app_notification_controller.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
-import 'package:hiddify/features/profile/notifier/profiles_update_notifier.dart';
+import 'package:hiddify/features/profile/model/profile_entity.dart';
+import 'package:hiddify/features/profile/notifier/profile_notifier.dart';
+import 'package:hiddify/features/profile/overview/profiles_notifier.dart';
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
 import 'package:hiddify/features/proxy/widget/connection_test_dialog.dart';
@@ -52,7 +54,7 @@ class _ProxiesMenuButtonState extends ConsumerState<ProxiesMenuButton> {
       controller: _controller,
       // 顺序 = NekoBox add_profile_menu.xml 的 action_misc 权威顺序（勿重排）。
       menuChildren: [
-        _item(t.pages.proxies.updateSubscription, () => _updateSubscription()),
+        _item(t.pages.proxies.updateSubscription, () => _updateSubscription(t)),
         _item(t.pages.proxies.clearTrafficStats, () => _clearTraffic(t)),
         _item(t.pages.proxies.removeDuplicate, () => _removeDuplicate(t)),
         _item(t.pages.proxies.tcpPing, () => _tcpPing(t)),
@@ -103,9 +105,27 @@ class _ProxiesMenuButtonState extends ConsumerState<ProxiesMenuButton> {
     ProxiesSort.usage => t.pages.proxies.sortOptions.usage,
   };
 
-  Future<void> _updateSubscription() {
-    ref.read(foregroundProfilesUpdateNotifierProvider.notifier).trigger();
-    return Future.value();
+  Future<void> _updateSubscription(Translations t) async {
+    // NekoBox `ConfigurationFragment.kt:448-457`：更新**当前组**对应的订阅；
+    // 非订阅组（手动分组等）→ snackbar「组类型不是订阅」。此前误触发了全量更新。
+    final profileId = widget.activeTab?.profileId ?? '';
+    if (profileId.isEmpty) {
+      ref.read(inAppNotificationControllerProvider).showErrorToast(t.pages.proxies.groupNotSubscription);
+      return;
+    }
+    final profiles = await ref.read(profilesNotifierProvider.future);
+    RemoteProfileEntity? profile;
+    for (final entity in profiles) {
+      if (entity.id == profileId && entity is RemoteProfileEntity) {
+        profile = entity;
+        break;
+      }
+    }
+    if (profile == null) {
+      ref.read(inAppNotificationControllerProvider).showErrorToast(t.pages.proxies.groupNotSubscription);
+      return;
+    }
+    await ref.read(updateProfileNotifierProvider(profileId).notifier).updateProfile(profile);
   }
 
   Future<void> _clearTraffic(Translations t) async {

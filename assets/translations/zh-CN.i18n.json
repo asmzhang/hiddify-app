@@ -151,6 +151,7 @@
       "removeDuplicate": "删除重复的服务器",
       "tcpPing": "TCPing",
       "updateSubscription": "更新当前组订阅",
+      "groupNotSubscription": "组类型不是订阅",
       "order": "排序",
       "orderOptions": {
         "origin": "原始",

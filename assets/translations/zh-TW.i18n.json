@@ -148,6 +148,7 @@
       "removeDuplicate": "刪除重複的伺服器",
       "tcpPing": "TCPing",
       "updateSubscription": "更新當前組訂閱",
+      "groupNotSubscription": "組類型不是訂閱",
       "order": "順序",
       "orderOptions": {
         "origin": "原始",
