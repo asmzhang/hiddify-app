@@ -4,7 +4,6 @@ import 'package:hiddify/core/notification/in_app_notification_controller.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/features/profile/notifier/profiles_update_notifier.dart';
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
-import 'package:hiddify/features/proxy/notifier/connection_test_notifier.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
 import 'package:hiddify/features/proxy/widget/connection_test_dialog.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -191,19 +190,13 @@ class _ProxiesMenuButtonState extends ConsumerState<ProxiesMenuButton> {
 
   Future<void> _urlTest(Translations t) async {
     // NekoBox `urlTest()`（ConfigurationFragment.kt:834-901）：先弹进度框
-    // 再开测。本项目的内核 RPC 拿不到逐条进度，对话框只有转圈 + 文案。
+    // 再开测。逐节点测试（进度 n/N + 当前节点 + 可取消）由
+    // `ProxiesOverviewNotifier.urlTest` 内部的 runTcpPing 承担。
     try {
       await runConnectionTest(
         context,
         ref,
-        // runUrlTest：null = 防重入拒绝（对话框随即退回），true = 完成。
-        // 包成 int?：urlTest 无计数语义，完成即 0（对话框不显示计数）。
-        start: () async {
-          final ok = await ref
-              .read(connectionTestNotifierProvider.notifier)
-              .runUrlTest(body: () => ref.read(proxiesOverviewNotifierProvider.notifier).urlTest());
-          return ok == true ? 0 : null;
-        },
+        start: () => ref.read(proxiesOverviewNotifierProvider.notifier).urlTest(),
       );
     } catch (_) {
       if (mounted) {

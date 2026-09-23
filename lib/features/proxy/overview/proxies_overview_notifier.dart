@@ -514,40 +514,60 @@ class ProxiesOverviewNotifier extends _$ProxiesOverviewNotifier with AppLogger {
   /// 同上，订阅组版本（只有那份订阅正被加载时才真重载）。
   Future<void> reloadCoreForProfile(String profileId) => _reloadCoreIfAffected(profileId: profileId);
 
-  /// 测整组 / 测全部（内核 URL test）。
+  /// 测整组（NekoBox `urlTest` 的**应用侧逐节点**移植，`ConfigurationFragment.kt:835-875`）。
   ///
-  /// **必须传空 tag**：内核 `commands.go` 的 `UrlTest` 在 `in.Tag == ""` 时走
-  /// `UrlTestActive()`（内部硬编码用常量 `select`）；传组名会被当成**节点 tag**
-  /// 去 `monitor.TestNow(组名)` —— 测一个不存在的出站。
+  /// 为什么不用内核一次性 RPC（空 tag → `UrlTestActive` 测全组）：那条路
+  /// **拿不到逐条进度**——全组测完才返回，死节点多的订阅会让进度对话框
+  /// 阻塞数分钟只有转圈（2026-09-23 实机三次踩坑，用户可见痛点）。
+  /// NekoBox 的做法：**应用侧队列 + 并发 worker 逐节点测**（每节点一次独立
+  /// RPC，死节点只亏它自己的超时窗口），每测完一个立刻回报进度——对话框
+  /// 显示 `n/N` + 当前节点名，可取消（中止队列），列表同步实时重排。
   ///
-  /// 所以这里不再接收组名：NekoBox 侧也没有"按组测速"这个概念，
-  /// 组只是订阅（`GroupType` 只有 BASIC/SUBSCRIPTION），测速是工具栏的 URL Test。
+  /// 并发数照 NekoBox `connectionTestConcurrent` 默认值 5（`DataStore.kt:159`）。
   ///
-  /// 进度对话框接线：防重入与进度框由**调用方**统一承担（页面层
-  /// `runConnectionTest` + `connectionTestNotifier.runUrlTest`）。
+  /// ⚠️ **守卫纪律**（一次用户动作 = 恰好一层守卫，`87a0743f`）：防重入与
+  /// 进度框由 [connectionTestNotifierProvider.runTcpPing] 承担（本方法内部），
+  /// 调用方（页面层 [runConnectionTest]）只负责弹框/收尾，不得再包一层。
   ///
-  /// ⚠️ **本方法绝不能再包 `runUrlTest`**（2026-09-22 修的真实 bug）：
-  /// 页面层已置 `state.running = true`，这里若再包一层，内层守卫会读到
-  /// running=true 直接 `return null` —— **RPC 从不发出**，表现为"点测速
-  /// 毫无反应"（对话框秒开秒关、无进度、无报错），日志里只有一句
-  /// `connection test already running, ignored`。同理 [tcpPingNodes] 也只
-  /// 包一层。判据：**一次用户动作 = 恰好一层守卫**。
-  Future<void> urlTest() async {
-    if (state is! AsyncData) {
+  /// 返回 null = 防重入拒绝；非空 = 测过的节点数。
+  Future<int?> urlTest() async {
+    final group = state.valueOrNull;
+    if (group == null) {
       // 不静默：旧实现在这里直接什么都不做，与"没反应"无法区分。
       loggy.warning("urlTest skipped: overview not ready (${state.runtimeType})");
-      return;
+      return null;
     }
-    loggy.debug("testing all nodes of the active config");
+    final tags = group.items.where((e) => !e.isGroup).map((e) => e.tag).toList();
+    if (tags.isEmpty) return 0;
+    loggy.debug("testing ${tags.length} nodes one-by-one (NekoBox style)");
     await ref.read(hapticServiceProvider.notifier).lightImpact();
-    await ref
-        .read(proxyRepositoryProvider)
-        .urlTest('')
-        .getOrElse((err) {
-          loggy.error("error testing group", err);
-          throw err;
-        })
-        .run();
+    return ref
+        .read(connectionTestNotifierProvider.notifier)
+        .runTcpPing(
+          total: tags.length,
+          body: (isCancelled, onProgress) async {
+            final queue = List.of(tags);
+            var tested = 0;
+            Future<void> worker() async {
+              while (queue.isNotEmpty && !isCancelled()) {
+                final tag = queue.removeAt(0);
+                try {
+                  // 内核 `UrlTest(tag)`：tag = 节点 tag ⇒ 测这一个节点
+                  // （`commands.go`；延迟经 groups 流贴回，列表实时重排）。
+                  await ref.read(proxyRepositoryProvider).urlTest(tag).run();
+                } catch (e) {
+                  // 单节点失败不中断整轮（NekoBox 的 try/catch 同语义）。
+                  loggy.debug("url test failed for [$tag]: $e");
+                }
+                tested++;
+                onProgress(tag, tag);
+              }
+            }
+
+            await Future.wait([for (var i = 0; i < 5; i++) worker()]);
+            return tested;
+          },
+        );
   }
 
   /// 清除测试结果（NekoBox ⋮ 菜单 `Clear test results`）。

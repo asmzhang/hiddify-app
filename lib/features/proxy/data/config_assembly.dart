@@ -418,11 +418,6 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
   final nodeEntities = <ImportedProxyEntity>[];
   final endpointEntities = <ImportedProxyEntity>[];
   for (final entity in entities) {
-    // 假节点过滤（journey 2026-09-23 实测）：订阅占位节点（server=127.0.0.1/
-    // ::1/localhost，如「如无AnyTLS节点请更新客户端」@127.0.0.1:1080）混进
-    // urltest 候选且曾被测成最低延迟锁定 → 所有经自动选择的连接瞬断（本机
-    // 端口拒绝）。回环服务器节点不可能是可用代理，组装层直接剔除。
-    if (_hasLoopbackServer(entity.payload)) continue;
     if (entity.type == kChainEntityType) {
       chainEntities.add(entity);
     } else if (entity.type == kConfigEntityType) {
@@ -431,6 +426,14 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
       // 只是让它缺席，不让它毁掉整份配置）
     } else if (isNodeEndpoint(entity.type)) {
       endpointEntities.add(entity);
+    } else if (_hasLoopbackServer(entity.payload)) {
+      // 假节点过滤（journey 2026-09-23 实测）：订阅占位节点（server=127.0.0.1/
+      // ::1/localhost，如「如无AnyTLS节点请更新客户端」@127.0.0.1:1080）混进
+      // urltest 候选且曾被测成最低延迟锁定 → 所有经自动选择的连接瞬断（本机
+      // 端口拒绝）。回环服务器节点不可能是可用代理，组装层剔除。
+      // **仅普通协议节点**：config 形态实体是用户显式写的完整出站（本地链式
+      // 端点 socks@127.0.0.1 完全合法）；chain/endpoint 定义不含裸 server，均不过滤。
+      continue;
     } else {
       nodeEntities.add(entity);
     }

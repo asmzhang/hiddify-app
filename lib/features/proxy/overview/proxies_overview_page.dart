@@ -26,7 +26,6 @@ import 'package:hiddify/features/proxy/data/config_assembly.dart' show chainProx
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/data/protocol_form.dart';
 import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
-import 'package:hiddify/features/proxy/notifier/connection_test_notifier.dart';
 import 'package:hiddify/features/proxy/overview/add_profile_menu_spec.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
 import 'package:hiddify/features/proxy/widget/chain_settings_page.dart';
@@ -560,12 +559,9 @@ class _CaptureStatusBar extends ConsumerWidget {
           onTap: () => unawaited(runConnectionTest(
             context,
             ref,
-            start: () async {
-              final ok = await ref
-                  .read(connectionTestNotifierProvider.notifier)
-                  .runUrlTest(body: () => ref.read(proxiesOverviewNotifierProvider.notifier).urlTest());
-              return ok == true ? 0 : null;
-            },
+            // 逐节点进度（n/N + 当前节点 + 可取消）由 urlTest 内部的
+            // runTcpPing 承担；返回 null = 防重入拒绝。
+            start: () => ref.read(proxiesOverviewNotifierProvider.notifier).urlTest(),
           )),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

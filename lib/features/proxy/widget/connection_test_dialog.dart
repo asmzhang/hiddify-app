@@ -15,6 +15,8 @@
 // 之后 body 抛错，收尾路径的无脑 pop 会把**底层页面**顶掉。
 // 修法：取消按钮 pop(route: true) 上报"用户取消"；收尾统一走
 // [_safeRemoveDialog]（removeRoute 只删自己 + isActive 防重）。
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/widget/nekobox/nk_theme.dart';
@@ -23,19 +25,19 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 /// ⋮ 菜单入口：弹框 → 开测 → 收尾关框 → 透传节点数。
 ///
-/// 流程照 NekoBox `pingTest` / `urlTest`（`ConfigurationFragment.kt:694-901`）：
-/// 先弹对话框（`test.builder.show()`）→ 调 [start] 开测 → 测试收尾关框。
+/// 流程照 NekoBox `urlTest`（`ConfigurationFragment.kt:835-875`）：先弹对话框
+/// （`test.builder.show()`）→ **立刻开测**（对话框只是进度的视图）→ 测试收尾关框。
+///
+/// ⚠️ **开测必须先于/并行于对话框生命周期**：旧实现 `await push(...)` 等对话框
+/// 关闭后才调 `start()` —— 对话框开着时测试体从未运行，永远停在初始转圈态
+/// （死锁，2026-09-23 实机三次复现：测速/测延迟对话框长时间无进度）。
+/// 修法：`start()` 立刻点火，`whenComplete` 在测试收尾时关框；
+/// 用户取消路径照旧（按钮 pop(true) + requestCancel）。
 ///
 /// [start] 返回值语义：
 ///   · null = 防重入拒绝（已有测试在跑，NekoBox `if (runningTest) return`）
 ///     —— 对话框随即退回；
 ///   · 非空 = 测过的节点数（-1 = 落库失败，调用方提示）。
-///
-/// 关框的三个来源互斥（`_safeRemoveDialog` 的 isActive 保证只生效一次）：
-///   1. 用户点取消 → 按钮 pop(true)，本函数**不等待测试**直接返回 null
-///      （NekoBox 的 cancel 也是立即 dismiss，落库在后台协程完成）；
-///   2. 测试正常收尾 → 本函数关框后返回计数；
-///   3. 测试抛错 → 关框后 rethrow（提示交给调用方 toast）。
 Future<int?> runConnectionTest(
   BuildContext context,
   WidgetRef ref, {
@@ -44,7 +46,24 @@ Future<int?> runConnectionTest(
   final navigator = Navigator.of(context, rootNavigator: true);
   ModalRoute<Object?>? dialogRoute;
 
-  // 用户取消 → push 返回 true（按钮 pop 带的值）。
+  // 测试先行：点火 start()（防重入拒绝/异常都收进 startFuture）。
+  Object? startError;
+  StackTrace? startStack;
+  final startFuture = () async {
+    try {
+      return await start();
+    } catch (e, st) {
+      startError = e;
+      startStack = st;
+      return null;
+    }
+  }();
+
+  // 测试收尾（成功/失败/防重入拒绝）→ 关框。用户取消路径由取消按钮自己
+  // pop(true) 关框，不经这里。
+  unawaited(startFuture.whenComplete(() => _safeRemoveDialog(navigator, dialogRoute)));
+
+  // 等两条关框路径之一：用户取消（返回 true）或测试收尾（removeRoute ⇒ null）。
   final userCancelled = await navigator.push<bool>(
     DialogRoute<bool>(
       context: context,
@@ -61,16 +80,14 @@ Future<int?> runConnectionTest(
     return null;
   }
 
-  // 走到这里 = 对话框不是被取消按钮关的（正常收尾 / 抛错 / 防重入拒绝）。
-  // 测试本体跑完后由这里关框；框已不在栈上时 removeRoute 是空操作。
-  try {
-    final count = await start();
-    _safeRemoveDialog(navigator, dialogRoute);
-    return count;
-  } catch (e) {
-    _safeRemoveDialog(navigator, dialogRoute);
-    rethrow;
+  // 走到这里 = 测试收尾关的框。取结果；失败则按原栈重抛（调用方 toast）。
+  // 局部拷贝拿非空提升：startError 被闭包改写，Dart 无法对它做流程提升。
+  final result = await startFuture;
+  final error = startError;
+  if (error != null) {
+    Error.throwWithStackTrace(error, startStack!);
   }
+  return result;
 }
 
 /// 只移除本对话框自己的路由；已离栈（用户取消路径）时是空操作。
