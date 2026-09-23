@@ -21,6 +21,8 @@ import 'package:flutter/material.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/widget/nekobox/nk_theme.dart';
 import 'package:hiddify/features/proxy/notifier/connection_test_notifier.dart';
+import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
+import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 /// ⋮ 菜单入口：弹框 → 开测 → 收尾关框 → 透传节点数。
@@ -108,16 +110,32 @@ class _ConnectionTestDialog extends ConsumerWidget {
     final t = ref.watch(translationsProvider).requireValue;
     final theme = Theme.of(context);
     final state = ref.watch(connectionTestNotifierProvider);
+    // 当前测试节点的实时数据（协议名/延迟）来自 overview 的 joined 状态：
+    // URL 测试是 fire-and-forget RPC，延迟由内核经 groups 流回填到这里。
+    final overview = ref.watch(proxiesOverviewNotifierProvider).valueOrNull;
+    OutboundInfo? currentItem;
+    if (state.currentNode != null && overview != null) {
+      for (final item in overview.items) {
+        if (item.tag == state.currentNode) {
+          currentItem = item;
+          break;
+        }
+      }
+    }
 
-    // 最近完成节点的结果行（NekoBox update() 的 status→颜色映射）：
-    // 纯数字 = 成功延迟（三档色照 NkColors.latencyColor），否则 = 错误文案（红）。
-    final parsedDelay = state.currentResult == null ? null : int.tryParse(state.currentResult!);
+    // 结果行（NekoBox update() 的 status→颜色映射）：
+    // TCPing 用 onProgress 的结果文本；URL 测试结果行为空 ⇒ 取实时延迟。
+    final resultText = (state.currentResult != null && state.currentResult!.isNotEmpty)
+        ? state.currentResult!
+        : currentItem == null
+        ? '—'
+        : (currentItem.urlTestDelay > 0 ? '${currentItem.urlTestDelay}' : '—');
+    final parsedDelay = int.tryParse(resultText);
     final resultColor = parsedDelay != null
         ? NkColors.latencyColor(context, parsedDelay) ?? theme.colorScheme.onSurfaceVariant
-        : state.currentResult == null
-        ? theme.colorScheme.onSurfaceVariant
-        : NkColors.latencyBad;
-    final resultText = state.currentResult ?? '—';
+        : (state.currentResult != null && state.currentResult!.isNotEmpty)
+        ? NkColors.latencyBad
+        : theme.colorScheme.onSurfaceVariant;
 
     return PopScope(
       canPop: false,
@@ -132,17 +150,25 @@ class _ConnectionTestDialog extends ConsumerWidget {
               padding: EdgeInsets.symmetric(vertical: 16),
               child: CircularProgressIndicator(),
             ),
-            // ② now_testing：节点名一行 + 结果一行（update() 的两段式文案）
+            // ② now_testing 三行（NekoBox 的 Spannable 三段式）：
+            //    节点名 / 协议名（协议色）/ 状态（延迟三档色 or 错误红）。
             Text(
               state.currentNode ?? t.pages.proxies.connectionTest.testing,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyMedium,
             ),
+            if (currentItem != null)
+              Text(
+                currentItem.type,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: NkColors.protocol[currentItem.type] ?? theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
             const SizedBox(height: 4),
             Text(resultText, style: theme.textTheme.bodySmall?.copyWith(color: resultColor)),
             const SizedBox(height: 12),
-            // ③ progress 计数（"$progress / $proxyN"）；urlTest 无逐条进度，total=0 不显示
+            // ③ progress 计数（"$progress / $proxyN"）
             if (state.total > 0)
               Text(
                 '${state.finished} / ${state.total}',

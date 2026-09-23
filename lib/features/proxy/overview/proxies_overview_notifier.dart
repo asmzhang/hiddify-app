@@ -560,7 +560,9 @@ class ProxiesOverviewNotifier extends _$ProxiesOverviewNotifier with AppLogger {
                   loggy.debug("url test failed for [$tag]: $e");
                 }
                 tested++;
-                onProgress(tag, tag);
+                // 结果行传空：URL 测试的延迟由内核经 groups 流回填，
+                // 对话框从 overview 实时状态读取（fire-and-forget RPC 不带结果）。
+                onProgress(tag, '');
               }
             }
 
