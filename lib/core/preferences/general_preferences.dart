@@ -80,6 +80,11 @@ abstract class Preferences {
 
   static final silentStart = PreferencesNotifier.create<bool, bool>("silent_start", false);
 
+  /// NekoBox `alwaysShowAddress`（global_preferences.xml，默认 false）：
+  /// 配置卡是否始终显示服务器地址。false 时地址行只在有流量时出现
+  /// （`ConfigurationFragment.kt:1557-1563` 同构）。
+  static final alwaysShowAddress = PreferencesNotifier.create<bool, bool>("always_show_address", false);
+
   static final disableMemoryLimit = PreferencesNotifier.create<bool, bool>(
     "disable_memory_limit",
     // disable memory limit on desktop by default

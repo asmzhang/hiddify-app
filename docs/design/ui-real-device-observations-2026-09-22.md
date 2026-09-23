@@ -26,6 +26,18 @@
 5. 词表：「仪表盘」→「sing-box 仪表板」（zh-CN）；en `proxies.title` Profiles→Configuration、`traffic.title`→sing-box Dashboard。zh-rTW 缺 menu_dashboard 键（spec 本身回退 en），不碰（§3.0#12）。
 6. 抽屉条目收敛为唯一数据源 `nkDrawerEntries`（nav_items.dart），widget 层直接渲染；faq 索引/选中态映射有纯函数可测。
 
+## 设置页 17 项"完全漏"重验（2026-09-22，按采信规则重验 09-15 矩阵）
+
+| 分类 | 项 | 处置 |
+|---|---|---|
+| 已落地（前批） | globalCustomConfig / GroupSettingsActivity / route_preferences 表单序 | 批次 8 / 功能④ / 功能⑨ |
+| 本轮落地 | alwaysShowAddress | 设置主表开关（spec 默认 false，邻位对齐 global_preferences.xml）+ 节点卡地址行门控（`ConfigurationFragment.kt:1557-1563` 同构） |
+| 平台不适用 | meteredNetwork / acquireWakeLock / showGroupInNotification / speedInterval | Android 专属（通知/锁电/计量网络），桌面无对应物，记档跳过 |
+| 内核未开放（C 组） | trafficSniffing※ / appendHttpProxy※ / domain_strategy_for_server※ / networkChangeResetConnections※ / wakeResetConnections※ | sing-box 1.13 内核未开放，等内核 |
+| 待办（桌面可做） | profileTrafficStatistics / showDirectSpeed / globalAllowInsecure / allowInsecureOnRequest / appTLSVersion | 后续设置页批次 |
+| 不移植（定案） | rulesProvider | geo 资产管线不做，等价物 = 预设规则 |
+| 语义差异（记档） | isAutoConnect（硬充） / bypassLan（预设规则覆盖） | 已有记录 |
+
 ## 功能①菜单实机验证（2026-09-22 闭环）
 
 - ⋮ 菜单真实主题下八项权威顺序 + zh-rCN 文案 + 排序子菜单箭头全部正确（`real_menu_open.png`）。

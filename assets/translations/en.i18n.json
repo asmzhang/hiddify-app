@@ -410,6 +410,8 @@
         "debugMode": "Debug mode",
         "debugModeMsg": "Restart the app for applying this change",
         "logLevel": "Log level",
+      "alwaysShowAddress": "Always Show Address",
+      "alwaysShowAddressSum": "Always display the server address on the configuration cards",
         "connectionTestUrl": "Connection test URL",
         "urlTestInterval": "URL test interval",
         "allowInsecureOnRequest": "Allow insecure when updating subscriptions",

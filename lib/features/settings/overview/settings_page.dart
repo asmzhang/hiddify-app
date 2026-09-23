@@ -170,6 +170,14 @@ class SettingsPage extends HookConsumerWidget {
                 digitsOnly: true,
                 inputToValue: int.tryParse,
               ),
+              // NekoBox `alwaysShowAddress`（global_preferences.xml：logLevel 之前的邻位）。
+              SwitchListTile.adaptive(
+                title: Text(t.pages.settings.general.alwaysShowAddress),
+                subtitle: Text(t.pages.settings.general.alwaysShowAddressSum),
+                secondary: const Icon(Icons.dns_rounded),
+                value: ref.watch(Preferences.alwaysShowAddress),
+                onChanged: ref.read(Preferences.alwaysShowAddress.notifier).update,
+              ),
               NkChoiceRow(
                 title: t.pages.settings.general.logLevel,
                 selected: ref.watch(ConfigOptions.logLevel),

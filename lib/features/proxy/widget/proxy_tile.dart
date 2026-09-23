@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/notification/in_app_notification_controller.dart';
+import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/widget/adaptive_icon.dart';
 import 'package:hiddify/core/widget/nekobox/nk_card.dart';
@@ -86,7 +87,10 @@ class ProxyTile extends HookConsumerWidget with PresLogger {
     final delay = proxy.urlTestDelay;
     // 行2 左侧：地址 —— 取自**实体**（NekoBox `AbstractBean.displayAddress()`），
     // 不是运行期：内核的 `OutboundInfo` 不给 host/port。见 `displayAddress()`。
-    final address = displayAddress(proxy.host, proxy.port);
+    // NekoBox `ConfigurationFragment.kt:1557-1559`：未开启 alwaysShowAddress
+    // （默认 false）时地址置空 —— 行2 只在有流量时出现。
+    final alwaysShowAddress = ref.watch(Preferences.alwaysShowAddress);
+    final address = alwaysShowAddress ? displayAddress(proxy.host, proxy.port) : '';
     // 行3 左侧：协议类型 —— NekoBox 用 accentOrTextSecondary 的纯彩色文字（非徽标）。
     final typeColor = NkColors.protocolColor(proxy.type);
     // 行2 右侧：流量（上下行合计口径与原实现一致：分开显示，任一非零才显示）。
@@ -206,28 +210,30 @@ class ProxyTile extends HookConsumerWidget with PresLogger {
                           ],
                         ),
                       ),
-                      // 行 2：地址 ······ 流量。
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 2, 8, 0),
-                        child: Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                address,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                              ),
-                            ),
-                            const Spacer(),
-                            if (showTrafficInAddressRow)
-                              Text(
-                                traffic!,
-                                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                              ),
-                          ],
+                      // 行 2：地址（alwaysShowAddress 门控） ······ 流量（未测速时挪状态位）。
+                      if (alwaysShowAddress || showTrafficInAddressRow)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 2, 8, 0),
+                          child: Row(
+                            children: [
+                              if (alwaysShowAddress)
+                                Flexible(
+                                  child: Text(
+                                    address,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                                  ),
+                                ),
+                              const Spacer(),
+                              if (showTrafficInAddressRow)
+                                Text(
+                                  traffic!,
+                                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
                       // 行 3：协议（着色纯文字） ······ 状态。
                       Padding(
                         padding: const EdgeInsets.fromLTRB(12, 3, 8, 12),

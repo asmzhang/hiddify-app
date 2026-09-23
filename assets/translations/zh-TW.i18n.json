@@ -386,6 +386,8 @@
         "debugMode": "偵錯模式",
         "debugModeMsg": "重新啟動應用程式以套用此變更",
         "logLevel": "日誌級別",
+      "alwaysShowAddress": "始終顯示位址",
+      "alwaysShowAddressSum": "使用在設定檔卡片中顯示伺服器位址",
         "connectionTestUrl": "連線測試 URL",
         "urlTestInterval": "URL 測試間隔",
         "allowInsecureOnRequest": "更新訂閱時允許不安全連線",
