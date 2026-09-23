@@ -38,12 +38,13 @@ class SubscriptionsPage extends HookConsumerWidget {
           IconButton(
             onPressed: () => ref.read(foregroundProfilesUpdateNotifierProvider.notifier).trigger(),
             icon: const Icon(Icons.update_rounded),
-            tooltip: t.pages.profiles.updateSubscriptions,
+            // 词表对齐 NekoBox update_all_subscription（与分组页工具栏同一词）。
+            tooltip: t.pages.groups.updateAll,
           ),
           IconButton(
             onPressed: showAddProfileSheet,
             icon: const Icon(Icons.add_rounded),
-            tooltip: t.pages.profiles.add,
+            tooltip: t.pages.proxies.addMenu.addSubscription,
           ),
           const Gap(8),
         ],

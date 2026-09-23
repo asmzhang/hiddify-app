@@ -20,6 +20,7 @@ class NkGroupSettingsSheet extends ConsumerStatefulWidget {
     required this.isSubscription,
     required this.onSave,
     required this.onDelete,
+    this.onOpenSubscriptions,
   });
 
   final String initialName;
@@ -30,6 +31,10 @@ class NkGroupSettingsSheet extends ConsumerStatefulWidget {
 
   /// 删除（页面侧确认 + 删除；返回 true = 已删除，sheet 关闭）。
   final Future<bool> Function() onDelete;
+
+  /// 订阅组提示行点击 → 打开订阅管理页（可达性闭环：归一原则下订阅字段的
+  /// 唯一管理入口；null = 不可点）。
+  final VoidCallback? onOpenSubscriptions;
 
   @override
   ConsumerState<NkGroupSettingsSheet> createState() => _NkGroupSettingsSheetState();
@@ -79,9 +84,27 @@ class _NkGroupSettingsSheetState extends ConsumerState<NkGroupSettingsSheet> {
           if (widget.isSubscription)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                t.pages.groups.subscriptionHint,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              // 提示行可点 → 订阅管理页（功能②遗留可达性修复；chevron = 可点示性）。
+              child: InkWell(
+                onTap: widget.onOpenSubscriptions,
+                borderRadius: BorderRadius.circular(4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        t.pages.groups.subscriptionHint,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              decoration:
+                                  widget.onOpenSubscriptions != null ? TextDecoration.underline : null,
+                            ),
+                      ),
+                    ),
+                    if (widget.onOpenSubscriptions != null)
+                      Icon(Icons.chevron_right_rounded, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ],
+                ),
               ),
             ),
         ],

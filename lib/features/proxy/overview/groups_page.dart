@@ -7,6 +7,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/db/db.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/failures.dart';
@@ -240,6 +241,14 @@ class GroupsPage extends HookConsumerWidget {
         isSubscription: isSubscription,
         onSave: (name) => _applyRename(ref, group, name),
         onDelete: () => _confirmAndDeleteGroup(context, ref, group, sheetContext),
+        // 可达性闭环：订阅字段的唯一管理入口 = 订阅页（GroupSettingsActivity
+        // 对位，见 group_settings_sheet.dart 头注释）。
+        onOpenSubscriptions: isSubscription
+            ? () {
+                Navigator.of(sheetContext).pop();
+                context.goNamed('subscriptions');
+              }
+            : null,
       ),
     );
   }

@@ -21,6 +21,7 @@ Future<void> _pump(
   required List<String> saveLog,
   required List<String> deleteLog,
   String initialName = '云菁',
+  VoidCallback? onOpenSubscriptions,
 }) async {
   final t = await _loadZhCn(tester);
   final container = ProviderContainer(overrides: [
@@ -47,6 +48,7 @@ Future<void> _pump(
                       deleteLog.add('deleted');
                       return true;
                     },
+                    onOpenSubscriptions: onOpenSubscriptions,
                   ),
                 ),
                 child: const Text('open'),
@@ -112,6 +114,25 @@ void main() {
     await _pump(tester, isSubscription: true, saveLog: [], deleteLog: []);
     expect(find.text('订阅链接与自动更新在「订阅」页管理'), findsOneWidget,
         reason: '归一原则：订阅字段入口唯一，指向订阅页');
+  });
+
+  testWidgets('订阅组提示行可点 → 触发打开订阅管理（可达性闭环）', (tester) async {
+    var opened = false;
+    await _pump(tester, isSubscription: true, saveLog: [], deleteLog: [], onOpenSubscriptions: () => opened = true);
+
+    await tester.tap(find.text('订阅链接与自动更新在「订阅」页管理'));
+    await tester.pumpAndSettle();
+    expect(opened, isTrue, reason: '功能②遗留可达性修复：提示行 = 订阅页入口');
+  });
+
+  testWidgets('无回调时提示行不可点', (tester) async {
+    await _pump(tester, isSubscription: true, saveLog: [], deleteLog: []);
+    // ElevatedButton 内部也有 InkWell —— 用提示文本的祖先精确定位。
+    final hintInkWell = find.ancestor(
+      of: find.text('订阅链接与自动更新在「订阅」页管理'),
+      matching: find.byType(InkWell),
+    );
+    expect(tester.widget<InkWell>(hintInkWell.first).onTap, isNull);
   });
 
   testWidgets('手动组无提示行', (tester) async {
