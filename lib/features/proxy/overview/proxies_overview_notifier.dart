@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dartx/dartx.dart';
+import 'package:fpdart/fpdart.dart';
 import 'package:hiddify/core/db/db.dart';
 import 'package:hiddify/core/haptic/haptic_service.dart';
 import 'package:hiddify/core/localization/translations.dart';
@@ -281,10 +282,15 @@ class ProxiesOverviewNotifier extends _$ProxiesOverviewNotifier with AppLogger {
     final bool belongsToActive = targetProfileId == null || targetProfileId == activeProfile?.id;
     final bool coreRunning = ref.read(coreRunningProvider).valueOrNull ?? ref.read(serviceRunningProvider);
 
-    if (belongsToActive && coreRunning) {
+    // 2026-09-23 点选修复：原门控 `belongsToActive && coreRunning` 在
+    // "内核实际在跑但 app 状态机未连接"（init 即启内核 + 连接失败/未连接）时
+    // 跳过 selectProxy —— 选中只落盘不通知内核，下一次 urltest 循环后 UI 从
+    // 内核 selector 回流，选中条消失（journey 实测）。改为只要归属本订阅就
+    // 尝试下发；内核未起时 RPC 失败仅记日志（落盘的选择由连接时校准兜底）。
+    if (belongsToActive) {
       await ref.read(proxyRepositoryProvider).selectProxy(runtimeGroupTag, outboundTag).getOrElse((err) {
-        loggy.warning("error selecting outbound", err);
-        throw err;
+        loggy.warning("error selecting outbound (core may not be running yet)", err);
+        return unit;
       }).run();
     }
 
