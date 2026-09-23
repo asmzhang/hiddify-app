@@ -103,7 +103,11 @@ class HiddifyCoreService with InfraLogger {
   }
 
   TaskEither<String, String> generateFullConfigByPath(String path) {
-    // 走 `Parse` ⇒ 必须与 `Start` 串行
+    // 走 `Parse` ⇒ 必须与 `Start` 串行。
+    // 2026-09-23 假连接修复：内核 Parse 的 fullConfig 参数 false→true（Go 侧
+    // buildconfighelper.go），Parse 回写/返回**完整配置**（含 inbounds/DNS/Route）
+    // ——此前只回写 outbounds+endpoints，raw 启动读到"无入站"配置 → UI 报已连接
+    // 但无端口监听（假连接，journey 实测）。
     return TaskEither(() => _serializeRegistryAccess(() async {
       final response = await core.fgClient.parse(ParseRequest(configPath: path, debug: false));
       if (response.responseCode != ResponseCode.OK) return left("${response.responseCode} ${response.message}");

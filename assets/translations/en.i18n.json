@@ -639,6 +639,7 @@
         },
         "mixedPort": "Mixed port",
         "tproxyPort": "Transparent proxy port",
+      "mixedPort": "Mixed port",
         "directPort": "Direct port",
         "redirectPort": "Redirect port",
         "lanSharing": "VPN sharing",

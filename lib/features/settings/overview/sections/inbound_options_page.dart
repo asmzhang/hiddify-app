@@ -20,6 +20,17 @@ class InboundOptionsPage extends HookConsumerWidget with AppLogger {
       appBar: AppBar(title: Text(t.pages.settings.inbound.title)),
       body: ListView(
         children: [
+          // 混合端口（HTTP+SOCKS）—— PC 上订阅更新/系统代理/手动验证的统一入口。
+          // 固定默认 12334（Throne 功能基准：固定端口 + 可配置）。
+          ValuePreferenceWidget(
+            value: ref.watch(ConfigOptions.mixedPort),
+            preferences: ref.watch(ConfigOptions.mixedPort.notifier),
+            title: t.pages.settings.inbound.mixedPort,
+            icon: Icons.shuffle_rounded,
+            inputToValue: int.tryParse,
+            digitsOnly: true,
+            validateInput: isPort,
+          ),
           if (PlatformUtils.isLinux)
             ValuePreferenceWidget(
               value: ref.watch(ConfigOptions.tproxyPort),

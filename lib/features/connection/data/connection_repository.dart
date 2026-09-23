@@ -4,6 +4,7 @@ import 'package:dartx/dartx.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:hiddify/core/model/directories.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
+import 'package:hiddify/core/preferences/port_preferences.dart';
 import 'package:hiddify/core/preferences/preferences_provider.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/utils/exception_handler.dart';
@@ -210,6 +211,24 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
         loggy.warning("selected node customConfig is invalid - skipped");
       }
     }
+
+    // 端口固定 + 入站规范化（NekoBox/Throne 功能基准：固定端口 + 可配置）：
+    // raw 合并结果的入站继承自订阅原文（模板端口 11111/2080 等，不采纳）——
+    // 统一 mixed 入站端口 = PortPreferences.mixedPort（固定，默认 12334）；
+    // 订阅自带的 TUN 入站剔除（服务模式=系统代理时 TUN 需管理员，启动必败）。
+    final mixedPort = ref.read(PortPreferences.mixedPort);
+    final rawInbounds = merged['inbounds'];
+    final normalizedInbounds = <Map<String, dynamic>>[
+      {'type': 'mixed', 'tag': 'mixed-in', 'listen': '127.0.0.1', 'listen_port': mixedPort, 'users': <String>[]},
+    ];
+    if (rawInbounds is List) {
+      for (final entry in rawInbounds) {
+        if (entry is Map<String, dynamic> && entry['type'] != 'mixed' && entry['type'] != 'tun') {
+          normalizedInbounds.add(entry);
+        }
+      }
+    }
+    merged['inbounds'] = normalizedInbounds;
 
     // d. raw 通道启动
     return singbox.startRawContent(jsonEncode(merged), basePath, profile.name, disableMemoryLimit).run();

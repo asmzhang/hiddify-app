@@ -615,6 +615,7 @@
         },
         "mixedPort": "混合連接埠",
         "tproxyPort": "透明代理連接埠",
+      "mixedPort": "混合埠",
         "directPort": "本地 Direct 連接埠",
         "redirectPort": "重新導向連接埠",
         "lanSharing": "VPN 共享",
