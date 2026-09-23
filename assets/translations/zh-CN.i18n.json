@@ -898,8 +898,10 @@
   "connection": {
     "tapToConnect": "点击连接",
     "connect": "连接",
-    "connecting": "连接中...",
+    "connecting": "正在连接…",
     "connected": "已连接",
+    "stopping": "正在停止…",
+    "statsConnected": "已连接 , 点击此处测试连接",
     "disconnected": "未连接",
     "disconnect": "断开连接",
     "disconnecting": "断开连接中...",

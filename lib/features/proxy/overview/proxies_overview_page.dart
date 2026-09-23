@@ -26,10 +26,12 @@ import 'package:hiddify/features/proxy/data/config_assembly.dart' show chainProx
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/data/protocol_form.dart';
 import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
+import 'package:hiddify/features/proxy/notifier/connection_test_notifier.dart';
 import 'package:hiddify/features/proxy/overview/add_profile_menu_spec.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
 import 'package:hiddify/features/proxy/widget/chain_settings_page.dart';
 import 'package:hiddify/features/proxy/widget/config_settings_page.dart';
+import 'package:hiddify/features/proxy/widget/connection_test_dialog.dart';
 import 'package:hiddify/features/proxy/widget/manual_node_flow.dart';
 import 'package:hiddify/features/proxy/widget/protocol_form_modal.dart';
 import 'package:hiddify/features/proxy/widget/proxies_menu_button.dart';
@@ -109,6 +111,8 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
       activeTabIsActive = activeTab.profileId == activeProfileId;
     }
     final activeNodeInUse = connectionStatus is Connected && activeTabIsActive;
+    // NekoBox `StatsBar.changeState`：**仅 Connected 显示状态栏**，其余状态一律隐藏。
+    final showStatsBar = nkState == NkConnectionState.connected;
 
     // final selectActiveProxyMutation = useMutation(
     //   initialOnFailure: (error) => CustomToast.error(t.presentShortError(error)).show(context),
@@ -248,7 +252,8 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
       ),
       // NekoBox 复刻 · FAB = 连接开关（对标 ServiceButton 四态）：
       // stopped=播放、connecting/disconnecting=转圈（禁点）、connected=停止。
-      // 测速入口不在这 —— 那是配置动作，连接才是这个页面唯一的"大按钮"。
+      // tooltip 的 stopping 分支：disconnecting 用 spec 词"正在停止…"（connecting
+      // 状态在页面侧把 Connecting/Disconnecting 合并了，这里用原始状态区分）。
       floatingActionButton: FloatingActionButton(
         onPressed: connectionStatus is Connecting || connectionStatus is Disconnecting
             ? null
@@ -256,7 +261,7 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
         // 这个按钮是**连接开关**：未连接时显示「连接」（动作名），不是「点击连接」。
         tooltip: switch (nkState) {
           NkConnectionState.connected => t.connection.connected,
-          NkConnectionState.connecting => t.connection.connecting,
+          NkConnectionState.connecting => connectionStatus is Disconnecting ? t.connection.stopping : t.connection.connecting,
           _ => t.connection.connect,
         },
         child: connectionStatus is Connecting || connectionStatus is Disconnecting
@@ -267,11 +272,10 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
               )
             : Icon(nkState == NkConnectionState.connected ? FluentIcons.stop_24_filled : FluentIcons.play_24_filled),
       ),
-      // 底部状态栏：接管状态 + 当前节点 + 实时速率。
-      // 原来这些信息分散在首页（当前代理条）和侧栏，合并后集中在这里常驻。
-      // **移动端也保留** —— 同行（NekoBoxForAndroid 的 `StatsBar`）手机端就有这一条：
-      // ↑↓ 速率 + 状态。它落在"列表"和"外层底部导航"之间，只是多一条、不重叠。
-      bottomNavigationBar: const _CaptureStatusBar(),
+      // 底部状态栏（NekoBox `StatsBar` 规格）：**仅已连接时显示**（StatsBar.changeState
+      // 非 Connected 一律 performHide）；内容 = 状态文本（含点击测连接提示）+ 当前节点
+      // + ▲▼ 实时速率。未连接时整条隐藏（列表底部 padding 随之收窄）。
+      bottomNavigationBar: showStatsBar ? const _CaptureStatusBar() : null,
       body: proxies.when(
         data: (group) {
           if (group == null) return Center(child: Text(t.pages.proxies.empty));
@@ -305,7 +309,7 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
                     // 同行（v2rayN / NekoBox）都是列表；网格留给宽屏。
                     : listView
                     ? ListView.builder(
-                        padding: const EdgeInsets.only(bottom: 86),
+                        padding: EdgeInsets.only(bottom: showStatsBar ? 86 : 24),
                         itemCount: items.length,
                         itemBuilder: (context, index) =>
                             _tile(context, items[index], group, ref, activeTab, activeNodeInUse, items.length),
@@ -317,7 +321,7 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
                               ? 1
                               : max(1, (width / 268).floor());
                           return GridView.builder(
-                            padding: const EdgeInsets.only(bottom: 86),
+                            padding: EdgeInsets.only(bottom: showStatsBar ? 86 : 24),
                             itemCount: items.length,
                             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: crossAxisCount,
@@ -528,20 +532,21 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
   }
 }
 
-/// 底部状态栏（NekoBox `StatsBar` 规格）：主色底 + 白字，
-/// 内容 = 接管状态点 + 当前节点 + ↑↓ 实时速率 + 连接状态。
+/// 底部状态栏（NekoBox `StatsBar` 规格）：主色底 + 白字，**仅已连接时挂载**
+/// （`StatsBar.changeState` 非 Connected 一律 performHide —— 挂载条件在页面侧）。
 ///
-/// 这三样原来分散在首页（当前代理条）和左侧栏（统计卡），合并成一页之后集中在这里常驻，
-/// 任何滚动位置都能看到"现在到底连上没、走的是谁"。
-///
-/// 节点/接管状态取自 [connectionSummaryProvider]（与抽屉头共用一份口径），
-/// 本组件只负责"速率"这一项自己的数据（[statsNotifierProvider]）。
+/// 内容 = 状态文本（`vpn_connected` = "已连接 , 点击此处测试连接"——文案即点击
+/// 提示）+ 当前节点名（本项目补充能力）+ ▲▼ 实时速率（`updateSpeed` 格式）。
+/// **点击 = 测当前连接延迟**（`MainActivity.kt:94` `stats.testConnection()` 的
+/// 对应物；本项目落点 = 当前组 URL Test，走 [runConnectionTest] 单层 guard，
+/// 规则见 `87a0743f`：一次用户动作 = 恰好一层 guard）。
 class _CaptureStatusBar extends ConsumerWidget {
   const _CaptureStatusBar();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final t = ref.watch(translationsProvider).requireValue;
     final summary = ref.watch(connectionSummaryProvider);
     final stats = ref.watch(statsNotifierProvider).asData?.value ?? SystemInfo.create();
 
@@ -551,31 +556,41 @@ class _CaptureStatusBar extends ConsumerWidget {
       color: theme.colorScheme.primary,
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              // 亮绿点 = 接管中；半透明白点 = 没接管（内核可能仍在跑，只是流量没走代理）
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: summary.capturing
-                      ? Colors.lightGreenAccent
-                      : theme.colorScheme.onPrimary.withValues(alpha: .4),
-                ),
-              ),
-              const Gap(8),
-              if (summary.nodeName != null)
+        child: InkWell(
+          onTap: () => unawaited(runConnectionTest(
+            context,
+            ref,
+            start: () async {
+              final ok = await ref
+                  .read(connectionTestNotifierProvider.notifier)
+                  .runUrlTest(body: () => ref.read(proxiesOverviewNotifierProvider.notifier).urlTest());
+              return ok == true ? 0 : null;
+            },
+          )),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
                 Flexible(
-                  child: Text(summary.nodeName!, style: style, overflow: TextOverflow.ellipsis, maxLines: 1),
+                  child: Text(
+                    t.connection.statsConnected,
+                    style: style,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
                 ),
-              const Spacer(),
-              Text("↑ ${stats.uplink.toInt().speed()}", style: style),
-              const Gap(10),
-              Text("↓ ${stats.downlink.toInt().speed()}", style: style),
-            ],
+                if (summary.nodeName != null) ...[
+                  const Gap(8),
+                  Flexible(
+                    child: Text(summary.nodeName!, style: style, overflow: TextOverflow.ellipsis, maxLines: 1),
+                  ),
+                ],
+                const Spacer(),
+                Text("▲ ${stats.uplink.toInt().speed()}", style: style),
+                const Gap(10),
+                Text("▼ ${stats.downlink.toInt().speed()}", style: style),
+              ],
+            ),
           ),
         ),
       ),

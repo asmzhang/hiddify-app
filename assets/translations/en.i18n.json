@@ -900,6 +900,8 @@
     "connect": "Connect",
     "connecting": "Connecting...",
     "connected": "Connected",
+    "stopping": "Stopping...",
+    "statsConnected": "Connected, tap here to test the connection",
     "disconnected": "Not connected",
     "disconnect": "Disconnect",
     "disconnecting": "Disconnecting...",

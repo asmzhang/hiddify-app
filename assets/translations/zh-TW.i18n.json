@@ -866,8 +866,10 @@
   "connection": {
     "tapToConnect": "點擊連線",
     "connect": "連線",
-    "connecting": "連線中...",
+    "connecting": "正在連線…",
     "connected": "已連線",
+    "stopping": "正在停止…",
+    "statsConnected": "已連線，點擊此處測試連線",
     "disconnected": "未連線",
     "disconnect": "中斷連線",
     "disconnecting": "中斷連線中...",
