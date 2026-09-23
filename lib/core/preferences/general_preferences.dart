@@ -85,6 +85,11 @@ abstract class Preferences {
   /// （`ConfigurationFragment.kt:1557-1563` 同构）。
   static final alwaysShowAddress = PreferencesNotifier.create<bool, bool>("always_show_address", false);
 
+  /// NekoBox `profileTrafficStatistics`（默认 true）：订阅流量统计显示闸门。
+  /// false 时配置卡不显示流量（NekoBox TrafficLooper 对应物 —— 它闸的是
+  /// 逐 profile 的流量累计，我们是订阅头数据卡的展示位，落点同为显示层）。
+  static final profileTrafficStatistics = PreferencesNotifier.create<bool, bool>("profile_traffic_statistics", true);
+
   static final disableMemoryLimit = PreferencesNotifier.create<bool, bool>(
     "disable_memory_limit",
     // disable memory limit on desktop by default

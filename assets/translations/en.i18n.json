@@ -412,6 +412,8 @@
         "logLevel": "Log level",
       "alwaysShowAddress": "Always Show Address",
       "alwaysShowAddressSum": "Always display the server address on the configuration cards",
+      "profileTrafficStatistics": "Profile Traffic Statistics",
+      "profileTrafficStatisticsSum": "When disabled, the used traffic will not be counted",
         "connectionTestUrl": "Connection test URL",
         "urlTestInterval": "URL test interval",
         "allowInsecureOnRequest": "Allow insecure when updating subscriptions",

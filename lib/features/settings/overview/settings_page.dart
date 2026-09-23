@@ -170,6 +170,15 @@ class SettingsPage extends HookConsumerWidget {
                 digitsOnly: true,
                 inputToValue: int.tryParse,
               ),
+              // NekoBox `profileTrafficStatistics`（global_preferences.xml：
+              // alwaysShowAddress 的前邻位；默认 true）。
+              SwitchListTile.adaptive(
+                title: Text(t.pages.settings.general.profileTrafficStatistics),
+                subtitle: Text(t.pages.settings.general.profileTrafficStatisticsSum),
+                secondary: const Icon(Icons.traffic_rounded),
+                value: ref.watch(Preferences.profileTrafficStatistics),
+                onChanged: ref.read(Preferences.profileTrafficStatistics.notifier).update,
+              ),
               // NekoBox `alwaysShowAddress`（global_preferences.xml：logLevel 之前的邻位）。
               SwitchListTile.adaptive(
                 title: Text(t.pages.settings.general.alwaysShowAddress),

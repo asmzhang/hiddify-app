@@ -412,6 +412,8 @@
         "logLevel": "日志级别",
       "alwaysShowAddress": "始终显示地址",
       "alwaysShowAddressSum": "始终在配置卡片上显示服务器地址",
+      "profileTrafficStatistics": "配置流量统计",
+      "profileTrafficStatisticsSum": "禁用后将不统计使用的流量",
         "connectionTestUrl": "连接测试 URL",
         "urlTestInterval": "URL 测试间隔",
         "allowInsecureOnRequest": "更新订阅时允许不安全连接",

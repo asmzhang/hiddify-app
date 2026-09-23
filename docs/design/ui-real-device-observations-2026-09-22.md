@@ -32,9 +32,11 @@
 |---|---|---|
 | 已落地（前批） | globalCustomConfig / GroupSettingsActivity / route_preferences 表单序 | 批次 8 / 功能④ / 功能⑨ |
 | 本轮落地 | alwaysShowAddress | 设置主表开关（spec 默认 false，邻位对齐 global_preferences.xml）+ 节点卡地址行门控（`ConfigurationFragment.kt:1557-1563` 同构） |
+| 本轮落地 | profileTrafficStatistics | 设置主表开关（默认 true，spec 邻位 = alwaysShowAddress 前邻）+ NkProfileTile 流量列闸门（TrafficLooper 对应物，落点同为显示层） |
 | 平台不适用 | meteredNetwork / acquireWakeLock / showGroupInNotification / speedInterval | Android 专属（通知/锁电/计量网络），桌面无对应物，记档跳过 |
 | 内核未开放（C 组） | trafficSniffing※ / appendHttpProxy※ / domain_strategy_for_server※ / networkChangeResetConnections※ / wakeResetConnections※ | sing-box 1.13 内核未开放，等内核 |
-| 待办（桌面可做） | profileTrafficStatistics / showDirectSpeed / globalAllowInsecure / allowInsecureOnRequest / appTLSVersion | 后续设置页批次 |
+| 无消费者（死键） | appTLSVersion（NekoBox 自身零引用）/ globalAllowInsecure（消费在内核侧链接解析，我方对应物 = 表单手动勾选） | 跳过并记档 |
+| 待办（桌面可做） | showDirectSpeed（需直连/代理分流速率数据源） | 数据源就绪后再做 |
 | 不移植（定案） | rulesProvider | geo 资产管线不做，等价物 = 预设规则 |
 | 语义差异（记档） | isAutoConnect（硬充） / bypassLan（预设规则覆盖） | 已有记录 |
 

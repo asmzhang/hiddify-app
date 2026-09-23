@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/localization/translations.dart';
+import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/core/widget/adaptive_icon.dart';
 import 'package:hiddify/core/widget/adaptive_menu.dart';
 import 'package:hiddify/core/widget/nekobox/nk_card.dart';
@@ -45,12 +46,14 @@ class NkProfileTile extends HookConsumerWidget {
     };
 
     // 行2：地址 ······ 流量（与旧卡口径一致：已用 / 总量）。
+    // 流量列受 profileTrafficStatistics 闸门（NekoBox TrafficLooper 对应物）。
+    final showTrafficStats = ref.watch(Preferences.profileTrafficStatistics);
     final host = switch (profile) {
       RemoteProfileEntity(:final url) => Uri.tryParse(url)?.host ?? url,
       LocalProfileEntity() => null,
     };
     final traffic = switch (subInfo) {
-      final s? => s.consumption.sizeOf(s.total),
+      final s? when showTrafficStats => s.consumption.sizeOf(s.total),
       _ => null,
     };
     // 行3 左：订阅状态（到期 / 余量），不足或过期用错误色。
