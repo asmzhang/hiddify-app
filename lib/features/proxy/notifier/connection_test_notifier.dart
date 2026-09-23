@@ -141,15 +141,15 @@ class ConnectionTestNotifier extends _$ConnectionTestNotifier with AppLogger {
     }
   }
 
-  /// 开始一轮内核 URL test（无逐条进度——内核 RPC 空 tag 一次测全部）。
-  ///
-  /// NekoBox 的 urlTest 同样是应用侧逐节点 HTTP 探测所以有逐条 update；
-  /// 本项目的对应实现是内核 `UrlTestActive()`（见 ProxiesOverviewNotifier.urlTest），
-  /// 拿不到逐条回调。对话框对这种测试只显示转圈 + 提示文案（计数不显示）。
+  /// 开始一轮内核 URL test（一次 RPC 测全组；进度 = [body] 通过 [onAbsolute]
+  /// 回报"延迟已回填的节点数"，对话框显示 n/N）。
   ///
   /// 返回 null = 防重入拒绝；true = 正常结束（不存在 false 分支）。
   /// 不可中途取消（内核侧无该 RPC）——requestCancel 对它无效。
-  Future<bool?> runUrlTest({required Future<void> Function() body}) async {
+  Future<bool?> runUrlTest({
+    required int total,
+    required Future<void> Function(void Function(int finished) onAbsolute) body,
+  }) async {
     if (state.running) {
       // 同上：嵌套守卫 = 测试体永不执行。urlTest 侧的这个坑在 2026-09-22 修过
       // （overview notifier 里再包一层 → 测速无反应）。
@@ -159,10 +159,11 @@ class ConnectionTestNotifier extends _$ConnectionTestNotifier with AppLogger {
       );
       return null;
     }
-    // URL test 不可中途取消（内核侧无该 RPC）——cancel completer 不接。
-    state = const ConnectionTestState(running: true);
+    state = ConnectionTestState(running: true, total: total);
     try {
-      await body();
+      await body((finished) {
+        state = ConnectionTestState(running: true, total: total, finished: finished);
+      });
       state = const ConnectionTestState();
       return true;
     } catch (e, stackTrace) {

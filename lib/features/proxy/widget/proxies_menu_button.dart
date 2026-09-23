@@ -6,6 +6,7 @@ import 'package:hiddify/features/profile/model/profile_entity.dart';
 import 'package:hiddify/features/profile/notifier/profile_notifier.dart';
 import 'package:hiddify/features/profile/overview/profiles_notifier.dart';
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
+import 'package:hiddify/features/proxy/notifier/connection_test_notifier.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
 import 'package:hiddify/features/proxy/widget/connection_test_dialog.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -209,14 +210,25 @@ class _ProxiesMenuButtonState extends ConsumerState<ProxiesMenuButton> {
   }
 
   Future<void> _urlTest(Translations t) async {
-    // NekoBox `urlTest()`（ConfigurationFragment.kt:834-901）：先弹进度框
-    // 再开测。逐节点测试（进度 n/N + 当前节点 + 可取消）由
-    // `ProxiesOverviewNotifier.urlTest` 内部的 runTcpPing 承担。
+    // 进度 = 延迟已回填的节点数（内核一次 RPC 并发测全组，延迟经 groups 流
+    // 回填 overview；对话框架面 n/N 实时）。逐节点 RPC 洪泛会卡死内核——
+    // 两轮实机教训，见 urlTest 注释。
     try {
       await runConnectionTest(
         context,
         ref,
-        start: () => ref.read(proxiesOverviewNotifierProvider.notifier).urlTest(),
+        start: () {
+          final total =
+              ref.read(proxiesOverviewNotifierProvider).valueOrNull?.items.where((e) => !e.isGroup).length ?? 0;
+          return ref
+              .read(connectionTestNotifierProvider.notifier)
+              .runUrlTest(
+                total: total,
+                body:
+                    (onAbsolute) => ref.read(proxiesOverviewNotifierProvider.notifier).urlTest(onAbsoluteProgress: onAbsolute),
+              )
+              .then((ok) => ok == true ? 0 : null);
+        },
       );
     } catch (_) {
       if (mounted) {

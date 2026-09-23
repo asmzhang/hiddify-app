@@ -18,8 +18,12 @@ void main() {
 
     var innerBodyRan = false;
     final outer = await notifier.runUrlTest(
-      body: () async {
-        final inner = await notifier.runUrlTest(body: () async => innerBodyRan = true);
+      total: 2,
+      body: (onAbsolute) async {
+        final inner = await notifier.runUrlTest(
+          total: 2,
+          body: (onAbsolute) async => innerBodyRan = true,
+        );
         expect(inner, isNull, reason: '内层被拒：外层已把 running 置 true');
       },
     );
@@ -39,7 +43,7 @@ void main() {
     final notifier = container.read(connectionTestNotifierProvider.notifier);
 
     var ran = false;
-    final ok = await notifier.runUrlTest(body: () async => ran = true);
+    final ok = await notifier.runUrlTest(total: 1, body: (onAbsolute) async => ran = true);
 
     expect(ok, isTrue);
     expect(ran, isTrue);
@@ -82,9 +86,30 @@ void main() {
     final notifier = container.read(connectionTestNotifierProvider.notifier);
 
     await expectLater(
-      notifier.runUrlTest(body: () async => throw StateError('boom')),
+      notifier.runUrlTest(total: 0, body: (onAbsolute) async => throw StateError('boom')),
       throwsA(isA<StateError>()),
     );
+    expect(container.read(connectionTestNotifierProvider).running, isFalse);
+  });
+
+  test('runUrlTest：onAbsolute 进度回报（URL 测试延迟回填计数的锚点）', () async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(connectionTestNotifierProvider.notifier);
+
+    final progress = <int>[];
+    final ok = await notifier.runUrlTest(
+      total: 10,
+      body: (onAbsolute) async {
+        onAbsolute(3);
+        progress.add(container.read(connectionTestNotifierProvider).finished);
+        onAbsolute(7);
+        progress.add(container.read(connectionTestNotifierProvider).finished);
+      },
+    );
+
+    expect(ok, isTrue);
+    expect(progress, [3, 7], reason: '绝对进度逐次回报，对话框 n/N 据此刷新');
     expect(container.read(connectionTestNotifierProvider).running, isFalse);
   });
 }
