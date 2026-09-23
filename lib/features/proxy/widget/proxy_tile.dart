@@ -12,6 +12,7 @@ import 'package:hiddify/core/widget/nekobox/nk_theme.dart';
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/data/offline_proxy_parser.dart';
 import 'package:hiddify/features/proxy/data/outbound_to_link.dart';
+import 'package:hiddify/features/proxy/widget/proxy_tile_spec.dart';
 import 'package:hiddify/gen/fonts.gen.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hiddify/utils/custom_loggers.dart';
@@ -88,34 +89,31 @@ class ProxyTile extends HookConsumerWidget with PresLogger {
     final address = displayAddress(proxy.host, proxy.port);
     // 行3 左侧：协议类型 —— NekoBox 用 accentOrTextSecondary 的纯彩色文字（非徽标）。
     final typeColor = NkColors.protocolColor(proxy.type);
-    // 行3 右侧：状态 —— 分组显示当前选中项；节点显示延迟（绿/红纯文字，复用 PingBadge 文案规则）。
-    // 负数编码 = 实体测速结果里的"不可用"（TCP ping 落库的分类，见
-    // `encodeOfflineTestResult`），显示为 NekoBox `connection_test_*` 文案而非 "×"。
-    final String statusText;
-    final Color statusColor;
-    if (proxy.isGroup) {
-      statusText = proxy.groupSelectedTagDisplay.trim();
-      statusColor = theme.colorScheme.onSurfaceVariant;
-    } else if (offlineTestErrorKey(delay) case final errorKey?) {
-      statusText = switch (errorKey) {
-        'testRefused' => t.pages.proxies.msg.testRefused,
-        'testTimeout' => t.pages.proxies.msg.testTimeout,
-        'testUnreachable' => t.pages.proxies.msg.testUnreachable,
-        'testDomainNotFound' => t.pages.proxies.msg.testDomainNotFound,
-        _ => t.pages.proxies.msg.testUnreachable,
-      };
-      statusColor = NkColors.latencyBad;
-    } else if (delay <= 0) {
-      statusText = '—';
-      statusColor = theme.colorScheme.onSurfaceVariant;
-    } else {
-      statusText = delay > NkColors.latencyTimeoutMs ? '×' : '$delay';
-      statusColor = NkColors.latencyColor(context, delay) ?? theme.colorScheme.onSurfaceVariant;
-    }
     // 行2 右侧：流量（上下行合计口径与原实现一致：分开显示，任一非零才显示）。
     final traffic = proxy.download > 0 || proxy.upload > 0
         ? '↑ ${proxy.upload.toInt().size()} ↓ ${proxy.download.toInt().size()}'
         : null;
+    // 行3 右侧：状态 —— 纯函数规格投影（`proxy_tile_spec.dart`，NekoBox
+    // `ConfigurationFragment.kt:1565-1592`）：未测速时流量**挪到状态位**显示
+    // （行2 置空，两处只显示一处），无流量 = 空字符串（不是 "—" 占位）。
+    final showTrafficInAddressRow = nkProxyShowTrafficInAddressRow(
+      hasTraffic: traffic != null,
+      tested: delay > 0,
+    );
+    final (:text, :color) = nkProxyStatus(
+      t,
+      isGroup: proxy.isGroup,
+      groupSelectedTagDisplay: proxy.groupSelectedTagDisplay.trim(),
+      delay: delay,
+      traffic: traffic,
+      errorColor: NkColors.latencyBad,
+      testedColor: delay > NkColors.latencyTimeoutMs
+          ? NkColors.latencyBad
+          : NkColors.latencyColor(context, delay) ?? theme.colorScheme.onSurfaceVariant,
+      neutralColor: theme.colorScheme.onSurfaceVariant,
+    );
+    final statusText = text;
+    final statusColor = color;
 
     return Card(
       margin: const EdgeInsets.all(4),
@@ -222,9 +220,9 @@ class ProxyTile extends HookConsumerWidget with PresLogger {
                               ),
                             ),
                             const Spacer(),
-                            if (traffic != null)
+                            if (showTrafficInAddressRow)
                               Text(
-                                traffic,
+                                traffic!,
                                 style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                               ),
                           ],
