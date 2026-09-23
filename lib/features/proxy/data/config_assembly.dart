@@ -369,6 +369,21 @@ List<String>? chainProxiesOf(String payload) {
 /// outbounds 段完全同构。基准 outbounds 里若有 legacy `type==wireguard`（K1：留着
 /// 这份配置必炸），一律剔除（计入 removed）—— 这是"剔除救活订阅"，不是数据丢失。
 ///
+/// payload 的 server 是否指向回环地址（127.0.0.1/::1/localhost）。
+/// 解析失败按"非回环"处理（后续各自的坏 payload 处理兜底）。
+bool _hasLoopbackServer(String payload) {
+  try {
+    final decoded = jsonDecode(payload);
+    if (decoded is! Map<String, dynamic>) return false;
+    final server = decoded['server'];
+    if (server is! String) return false;
+    final host = server.toLowerCase();
+    return host == '127.0.0.1' || host == '::1' || host == 'localhost';
+  } catch (_) {
+    return false;
+  }
+}
+
 /// 解析失败返回 null —— 调用方应回落到基准文件（不因组装失败而无法连接）。
 ConfigAssemblyResult? applyEntitiesToOutbounds({
   required String baselineConfigJson,
@@ -403,6 +418,11 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
   final nodeEntities = <ImportedProxyEntity>[];
   final endpointEntities = <ImportedProxyEntity>[];
   for (final entity in entities) {
+    // 假节点过滤（journey 2026-09-23 实测）：订阅占位节点（server=127.0.0.1/
+    // ::1/localhost，如「如无AnyTLS节点请更新客户端」@127.0.0.1:1080）混进
+    // urltest 候选且曾被测成最低延迟锁定 → 所有经自动选择的连接瞬断（本机
+    // 端口拒绝）。回环服务器节点不可能是可用代理，组装层直接剔除。
+    if (_hasLoopbackServer(entity.payload)) continue;
     if (entity.type == kChainEntityType) {
       chainEntities.add(entity);
     } else if (entity.type == kConfigEntityType) {
