@@ -408,6 +408,17 @@ void main() {
       expect(result.added, 1); // wg-new 追加
     });
 
+    test('endpoint-only 基准没有 outbounds 时仍可写入 endpoints', () {
+      final result = applyEntitiesToOutbounds(
+        baselineConfigJson: '{"endpoints":[]}',
+        entities: [wgEntity('wg-only')],
+      );
+      expect(result, isNotNull);
+      final config = decode(result!.configJson);
+      expect(config['outbounds'], isEmpty);
+      expect((config['endpoints'] as List).whereType<Map<String, dynamic>>().map((e) => e['tag']), contains('wg-only'));
+    });
+
     test('endpoint 实体覆盖基准同名 endpoint，基准段原样保留其他成员', () {
       final result = applyEntitiesToOutbounds(
         baselineConfigJson: wgBaseline,

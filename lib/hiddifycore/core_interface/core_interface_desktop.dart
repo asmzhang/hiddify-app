@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:ffi/ffi.dart';
 import 'package:grpc/grpc.dart';
 import 'package:hiddify/core/model/directories.dart';
+import 'package:hiddify/core/utils/available_port.dart';
 import 'package:hiddify/gen/hiddify_core_generated_bindings.dart';
 import 'package:hiddify/hiddifycore/core_interface/core_interface.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
@@ -18,6 +19,9 @@ import 'package:loggy/loggy.dart';
 import 'package:path/path.dart' as p;
 
 final _logger = Loggy('HiddifyCoreFFI');
+
+const preferredDesktopCorePort = 17078;
+
 typedef StopFunc = Pointer<Utf8> Function();
 typedef StopFuncDart = Pointer<Utf8> Function();
 
@@ -55,7 +59,7 @@ class CoreInterfaceDesktop extends CoreInterface with InfraLogger {
     }
   }
 
-  final port = 17078;
+  int port = preferredDesktopCorePort;
   static String generateRandomPassword(int length) {
     const characters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     // Random.secure() (audit C): dart:math Random() is predictable, which made
@@ -74,38 +78,79 @@ class CoreInterfaceDesktop extends CoreInterface with InfraLogger {
     // final err = errPtr2.cast<Utf8>().toDartString();
     // throw Exception('stop: $err');
     const channelOption = ChannelCredentials.insecure();
-    final helloClient = HelloClient(
+    HelloClient helloAt(int value) => HelloClient(
       ClientChannel(
         '127.0.0.1',
-        port: port,
+        port: value,
         options: const ChannelOptions(credentials: channelOption),
       ),
     );
 
-    try {
-      await helloClient.sayHello(HelloRequest(name: "test"));
-      loggy.info("core is already started!");
-    } catch (e) {
-      //core is not started yet
-
-      final errPtr = _box.setup(
-        directories.baseDir.path.toNativeUtf8().cast(),
-        directories.workingDir.path.toNativeUtf8().cast(),
-        directories.tempDir.path.toNativeUtf8().cast(),
-        SetupMode.GRPC_NORMAL_INSECURE.value,
-        "127.0.0.1:$port".toNativeUtf8().cast(),
-        secret.toNativeUtf8().cast(),
-        0,
-        debug ? 1 : 0,
-      );
-      final err = errPtr.cast<Utf8>().toDartString();
-
-      if (err.isNotEmpty) {
-        return err;
+    // A busy core can miss a short probe, but a loopback connection-refused is
+    // immediate — a 2s budget survives entity-sync load without slowing the
+    // "nothing is listening" path down.
+    Future<bool> probe(int value) async {
+      try {
+        await helloAt(value).sayHello(HelloRequest(name: "test")).timeout(const Duration(seconds: 2));
+        return true;
+      } catch (_) {
+        return false;
       }
-      final res = await helloClient.sayHello(HelloRequest(name: "test"));
-      loggy.info(res.toString());
     }
+
+    // Once clients exist the selected port is authoritative: the native gRPC
+    // server cannot be created twice, and a second _box.setup would orphan the
+    // clients on an unbound port (the "background core start failed" smoke
+    // regression). Re-probe and return; only an unreachable core falls through
+    // to a fresh port.
+    if (isInitialized()) {
+      if (await probe(port)) {
+        loggy.info("core is already started on 127.0.0.1:$port");
+        return "";
+      }
+      loggy.warning("core on 127.0.0.1:$port is unreachable; selecting a fresh port");
+    } else if (await probe(port)) {
+      // Another instance's core is already serving this port — reuse it.
+      loggy.info("core is already started on 127.0.0.1:$port");
+      bgClient = fgClient = CoreClient(
+        ClientChannel(
+          'localhost',
+          port: port,
+          options: const ChannelOptions(
+            credentials: ChannelCredentials.insecure(),
+            // credentials: ChannelCredentials.secure(
+            //   password: secret,
+            //   onBadCertificate: (certificate, host) => true,
+            // ),
+          ),
+        ),
+      );
+      return "";
+    }
+
+    // Nothing reusable is listening. The preferred port may be occupied or
+    // reserved by Windows (excluded ranges are invisible to netstat), so bind
+    // a probe to select a loopback port the native core can take.
+    port = await selectAvailableLoopbackPort(preferredDesktopCorePort);
+    loggy.info("starting core gRPC on 127.0.0.1:$port");
+
+    final errPtr = _box.setup(
+      directories.baseDir.path.toNativeUtf8().cast(),
+      directories.workingDir.path.toNativeUtf8().cast(),
+      directories.tempDir.path.toNativeUtf8().cast(),
+      SetupMode.GRPC_NORMAL_INSECURE.value,
+      "127.0.0.1:$port".toNativeUtf8().cast(),
+      secret.toNativeUtf8().cast(),
+      0,
+      debug ? 1 : 0,
+    );
+    final err = errPtr.cast<Utf8>().toDartString();
+
+    if (err.isNotEmpty) {
+      return err;
+    }
+    final res = await helloAt(port).sayHello(HelloRequest(name: "test"));
+    loggy.info(res.toString());
     bgClient = fgClient = CoreClient(
       ClientChannel(
         'localhost',

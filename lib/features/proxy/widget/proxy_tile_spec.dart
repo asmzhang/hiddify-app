@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/widget/nekobox/nk_theme.dart';
@@ -37,13 +39,52 @@ import 'package:hiddify/features/proxy/data/offline_proxy_parser.dart';
   if (delay <= 0) {
     return (text: traffic ?? '', color: neutralColor);
   }
-  return (
-    text: delay > NkColors.latencyTimeoutMs ? '×' : '$delay',
-    color: testedColor,
-  );
+  return (text: delay >= NkColors.latencyTimeoutMs ? '×' : '${delay}ms', color: testedColor);
 }
+
+/// 节点卡协议名 —— 对应 NekoBox `ProxyEntity.displayType()`，独立于“添加节点”菜单文案。
+/// 菜单里的 Hysteria 不带版本，而节点实体必须显示 Hysteria1 / Hysteria2。
+String nkProxyTypeLabel(Translations t, {required String type, required bool isSecure, String? configPayload}) =>
+    switch (type.trim().toLowerCase()) {
+      'socks' => 'SOCKS',
+      'http' => isSecure ? 'HTTPS' : 'HTTP',
+      'shadowsocks' => 'Shadowsocks',
+      'vmess' => 'VMess',
+      'vless' => 'VLESS',
+      'trojan' => 'Trojan',
+      'trojan-go' => 'Trojan-Go',
+      'mieru' => 'Mieru',
+      'naive' => 'Naïve',
+      'hysteria' => 'Hysteria1',
+      'hysteria2' => 'Hysteria2',
+      'ssh' => 'SSH',
+      'wireguard' => 'WireGuard',
+      'tuic' => 'TUIC',
+      'shadowtls' => 'ShadowTLS',
+      'anytls' => 'AnyTLS',
+      'chain' => t.pages.proxies.chain.proxyChain,
+      'config' => nkConfigTypeLabel(configPayload),
+      _ => type,
+    };
+
+String nkConfigTypeLabel(String? payload) {
+  if (payload == null || payload.trim().isEmpty) return 'sing-box config';
+  try {
+    final decoded = jsonDecode(payload);
+    if (decoded is Map) {
+      final type = decoded['type'];
+      if (type is String && type.isNotEmpty) return '$type (sing-box)';
+    }
+  } catch (_) {
+    // Invalid config is surfaced by the editor; the row keeps a stable fallback label.
+  }
+  return 'sing-box config';
+}
+
+/// NekoBox `ConfigurationFragment.kt:1610-1616`：Chain 隐藏分享；
+/// 普通协议和 Config 都保留分享入口（Config 仅提供配置导出）。
+bool nkProxyShowsShare(String type) => type.trim().toLowerCase() != 'chain';
 
 /// 行2 流量显隐：`showTraffic && status > 0`（spec L1543 + L1567-1569：
 /// 未测速时流量文本搬去状态位，行2 置空 —— 两处只显示一处）。
-bool nkProxyShowTrafficInAddressRow({required bool hasTraffic, required bool tested}) =>
-    hasTraffic && tested;
+bool nkProxyShowTrafficInAddressRow({required bool hasTraffic, required bool tested}) => hasTraffic && tested;

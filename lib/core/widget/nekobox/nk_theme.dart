@@ -37,6 +37,10 @@ abstract class NkColors {
 
   static Color protocolColor(String type) => protocol[type.trim().toLowerCase()] ?? protocolFallback;
 
+  /// 节点卡状态色：NekoBox `ConfigurationFragment` 固定使用 Material Green/Red 500。
+  static const Color profileAvailable = Color(0xFF4CAF50);
+  static const Color profileUnavailable = Color(0xFFF44336);
+
   /// 延迟三档（绿/黄/红）——亮/暗主题各一套，和 NekoBox 的延迟配色语义一致。
   static const Color latencyOk = Color(0xFF2E9E5B);
   static const Color latencyMid = Color(0xFFE0A106);

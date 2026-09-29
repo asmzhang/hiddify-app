@@ -37,8 +37,7 @@ Future<void> lazyBootstrap(WidgetsBinding widgetsBinding, Environment env) async
     FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   }
   LoggerController.preInit();
-  FlutterError.onError = Logger.logFlutterError;
-  WidgetsBinding.instance.platformDispatcher.onError = Logger.logPlatformDispatcherError;
+  _installErrorHooks(widgetsBinding);
 
   final stopWatch = Stopwatch()..start();
 
@@ -143,6 +142,36 @@ Future<void> lazyBootstrap(WidgetsBinding widgetsBinding, Environment env) async
     FlutterNativeSplash.remove();
   }
   // SentryFlutter.s(DateTime.now().toUtc());
+}
+
+/// 安装框架错误钩子：**只追加，不独占**。
+///
+/// `FlutterError.onError` / `PlatformDispatcher.onError` 都是全局单点，直接赋值
+/// 会把先前的消费者整个顶掉。测试侧的代价最大：flutter_test 的测试 binding 在
+/// `_runTestBody` 里装自己的 `FlutterError.onError`，靠它把异常写进
+/// `_pendingExceptionDetails`（flutter_test/src/binding.dart:877-902）；被顶掉后
+/// 测试框架收不到任何异常，测试结束时 `binding.dart:1017` 的断言必然失败
+/// （"A test overrode FlutterError.onError but either failed to return it to its
+/// original state"），live binding 随之报废，后续用例全部 did not complete。
+///
+/// 因此这里保存既有处理器并在记录之后转交：
+/// - 默认处理器（`FlutterError.presentError`，只往控制台 dump）是刻意屏蔽的
+///   ——本项目的框架异常统一进日志文件，避免双写噪声，行为保持不变；
+/// - 其余任何处理器（测试 binding / Sentry / 无障碍工具…）一律链式转发。
+void _installErrorHooks(WidgetsBinding widgetsBinding) {
+  final previousFlutterError = FlutterError.onError;
+  final shouldForward = previousFlutterError != FlutterError.presentError;
+  FlutterError.onError = (details) {
+    Logger.logFlutterError(details);
+    if (shouldForward) previousFlutterError?.call(details);
+  };
+
+  final previousPlatformError = widgetsBinding.platformDispatcher.onError;
+  widgetsBinding.platformDispatcher.onError = (error, stackTrace) {
+    final logged = Logger.logPlatformDispatcherError(error, stackTrace);
+    final forwarded = previousPlatformError?.call(error, stackTrace) ?? false;
+    return forwarded || logged;
+  };
 }
 
 Future<T> _init<T>(String name, Future<T> Function() initializer, {int? timeout}) async {

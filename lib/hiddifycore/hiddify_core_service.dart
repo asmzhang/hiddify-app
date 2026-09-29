@@ -115,6 +115,22 @@ class HiddifyCoreService with InfraLogger {
     }));
   }
 
+  /// Convert preclassified node-share content without creating a ProfileEntry or writing a config file.
+  TaskEither<String, String> parseConfigContent(String content) {
+    return TaskEither(() => _serializeRegistryAccess(() async {
+      try {
+        final response = await core.fgClient.parse(ParseRequest(content: content, debug: false));
+        if (response.responseCode != ResponseCode.OK) return left("${response.responseCode} ${response.message}");
+        return right(response.content);
+      } catch (_) {
+        await setup().run();
+        final response = await core.fgClient.parse(ParseRequest(content: content, debug: false));
+        if (response.responseCode != ResponseCode.OK) return left("${response.responseCode} ${response.message}");
+        return right(response.content);
+      }
+    }));
+  }
+
   TaskEither<String, Unit> setup() {
     return TaskEither(() async {
       try {

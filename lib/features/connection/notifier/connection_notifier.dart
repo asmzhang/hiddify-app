@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:hiddify/core/haptic/haptic_service.dart';
 import 'package:hiddify/core/localization/translations.dart';
+import 'package:hiddify/core/notification/in_app_notification_controller.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/features/connection/data/connection_data_providers.dart';
@@ -155,6 +156,15 @@ class ConnectionNotifier extends _$ConnectionNotifier with AppLogger {
   /// 内核默认常驻，所以这里不启停内核：没接管就接管，接管中就不接管。
   /// 内核万一没跑（没订阅/刚启动），[setCapture] 会先把它启动起来。
   Future<void> toggleConnection() async {
+    final status = state.valueOrNull;
+    if (status is Disconnecting) return;
+    if (status is Connecting) {
+      await ref.read(hapticServiceProvider.notifier).mediumImpact();
+      await ref.read(Preferences.startedByUser.notifier).update(false);
+      await _disconnect();
+      return;
+    }
+
     final capturing = ref.read(capturingProvider);
     final haptic = ref.read(hapticServiceProvider.notifier);
     if (capturing) {
@@ -285,7 +295,7 @@ class ConnectionNotifier extends _$ConnectionNotifier with AppLogger {
   final _singleStart = SingleCall();
 
   Future<void> _connect() async {
-    _singleStart.run(
+    await _singleStart.run(
       () async {
         await _connectThrottled();
       },
@@ -299,6 +309,11 @@ class ConnectionNotifier extends _$ConnectionNotifier with AppLogger {
     final activeProfile = await ref.read(activeProfileProvider.future);
     if (activeProfile == null) {
       loggy.info("no active profile, not connecting");
+      await ref.read(Preferences.captureEnabled.notifier).update(false);
+      await ref.read(Preferences.startedByUser.notifier).update(false);
+      ref
+          .read(inAppNotificationControllerProvider)
+          .showErrorToast(ref.read(translationsProvider).requireValue.pages.proxies.empty);
       return;
     }
     await _connectionRepo.connect(activeProfile, ref.read(Preferences.disableMemoryLimit)).mapLeft((

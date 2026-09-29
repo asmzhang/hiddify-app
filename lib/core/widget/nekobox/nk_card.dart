@@ -80,10 +80,13 @@ class NkCardAction extends StatelessWidget {
         : theme.colorScheme.onSurfaceVariant;
     return Tooltip(
       message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(NkMetrics.radiusSmall),
-        child: Padding(padding: const EdgeInsets.all(6), child: Icon(icon, size: 18, color: color)),
+      child: SizedBox.square(
+        dimension: 48,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(NkMetrics.radiusSmall),
+          child: Center(child: Icon(icon, size: 24, color: color)),
+        ),
       ),
     );
   }

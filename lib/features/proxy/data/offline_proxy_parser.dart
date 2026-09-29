@@ -66,6 +66,7 @@ OutboundGroup? parseSubscriptionGroup(String configJson, {required String groupN
           false,
           host: server is String ? server : '',
           port: serverPort is int ? serverPort : 0,
+          isSecure: outboundUsesTls(outbound),
         ),
       );
     }
@@ -115,6 +116,7 @@ OutboundInfo outboundInfo(
   String? displayName,
   String host = '',
   int port = 0,
+  bool isSecure = false,
   int testDelayOverride = 0,
 }) => OutboundInfo()
   ..tag = tag
@@ -123,9 +125,10 @@ OutboundInfo outboundInfo(
   ..isVisible = !isHiddenTag(tag)
   ..isGroup = kGroupOutboundTypes.contains(type)
   ..isSelected = selected
+  ..isSecure = isSecure
   ..host = host
   ..port = port
-  // 未连接时没有实测延迟；0 在 UI 上就是"—"
+  // 未连接时没有实测延迟；0 在 UI 上就是空状态位
   ..urlTestDelay = testDelayOverride;
 
 /// 一条**实体行**里与构造清单有关的字段（纯 Dart，不与 drift 耦合）。
@@ -133,15 +136,22 @@ OutboundInfo outboundInfo(
 /// [status]/[ping]/[error] 是实体的测速结果列（NekoBox 同名三列，TCP ping /
 /// 内核 urltest 的落点）；未测速时 status=0。构造清单时经 [encodeOfflineTestResult]
 /// 编码进 `urlTestDelay`（见该函数的编码表）。
-typedef EntityNodeRow
-    = ({String tag, String type, String displayName, String payload, int status, int ping, String? error});
+typedef EntityNodeRow = ({
+  String tag,
+  String type,
+  String displayName,
+  String payload,
+  int status,
+  int ping,
+  String? error,
+});
 
 // ───────────────────────────────────────────────────────────────────────────
 // 离线测速结果的显示编码。
 //
 // 为什么编码进 `urlTestDelay`：`OutboundInfo` 是生成的 protobuf（不加字段），
 // 而节点卡的状态位只读它。约定：
-//   0  = 未测速（显示 "—"）
+//   0  = 未测速（状态位为空）
 //   >0 = 延迟 ms（正常三态显示）
 //   <0 = 不可用，按错误分类编码（NekoBox `status>=2` 显示错误文案的对应物）：
 //        -1 refused / -2 unreachable / -3 timeout / -4 domain_not_found / -5 其他
@@ -173,6 +183,17 @@ String? offlineTestErrorKey(int encodedDelay) => switch (encodedDelay) {
   _ => null,
 };
 
+/// 出站是否启用 TLS。订阅配置传 Map，实体离线路径传 payload JSON，统一判据避免状态漂移。
+bool outboundUsesTls(Object? raw) {
+  try {
+    final decoded = raw is String ? jsonDecode(raw) : raw;
+    if (decoded is! Map) return false;
+    final tls = decoded['tls'];
+    return tls is Map && tls['enabled'] == true;
+  } catch (_) {
+    return false;
+  }
+}
 
 /// 从实体 `payload` 里取服务器地址。
 ///
@@ -245,6 +266,7 @@ OutboundGroup buildGroupFromEntityNodes({required String groupName, required Lis
         displayName: node.displayName,
         host: address.host,
         port: address.port,
+        isSecure: outboundUsesTls(node.payload),
         // 断开状态下列表显示实体的测速结果（NekoBox 的 status/ping 列同样直接上屏）；
         // 连接状态下 joinLiveIntoGroup 用内核实时值覆盖。
         testDelayOverride: encodeOfflineTestResult(status: node.status, ping: node.ping, error: node.error),

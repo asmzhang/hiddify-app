@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -13,16 +12,19 @@ import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/failures.dart';
 import 'package:hiddify/core/notification/in_app_notification_controller.dart';
 import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
+import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/core/utils/preferences_utils.dart';
 import 'package:hiddify/features/common/qr_code_scanner_screen.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/connection/notifier/connection_summary.dart';
+import 'package:hiddify/features/connection/widget/connection_fab.dart';
 import 'package:hiddify/features/profile/add/add_profile_modal.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
-import 'package:hiddify/features/profile/notifier/profile_notifier.dart';
-import 'package:hiddify/features/proxy/data/config_assembly.dart' show chainProxiesOf, kChainEntityType, kConfigEntityType;
+import 'package:hiddify/features/proxy/data/config_assembly.dart'
+    show chainProxiesOf, kChainEntityType, kConfigEntityType;
+import 'package:hiddify/features/proxy/data/node_import.dart';
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/data/protocol_form.dart';
 import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
@@ -59,9 +61,7 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
     final selectedKey = ref.watch(selectedProxyGroupTagProvider);
     // 选中的键不存在（首次使用 / 订阅被删 / 历史遗留的纯组名）⇒ 落到第一个 Tab，
     // 与 notifier 里的回落规则保持一致，否则高亮和列表会对不上。
-    final activeKey = tabs.isEmpty
-        ? ""
-        : (tabs.any((t) => t.key == selectedKey) ? selectedKey : tabs.first.key);
+    final activeKey = tabs.isEmpty ? "" : (tabs.any((t) => t.key == selectedKey) ? selectedKey : tabs.first.key);
     final proxies = ref.watch(proxiesOverviewNotifierProvider);
 
     // 筛选条件是纯本地的：这个 provider 在连接后会每秒重发一次（核心要刷新每个
@@ -109,9 +109,18 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
     } else {
       activeTabIsActive = activeTab.profileId == activeProfileId;
     }
-    final activeNodeInUse = connectionStatus is Connected && activeTabIsActive;
-    // NekoBox `StatsBar.changeState`：**仅 Connected 显示状态栏**，其余状态一律隐藏。
-    final showStatsBar = nkState == NkConnectionState.connected;
+    final activeNodeInUse = connectionNodeInUse(connectionStatus) && activeTabIsActive;
+    // NekoBox `StatsBar.changeState` 用 postWhenStarted + 100ms 延迟显示/隐藏。
+    // 这也避免 Connected 的同一 build 帧里首次挂载 StatsBar 时，新建 stats
+    // 订阅同步通知已经建好的侧栏（Flutter 会报 markNeedsBuild during build）。
+    final statsBarVisible = useState(false);
+    useEffect(() {
+      final timer = Timer(const Duration(milliseconds: 100), () {
+        statsBarVisible.value = nkState == NkConnectionState.connected;
+      });
+      return timer.cancel;
+    }, [nkState]);
+    final showStatsBar = statsBarVisible.value;
 
     // final selectActiveProxyMutation = useMutation(
     //   initialOnFailure: (error) => CustomToast.error(t.presentShortError(error)).show(context),
@@ -140,10 +149,7 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
             controller: addMenuController,
             menuChildren: [
               for (final entry in nkAddProfileMenu(showScanQr: !PlatformUtils.isDesktop))
-                MenuItemButton(
-                  onPressed: () => _runAddProfileAction(context, ref, entry.action),
-                  child: Text(entry.label(t)),
-                ),
+                _buildAddProfileMenuEntry(context, ref, entry),
             ],
             child: IconButton(
               onPressed: addMenuController.open,
@@ -154,7 +160,7 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
           // 更多菜单：NekoBox 复刻 · 1:1 八项（规格 = add_profile_menu.xml 的
           // action_misc，顺序/文案/排序 radio 子菜单全照源）。结构与行为抽到
           // [ProxiesMenuButton] —— 可独立做结构对等测试（无路由/无搜索依赖）。
-          const ProxiesMenuButton(),
+          ProxiesMenuButton(activeTab: activeTab),
           const Gap(8),
         ],
         // NekoBox 复刻 · 分组 Tab 紧贴 Toolbar、同 primary 底、<2 组隐藏（layout_group_list.xml）。
@@ -249,27 +255,11 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
           ),
         ),
       ),
-      // NekoBox 复刻 · FAB = 连接开关（对标 ServiceButton 四态）：
-      // stopped=播放、connecting/disconnecting=转圈（禁点）、connected=停止。
-      // tooltip 的 stopping 分支：disconnecting 用 spec 词"正在停止…"（connecting
-      // 状态在页面侧把 Connecting/Disconnecting 合并了，这里用原始状态区分）。
-      floatingActionButton: FloatingActionButton(
-        onPressed: connectionStatus is Connecting || connectionStatus is Disconnecting
-            ? null
-            : () => ref.read(connectionNotifierProvider.notifier).toggleConnection(),
-        // 这个按钮是**连接开关**：未连接时显示「连接」（动作名），不是「点击连接」。
-        tooltip: switch (nkState) {
-          NkConnectionState.connected => t.connection.connected,
-          NkConnectionState.connecting => connectionStatus is Disconnecting ? t.connection.stopping : t.connection.connecting,
-          _ => t.connection.connect,
-        },
-        child: connectionStatus is Connecting || connectionStatus is Disconnecting
-            ? const SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
-              )
-            : Icon(nkState == NkConnectionState.connected ? FluentIcons.stop_24_filled : FluentIcons.play_24_filled),
+      // NekoBox `ServiceButton`：Idle/Stopping 禁用，Connecting/Connected 可点停止。
+      floatingActionButton: ConnectionFab(
+        status: connectionStatus,
+        t: t,
+        onPressed: () => ref.read(connectionNotifierProvider.notifier).toggleConnection(),
       ),
       // 底部状态栏（NekoBox `StatsBar` 规格）：**仅已连接时显示**（StatsBar.changeState
       // 非 Connected 一律 performHide）；内容 = 状态文本（含点击测连接提示）+ 当前节点
@@ -327,7 +317,7 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
                               mainAxisExtent: 92,
                             ),
                             itemBuilder: (context, index) =>
-                            _tile(context, items[index], group, ref, activeTab, activeNodeInUse, items.length),
+                                _tile(context, items[index], group, ref, activeTab, activeNodeInUse, items.length),
                           );
                         },
                       ),
@@ -389,7 +379,8 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
     final isSelected = group.selected == proxy.tag;
     // ✎ 只在"这一行是实体 + （该协议有表单 或 是 chain / config）"时给出 —— 与 🗑 同一条
     // 判据，保证"能点到的节点一定能改"（表单的规格查表见 protocol_form.dart）。
-    final canEdit = tab != null &&
+    final canEdit =
+        tab != null &&
         (protocolFormSpecFor(proxy.type) != null || proxy.type == kChainEntityType || proxy.type == kConfigEntityType);
     return ProxyTile(
       proxy,
@@ -426,11 +417,7 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
         return;
       }
       final members = chainProxiesOf(chainNode.payload) ?? const <String>[];
-      await showChainSettingsSheet(
-        tag: chainNode.tag,
-        chainGroupId: chainNode.groupId,
-        initialProxies: members,
-      );
+      await showChainSettingsSheet(tag: chainNode.tag, chainGroupId: chainNode.groupId, initialProxies: members);
       return;
     }
     // config 走 ConfigSettings（NekoBox `settingIntent()` 的 `ConfigSettingsActivity`
@@ -466,7 +453,10 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
       payloadJson: payload,
       profileId: tab.profileId.isEmpty ? null : tab.profileId,
       groupId: tab.groupId,
-      initialOverrides: NodeOverrides(customOutbound: node?.customOutbound ?? '', customConfig: node?.customConfig ?? ''),
+      initialOverrides: NodeOverrides(
+        customOutbound: node?.customOutbound ?? '',
+        customConfig: node?.customConfig ?? '',
+      ),
     );
   }
 
@@ -504,29 +494,90 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
     );
   }
 
+  Widget _buildAddProfileMenuEntry(BuildContext context, WidgetRef ref, NkAddProfileMenuEntry entry) {
+    final t = ref.read(translationsProvider).requireValue;
+    final children = entry.children;
+    if (children != null) {
+      return SubmenuButton(
+        menuChildren: [for (final child in children) _buildAddProfileMenuEntry(context, ref, child)],
+        child: Text(entry.label(t)),
+      );
+    }
+    return MenuItemButton(onPressed: () => _runAddProfileAction(context, ref, entry), child: Text(entry.label(t)));
+  }
+
   /// ＋ 菜单执行器 —— NekoBox `ConfigurationFragment` 的 action_add 对应路径：
-  /// 扫码/剪贴板/文件都汇入 `addClipboard`（订阅与单节点链接的统一解析入口）；
-  /// 手动输入 = [startManualNodeFlow]（16 协议选择 → 表单创建，含归属组解析）；
-  /// 添加订阅 = 订阅表单（本项目架构差异入口）。
-  Future<void> _runAddProfileAction(BuildContext context, WidgetRef ref, NkAddProfileAction action) async {
-    switch (action) {
+  /// 节点输入走 BASIC 组导入；HTTP(S) 等订阅输入转入独立订阅表单。
+  Future<void> _runAddProfileAction(BuildContext context, WidgetRef ref, NkAddProfileMenuEntry entry) async {
+    switch (entry.action!) {
       case NkAddProfileAction.scanQr:
         final content = await showQrCodeScanner();
-        if (content == null || content.isEmpty) return;
-        unawaited(ref.read(addProfileNotifierProvider.notifier).addClipboard(content));
+        if (content == null || content.isEmpty || !context.mounted) return;
+        await _importNodeInput(context, ref, content);
       case NkAddProfileAction.importClipboard:
         final content = await Clipboard.getData(Clipboard.kTextPlain).then((value) => value?.text ?? '');
-        unawaited(ref.read(addProfileNotifierProvider.notifier).addClipboard(content));
+        if (!context.mounted) return;
+        await _importNodeInput(context, ref, content);
       case NkAddProfileAction.importFile:
-        final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['txt', 'json']);
-        if (result == null) return;
+        final result = await FilePicker.platform.pickFiles();
+        if (result == null || result.files.single.path == null || !context.mounted) return;
         final file = File(result.files.single.path!);
         if (!await file.exists()) return;
-        unawaited(ref.read(addProfileNotifierProvider.notifier).addClipboard(utf8.decode(await file.readAsBytes())));
+        if (!context.mounted) return;
+        final bytes = await file.readAsBytes();
+        if (!context.mounted) return;
+        final inputs = decodeNodeImportFile(result.files.single.name, bytes);
+        if (inputs == null) {
+          ref
+              .read(inAppNotificationControllerProvider)
+              .showErrorToast(ref.read(translationsProvider).requireValue.errors.unexpected);
+          return;
+        }
+        await _importNodeFiles(context, ref, inputs);
       case NkAddProfileAction.manualNode:
-        await startManualNodeFlow(context, ref);
+        await startManualNodeFlow(context, ref, initialProtocol: entry.protocol);
       case NkAddProfileAction.addSubscription:
         await showAddProfileSheet(manual: true);
+    }
+  }
+
+  Future<void> _importNodeInput(BuildContext context, WidgetRef ref, String raw) =>
+      _importNodeInputs(context, ref, [raw]);
+
+  Future<void> _importNodeFiles(BuildContext context, WidgetRef ref, Iterable<NodeImportFileEntry> files) async {
+    final t = ref.read(translationsProvider).requireValue;
+    final outcome = await ref.read(proxiesOverviewNotifierProvider.notifier).importNodeFiles(files);
+    if (!context.mounted) return;
+    await _handleNodeImportOutcome(context, ref, t, outcome);
+  }
+
+  Future<void> _importNodeInputs(BuildContext context, WidgetRef ref, Iterable<String> rawInputs) async {
+    final t = ref.read(translationsProvider).requireValue;
+    final outcome = await ref.read(proxiesOverviewNotifierProvider.notifier).importNodeInputs(rawInputs);
+    if (!context.mounted) return;
+    await _handleNodeImportOutcome(context, ref, t, outcome);
+  }
+
+  Future<void> _handleNodeImportOutcome(
+    BuildContext context,
+    WidgetRef ref,
+    TranslationsEn t,
+    NodeImportOutcome outcome,
+  ) async {
+    if (!context.mounted) return;
+    switch (outcome) {
+      case NodeImportSucceeded(:final count):
+        ref.read(inAppNotificationControllerProvider).showSuccessToast('${t.pages.proxies.form.created} ($count)');
+      case NodeImportNeedsSubscription(:final url):
+        final confirmed = await ref
+            .read(dialogNotifierProvider.notifier)
+            .showConfirmation(
+              title: t.dialogs.confirmation.addProfileByDeepLinkWarning.title,
+              message: t.dialogs.confirmation.addProfileByDeepLinkWarning.message(host: Uri.parse(url).host),
+            );
+        if (confirmed && context.mounted) await showAddProfileSheet(url: url);
+      case NodeImportFailed():
+        ref.read(inAppNotificationControllerProvider).showErrorToast(t.errors.unexpected);
     }
   }
 }
@@ -556,24 +607,21 @@ class _CaptureStatusBar extends ConsumerWidget {
       child: SafeArea(
         top: false,
         child: InkWell(
-          onTap: () => unawaited(runConnectionTest(
-            context,
-            ref,
-            // 进度 = 逐节点独立探针（n/N + 当前节点 + 可取消），由 urlTest
-            // 内部的 runTcpPing 承担（守卫纪律：一次用户动作一层守卫）。
-            start: () => ref.read(proxiesOverviewNotifierProvider.notifier).urlTest(),
-          )),
+          onTap: () => unawaited(
+            runConnectionTest(
+              context,
+              ref,
+              // 进度 = 逐节点独立探针（n/N + 当前节点 + 可取消），由 urlTest
+              // 内部的 runTcpPing 承担（守卫纪律：一次用户动作一层守卫）。
+              start: () => ref.read(proxiesOverviewNotifierProvider.notifier).urlTest(),
+            ),
+          ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: [
                 Flexible(
-                  child: Text(
-                    t.connection.statsConnected,
-                    style: style,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
+                  child: Text(t.connection.statsConnected, style: style, overflow: TextOverflow.ellipsis, maxLines: 1),
                 ),
                 if (summary.nodeName != null) ...[
                   const Gap(8),

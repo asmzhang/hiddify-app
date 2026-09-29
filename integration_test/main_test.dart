@@ -17,7 +17,8 @@ Future<void> main() async {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
-  testWidgets('PC 冒烟：启动 → 主界面四要素 → ⋮ 菜单八项', (tester) async {
+  testWidgets('PC 冒烟：启动 → 主界面 → ＋ 菜单 → ⋮ 菜单 → 节点分享', (tester) async {
+    addTearDown(() => stopHiddifyCore(tester));
     // 启动（introCompleted 已在 startHiddifyApp 里预写，直接进主界面）。
     await startHiddifyApp();
     // 带上限等待：连接转圈等常驻动画会让裸 pumpAndSettle 永不返回。
@@ -28,6 +29,8 @@ Future<void> main() async {
     }
 
     await smokeMainScreen(tester);
+    await smokeAddMenu(tester);
     await smokeOverflowMenu(tester);
+    await smokeNodeShareMenu(tester);
   });
 }

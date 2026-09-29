@@ -169,9 +169,7 @@ bool isConfigOutboundPayload(String payload) {
 /// 失败同一兜底，绝不因新能力而让用户连不上网）。
 /// outbound 形态的 config 实体不参与此函数（它们照普通节点进 outbounds 段）。
 String? assembleConfigEntityConfig(Iterable<ImportedProxyEntity> entities) {
-  final full = entities
-      .where((e) => e.type == kConfigEntityType && !isConfigOutboundPayload(e.payload))
-      .toList();
+  final full = entities.where((e) => e.type == kConfigEntityType && !isConfigOutboundPayload(e.payload)).toList();
   if (full.length != 1) return null;
   final payload = full.single.payload;
   try {
@@ -399,9 +397,11 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
     if (decoded is! Map<String, dynamic>) return null;
     config = decoded;
     final raw = config['outbounds'];
-    if (raw is! List) return null;
-    outbounds = raw.whereType<Map<String, dynamic>>().toList();
-    if (outbounds.isEmpty) return null;
+    if (raw is List) {
+      outbounds = raw.whereType<Map<String, dynamic>>().toList();
+    } else {
+      outbounds = <Map<String, dynamic>>[];
+    }
   } catch (_) {
     return null;
   }
@@ -585,7 +585,9 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
   // 覆盖/删除按 tag（与 outbounds 段同构）；基准没有的 endpoint 实体追加在末尾。
   // 基准无 endpoints 段且有 endpoint 实体 ⇒ 新建数组；反之基准段原样保留。
   final rawEndpoints = config['endpoints'];
-  final existingEndpoints = rawEndpoints is List ? rawEndpoints.whereType<Map<String, dynamic>>().toList() : <Map<String, dynamic>>[];
+  final existingEndpoints = rawEndpoints is List
+      ? rawEndpoints.whereType<Map<String, dynamic>>().toList()
+      : <Map<String, dynamic>>[];
   final endpointResult = <Map<String, dynamic>>[];
   for (final endpoint in existingEndpoints) {
     final tag = endpoint['tag'];
@@ -623,10 +625,5 @@ ConfigAssemblyResult? applyEntitiesToOutbounds({
     config['endpoints'] = endpointResult;
   }
 
-  return ConfigAssemblyResult(
-    configJson: jsonEncode(config),
-    replaced: replaced,
-    added: added,
-    removed: removed,
-  );
+  return ConfigAssemblyResult(configJson: jsonEncode(config), replaced: replaced, added: added, removed: removed);
 }

@@ -74,7 +74,7 @@ packages:
     source: hosted
     version: "1.0.4"
   archive:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: archive
       sha256: "6c5bcd986e06b94e3c40244af471750840a3d2341d1f9763a1100a14add517b4"
@@ -1150,6 +1150,14 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "7.4.1"
+  mocktail:
+    dependency: "direct dev"
+    description:
+      name: mocktail
+      sha256: "5e1bf53cc7baa8062a33b84424deb61513858ea05c601b8509e683815b5914aa"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "1.0.5"
   neat_periodic_task:
     dependency: "direct main"
     description:

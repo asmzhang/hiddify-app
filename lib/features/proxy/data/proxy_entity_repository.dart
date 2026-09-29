@@ -23,10 +23,13 @@ import 'package:hiddify/hiddifycore/hiddify_core_service.dart';
 import 'package:hiddify/utils/custom_loggers.dart';
 
 class ProxyEntityRepository with InfraLogger {
-  ProxyEntityRepository({required Db db, required ProfilePathResolver pathResolver, required HiddifyCoreService singbox})
-    : _db = db,
-      _pathResolver = pathResolver,
-      _singbox = singbox;
+  ProxyEntityRepository({
+    required Db db,
+    required ProfilePathResolver pathResolver,
+    required HiddifyCoreService singbox,
+  }) : _db = db,
+       _pathResolver = pathResolver,
+       _singbox = singbox;
 
   final Db _db;
   final ProfilePathResolver _pathResolver;
@@ -73,7 +76,11 @@ class ProxyEntityRepository with InfraLogger {
       final configJson = await _sourceConfigTextFor(profileId: profileId, profileName: profileName);
       if (configJson == null) return;
 
-      final derived = deriveProxyGroupFromConfig(profileName: profileName, configJson: configJson, isSelector: isSelector);
+      final derived = deriveProxyGroupFromConfig(
+        profileName: profileName,
+        configJson: configJson,
+        isSelector: isSelector,
+      );
       if (derived == null) {
         loggy.warning("entity sync: no nodes derived for [$profileName]");
         return;
@@ -107,13 +114,13 @@ class ProxyEntityRepository with InfraLogger {
         // 节点级自定义覆写要跨订阅更新保留（切片 8.5，照 NekoBox
         // `RawUpdater.kt:165-166`：bean.customOutboundJson / customConfigJson
         // 从旧 bean 抄回新 bean）。整组替换前先把它们捞出来，按 tag 回填。
-        final preserved = await (_db.select(_db.proxyEntities)
-              ..where((t) => t.groupId.equals(group.id))
-              ..where((t) => t.customOutbound.equals('').not() | t.customConfig.equals('').not()))
-            .get();
+        final preserved =
+            await (_db.select(_db.proxyEntities)
+                  ..where((t) => t.groupId.equals(group.id))
+                  ..where((t) => t.customOutbound.equals('').not() | t.customConfig.equals('').not()))
+                .get();
         final overridesByTag = <String, ({String customOutbound, String customConfig})>{
-          for (final row in preserved)
-            row.tag: (customOutbound: row.customOutbound, customConfig: row.customConfig),
+          for (final row in preserved) row.tag: (customOutbound: row.customOutbound, customConfig: row.customConfig),
         };
 
         // 更新：保留 order/userOrder 等用户属性，只刷新名字与订阅信息
@@ -338,10 +345,9 @@ class ProxyEntityRepository with InfraLogger {
 
   /// 全部分组（按 `userOrder`，再按 id 破平）+ 每个组的节点数。
   Future<List<({ProxyGroupEntry group, int nodeCount})>> listGroups() async {
-    final rows =
-        await (_db.select(_db.proxyGroups)
-              ..orderBy([(t) => OrderingTerm.asc(t.userOrder), (t) => OrderingTerm.asc(t.id)]))
-            .get();
+    final rows = await (_db.select(
+      _db.proxyGroups,
+    )..orderBy([(t) => OrderingTerm.asc(t.userOrder), (t) => OrderingTerm.asc(t.id)])).get();
     final counts = <int, int>{};
     for (final entity in await _db.select(_db.proxyEntities).get()) {
       counts[entity.groupId] = (counts[entity.groupId] ?? 0) + 1;
@@ -361,6 +367,26 @@ class ProxyEntityRepository with InfraLogger {
       return await createGroup(ungrouped: true);
     } catch (e, stackTrace) {
       loggy.warning("failed to ensure the ungrouped group", e, stackTrace);
+      return null;
+    }
+  }
+
+  /// NekoBox `DataStore.selectedGroupForImport()`：当前组若为 BASIC 就用它，
+  /// 否则取 userOrder 最前的 BASIC；一个也没有时懒建未分组。
+  Future<int?> selectedGroupForImport(int? selectedGroupId) async {
+    try {
+      final groups = await (_db.select(
+        _db.proxyGroups,
+      )..orderBy([(t) => OrderingTerm.asc(t.userOrder), (t) => OrderingTerm.asc(t.id)])).get();
+      if (selectedGroupId != null) {
+        final selected = groups.where((g) => g.id == selectedGroupId).firstOrNull;
+        if (selected?.type == ProxyGroupType.basic) return selected!.id;
+      }
+      final firstBasic = groups.where((g) => g.type == ProxyGroupType.basic).firstOrNull;
+      if (firstBasic != null) return firstBasic.id;
+      return ensureUngroupedGroup();
+    } catch (e, stackTrace) {
+      loggy.warning("failed to resolve import group", e, stackTrace);
       return null;
     }
   }
@@ -411,9 +437,9 @@ class ProxyEntityRepository with InfraLogger {
     try {
       await _db.transaction(() async {
         for (final (index, id) in idsInDisplayOrder.indexed) {
-          await (_db.update(_db.proxyGroups)..where((t) => t.id.equals(id))).write(
-            ProxyGroupsCompanion(userOrder: Value(index)),
-          );
+          await (_db.update(
+            _db.proxyGroups,
+          )..where((t) => t.id.equals(id))).write(ProxyGroupsCompanion(userOrder: Value(index)));
         }
       });
       loggy.info("groups reordered: $idsInDisplayOrder");
@@ -615,8 +641,10 @@ class ProxyEntityRepository with InfraLogger {
   /// 判据照抄 NekoBox：`status != 0 && status != 1` —— 测过且失败（status>=2）
   /// 的才删；未测速（status=0）的**不算**不可用，不能误删。
   /// 返回要删的行；空列表 = 没有失败者（UI 照 NekoBox 不弹确认框）。
-  List<ProxyEntityEntry> findUnavailableNodes(List<ProxyEntityEntry> nodes) =>
-      [for (final node in nodes) if (node.status != 0 && node.status != 1) node];
+  List<ProxyEntityEntry> findUnavailableNodes(List<ProxyEntityEntry> nodes) => [
+    for (final node in nodes)
+      if (node.status != 0 && node.status != 1) node,
+  ];
 
   /// 批量删除节点（去重的执行端）。返回实际删除的行数；失败返回 -1。
   Future<int> deleteNodes(Iterable<ProxyEntityEntry> nodes) async {
@@ -628,6 +656,55 @@ class ProxyEntityRepository with InfraLogger {
       return count;
     } catch (e, stackTrace) {
       loggy.warning("failed to delete ${nodes.length} nodes", e, stackTrace);
+      return -1;
+    }
+  }
+
+  /// 批量导入 Core.Parse 产出的节点。整批预校验后在一个事务中写入，任何冲突都不落库。
+  /// 返回导入数；失败返回 -1。
+  Future<int> importNodes({required int groupId, required List<ImportedProxyEntity> entities}) async {
+    if (entities.isEmpty) return 0;
+    try {
+      return await _db.transaction(() async {
+        final group = await (_db.select(_db.proxyGroups)..where((t) => t.id.equals(groupId))).getSingleOrNull();
+        if (group == null || group.type != ProxyGroupType.basic) {
+          throw StateError('node import target must be a BASIC group');
+        }
+
+        final tags = entities.map((e) => e.tag).toList();
+        if (tags.toSet().length != tags.length || tags.any((tag) => tag.isEmpty || tag.startsWith(kChainTagPrefix))) {
+          throw StateError('duplicate, empty, or reserved imported tag');
+        }
+        final collisions = await (_db.select(_db.proxyEntities)..where((t) => t.tag.isIn(tags))).get();
+        if (collisions.isNotEmpty) throw StateError('imported tag already exists');
+
+        for (final entity in entities) {
+          final decoded = jsonDecode(entity.payload);
+          if (decoded is! Map || decoded['tag'] != entity.tag || decoded['type'] != entity.type) {
+            throw StateError('imported payload identity mismatch');
+          }
+        }
+
+        final siblings = await (_db.select(_db.proxyEntities)..where((t) => t.groupId.equals(groupId))).get();
+        final firstOrder = siblings.isEmpty ? 0 : siblings.map((e) => e.userOrder).reduce((a, b) => a > b ? a : b) + 1;
+        await _db.batch((batch) {
+          batch.insertAll(_db.proxyEntities, [
+            for (final (index, entity) in entities.indexed)
+              ProxyEntitiesCompanion.insert(
+                groupId: groupId,
+                tag: entity.tag,
+                type: entity.type,
+                displayName: entity.displayName,
+                payload: entity.payload,
+                userOrder: Value(firstOrder + index),
+              ),
+          ]);
+        });
+        loggy.info("imported ${entities.length} nodes into group #$groupId");
+        return entities.length;
+      });
+    } catch (e, stackTrace) {
+      loggy.warning("failed to import ${entities.length} nodes into group #$groupId", e, stackTrace);
       return -1;
     }
   }
@@ -684,7 +761,10 @@ class ProxyEntityRepository with InfraLogger {
   /// 因为它们不属于任何订阅配置，内核跑哪份都该带上。
   Future<List<ProxyEntityEntry>> manualNodes() async {
     final groups = await _db.select(_db.proxyGroups).get();
-    final basicIds = {for (final g in groups) if (g.type == ProxyGroupType.basic) g.id};
+    final basicIds = {
+      for (final g in groups)
+        if (g.type == ProxyGroupType.basic) g.id,
+    };
     if (basicIds.isEmpty) return const [];
     return (_db.select(_db.proxyEntities)
           ..where((t) => t.groupId.isIn(basicIds))
@@ -750,14 +830,19 @@ class ProxyEntityRepository with InfraLogger {
   /// 失败只记日志并返回 false（调用方提示，不落库）。
   /// 归属组用 `profileId` 或 `groupId` 指定（同 [removeNode] —— 手动组的节点也要能编辑）。
   /// 失败只记日志并返回 false（调用方提示，不落库）。
-  Future<bool> updateNodePayload({String? profileId, int? groupId, required String tag, required String payload}) async {
+  Future<bool> updateNodePayload({
+    String? profileId,
+    int? groupId,
+    required String tag,
+    required String payload,
+  }) async {
     try {
       final row = (await _nodesOf(profileId: profileId, groupId: groupId)).where((n) => n.tag == tag).firstOrNull;
       if (row == null) return false;
 
-      await (_db.update(_db.proxyEntities)..where((t) => t.id.equals(row.id))).write(
-        ProxyEntitiesCompanion(payload: Value(payload)),
-      );
+      await (_db.update(
+        _db.proxyEntities,
+      )..where((t) => t.id.equals(row.id))).write(ProxyEntitiesCompanion(payload: Value(payload)));
       loggy.info("node payload updated: [$tag]");
       return true;
     } catch (e, stackTrace) {
@@ -819,10 +904,11 @@ class ProxyEntityRepository with InfraLogger {
         return null;
       }
 
-      final rows = await (_db.select(_db.proxyEntities)
-            ..where((t) => t.groupId.equals(group.id))
-            ..orderBy([(t) => OrderingTerm.asc(t.userOrder)]))
-          .get();
+      final rows =
+          await (_db.select(_db.proxyEntities)
+                ..where((t) => t.groupId.equals(group.id))
+                ..orderBy([(t) => OrderingTerm.asc(t.userOrder)]))
+              .get();
       if (rows.isEmpty) {
         loggy.debug("entity assembly: no entities for [$profileId]");
         return null;
@@ -893,10 +979,7 @@ class ProxyEntityRepository with InfraLogger {
         // 基准是订阅原文的快照，里面**留着被删除的节点** —— 不点名移除就等于
         // "删除只在界面生效"（审计 F1）。判据与派生/解析同一份。
         // 只拿订阅组的 tag 算 stale：手动节点本来就不在基准里，加进来不影响结果。
-        staleTags: staleNodeTags(
-          baselineConfigJson: baselineJson,
-          entityTags: subscriptionTags,
-        ),
+        staleTags: staleNodeTags(baselineConfigJson: baselineJson, entityTags: subscriptionTags),
       );
       if (assembled == null) {
         loggy.warning("entity assembly: apply failed for [$profileId], falling back to subscription config");

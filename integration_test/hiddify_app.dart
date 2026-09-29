@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hiddify/bootstrap.dart';
 import 'package:hiddify/core/model/environment.dart';
+import 'package:hiddify/core/preferences/general_preferences.dart';
+import 'package:hiddify/features/connection/data/connection_data_providers.dart';
+import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -29,6 +33,24 @@ Future<void> startHiddifyApp() async {
   await prefs.setBool('intro_completed', true);
   await prefs.setString('locale', 'en');
   await lazyBootstrap(binding, Environment.dev);
+}
+
+/// 集成测试必须显式停止核心，不能依赖 Windows 测试进程退出时碰运气清理。
+/// 否则紧接着启动下一项测试时，上一项的子进程可能仍占用 17078，导致 core
+/// setup 失败、`fgClient` 未初始化，后续 Core.Parse 得到假阴性。
+Future<void> stopHiddifyCore(WidgetTester tester) async {
+  final scaffolds = find.byType(Scaffold, skipOffstage: false);
+  if (!tester.any(scaffolds)) return;
+  final container = ProviderScope.containerOf(tester.element(scaffolds.first), listen: false);
+  try {
+    await container.read(connectionNotifierProvider.notifier).setCapture(false);
+  } catch (_) {
+    // Setup may have failed before the notifier became usable; direct stop below is the final fallback.
+  }
+  await container.read(Preferences.captureEnabled.notifier).update(false);
+  await container.read(Preferences.startedByUser.notifier).update(false);
+  await container.read(connectionRepositoryProvider).disconnect().run();
+  await tester.pump(const Duration(milliseconds: 500));
 }
 
 /// 判断当前是否显示 Intro（Intro 页特有的 rocket_launch FAB + 「Start」主按钮）。

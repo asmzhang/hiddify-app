@@ -906,6 +906,7 @@
     "connect": "Connect",
     "connecting": "Connecting...",
     "connected": "Connected",
+    "stop": "Stop",
     "stopping": "Stopping...",
     "statsConnected": "Connected, tap here to test the connection",
     "disconnected": "Not connected",

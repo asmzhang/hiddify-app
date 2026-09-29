@@ -353,6 +353,30 @@ void main(List<String> args) async {
     'server_port': 8080,
   }, expectSchemePrefix: 'http://');
 
+  // ── AnyTLS ────────────────────────────────────────────────────────────────
+  await roundTrip('AnyTLS password + SNI + insecure', {
+    'type': 'anytls',
+    'tag': 'AnyTLS',
+    'server': 'any.example.com',
+    'server_port': 443,
+    'password': 'p@ss:word',
+    'tls': {
+      'enabled': true,
+      'server_name': 'sni.example.com',
+      'insecure': true,
+      // 链接保留 fp；当前 ray2sing AnyTLS 解析端尚未消费，故不列入往返事实。
+      'utls': {'enabled': true, 'fingerprint': 'chrome'},
+    },
+  }, {
+    'tag': 'AnyTLS',
+    'server': 'any.example.com',
+    'server_port': 443,
+    'password': 'p@ss:word',
+    'tls.enabled': true,
+    'tls.server_name': 'sni.example.com',
+    'tls.insecure': true,
+  }, expectSchemePrefix: 'anytls://');
+
   // ── 边界：不支持/字段残缺 → null（分享按钮回落复制 JSON）─────────────────
   void checkNull(String label, Map<String, dynamic> outbound) {
     final link = outboundToLink(outbound);

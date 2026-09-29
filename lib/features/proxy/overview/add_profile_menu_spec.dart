@@ -1,31 +1,48 @@
 import 'package:hiddify/core/localization/translations.dart';
+import 'package:hiddify/features/proxy/data/protocol_form.dart';
 
-/// 配置页「＋」菜单规格 —— NekoBox `add_profile_menu.xml` 的 `action_add` 子树
-/// 1:1 投影（词表 zh-rCN 实证：扫描二维码/从剪切板导入/从文件中导入/手动输入）。
-/// widget 层渲染这里的数据 + 按动作接线执行器。
+/// 配置页「＋」菜单规格 —— NekoBox `add_profile_menu.xml` 的 `action_add` 子树。
 ///
-/// 架构差异条目（记档）：**添加订阅** —— NekoBox 的订阅添加在分组设置
-/// （`GroupSettingsActivity` 的订阅链接字段，因为分组=订阅同实体）；本项目订阅是
-/// 一等实体（RemoteProfileEntity），添加订阅走独立的订阅表单 —— 所以在 spec 四项
-/// **之后**追加本条（保持 spec 顺序在前）。
+/// 顶层顺序：扫码 / 剪贴板 / 文件 / 手动设置（二级协议菜单）。「添加订阅」是
+/// Hiddify 订阅一等实体带来的追加入口，固定放在 NekoBox 原始项之后。
 enum NkAddProfileAction { scanQr, importClipboard, importFile, manualNode, addSubscription }
 
 class NkAddProfileMenuEntry {
-  const NkAddProfileMenuEntry(this.label, this.action);
+  const NkAddProfileMenuEntry({required this.label, this.action, this.protocol, this.children})
+    : assert((children == null) != (action == null), '菜单组必须有 children，叶子必须有 action'),
+      assert(action == NkAddProfileAction.manualNode || protocol == null, '只有手动节点动作携带 protocol');
+
   final String Function(Translations t) label;
-  final NkAddProfileAction action;
+  final NkAddProfileAction? action;
+  final String? protocol;
+  final List<NkAddProfileMenuEntry>? children;
 }
 
-/// [showScanQr] = 移动端才有摄像头扫码（桌面隐藏 —— 与既有 FixBtns 同规则；
-/// NekoBox 是安卓-only，无桌面口径可循）。
 List<NkAddProfileMenuEntry> nkAddProfileMenu({required bool showScanQr}) => [
-      if (showScanQr)
-        const NkAddProfileMenuEntry(_scanQrLabel, NkAddProfileAction.scanQr),
-      const NkAddProfileMenuEntry(_importClipboardLabel, NkAddProfileAction.importClipboard),
-      const NkAddProfileMenuEntry(_importFileLabel, NkAddProfileAction.importFile),
-      const NkAddProfileMenuEntry(_manualInputLabel, NkAddProfileAction.manualNode),
-      const NkAddProfileMenuEntry(_addSubscriptionLabel, NkAddProfileAction.addSubscription),
-    ];
+  if (showScanQr) const NkAddProfileMenuEntry(label: _scanQrLabel, action: NkAddProfileAction.scanQr),
+  const NkAddProfileMenuEntry(label: _importClipboardLabel, action: NkAddProfileAction.importClipboard),
+  const NkAddProfileMenuEntry(label: _importFileLabel, action: NkAddProfileAction.importFile),
+  NkAddProfileMenuEntry(label: _manualInputLabel, children: nkManualProtocolMenu()),
+  const NkAddProfileMenuEntry(label: _addSubscriptionLabel, action: NkAddProfileAction.addSubscription),
+];
+
+/// NekoBox 原菜单顺序；Trojan-Go 因 sing-box 1.13 无对应出站而不移植。
+/// NekoBox 的单个 Hysteria 表单内切版本；当前实体 type 分为 hysteria/hysteria2，
+/// 因此在菜单层显式列 Hysteria 1/2，避免两个同名项且保留两种内核能力。
+List<NkAddProfileMenuEntry> nkManualProtocolMenu() => [
+  for (final protocol in kManualCreatableProtocols)
+    NkAddProfileMenuEntry(
+      label: (_) => manualProtocolDisplayName(protocol),
+      action: NkAddProfileAction.manualNode,
+      protocol: protocol,
+    ),
+];
+
+String manualProtocolDisplayName(String type) => switch (type) {
+  'hysteria' => 'Hysteria 1',
+  'hysteria2' => 'Hysteria 2',
+  _ => protocolDisplayName(type),
+};
 
 String _scanQrLabel(Translations t) => t.pages.proxies.addMenu.scanQr;
 String _importClipboardLabel(Translations t) => t.pages.proxies.addMenu.importClipboard;

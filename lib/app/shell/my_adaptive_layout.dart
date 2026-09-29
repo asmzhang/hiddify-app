@@ -67,7 +67,9 @@ class MyAdaptiveLayout extends HookConsumerWidget {
       child: Scaffold(
         // 手机端：抽屉由顶级页面的汉堡键（ShellDrawerButton）打开。
         // PC 端：不使用抽屉，左侧是常驻 NavigationRail。
-        key: rootDrawerScaffoldKey,
+        // 全局 drawer key 只属于手机形态。桌面过渡期可能同时保留两棵 shell，
+        // 给无 drawer 的桌面 Scaffold 也挂同一个 GlobalKey 会触发重复 key。
+        key: isMobileBreakpoint ? rootDrawerScaffoldKey : null,
         drawer: isMobileBreakpoint
             ? FocusScope(
                 node: navScopeNode,

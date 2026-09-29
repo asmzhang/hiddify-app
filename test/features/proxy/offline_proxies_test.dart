@@ -73,6 +73,21 @@ void main() {
     expect(group.items.every((i) => !i.isSelected), isTrue);
   });
 
+  test('HTTP TLS 在订阅配置与实体 payload 两条离线路径都标记为 secure', () {
+    const httpTls =
+        '{"type":"http","tag":"HTTPS node","server":"example.com","server_port":443,"tls":{"enabled":true}}';
+    final fromSubscription = parseSubscriptionGroup('{"outbounds":[$httpTls]}', groupName: 'subscription')!;
+    expect(fromSubscription.items.single.isSecure, isTrue);
+
+    final fromEntity = buildGroupFromEntityNodes(
+      groupName: 'manual',
+      nodes: const [
+        (tag: 'HTTPS node', type: 'http', displayName: 'HTTPS node', payload: httpTls, status: 0, ping: 0, error: null),
+      ],
+    );
+    expect(fromEntity.items.single.isSecure, isTrue);
+  });
+
   test('坏配置返回 null 而不是抛异常', () {
     expect(parseSubscriptionGroup('not json', groupName: 'x'), isNull);
     expect(parseSubscriptionGroup('{}', groupName: 'x'), isNull);

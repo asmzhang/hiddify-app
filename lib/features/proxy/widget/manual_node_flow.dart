@@ -4,7 +4,7 @@ import 'package:hiddify/core/notification/in_app_notification_controller.dart';
 import 'package:hiddify/features/proxy/data/config_assembly.dart' show kChainEntityType, kConfigEntityType;
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/data/protocol_form.dart';
-import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
+import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
 import 'package:hiddify/features/proxy/widget/chain_settings_page.dart';
 import 'package:hiddify/features/proxy/widget/config_settings_page.dart';
 import 'package:hiddify/features/proxy/widget/protocol_form_modal.dart';
@@ -15,17 +15,16 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 /// 保存时 `ProfileSettingsActivity.saveAndExit` 的 `editingId == 0` 分支。
 ///
 /// 三步（与 NekoBox 一一对应）：
-/// 1. **选协议** —— NekoBox 是二级子菜单 17 项；我们有表单的见 [kManualCreatableProtocols]
-///    （批次 2 后 10 项；trojan_go 不移植、wg 待 endpoint 通路，理由见该常量注释），
-///    所以用一个对话框列出来代替子菜单（平台差异，已记档）。
+/// 1. **选协议** —— 配置页按 NekoBox 渲染二级协议菜单并通过 [initialProtocol]
+///    直接进入对应表单；未指定时保留对话框作为复用入口。
 /// 2. **定归属组** —— 照 `DataStore.selectedGroupForImport()`：
-///    当前分组是手动组（`type = BASIC`）就用它，否则用第一个手动组；
-///    **一个手动组都没有**时懒创建一个「未分组」（`DataStore.kt:56` 的 `ProxyGroup(ungrouped = true)`）。
+///    当前分组只有在数据库中确实是 BASIC 时才使用，否则取 userOrder 最前的 BASIC；
+///    没有 BASIC 时懒创建「未分组」。
 /// 3. **填表单** —— 打开新建模式的协议表单；保存时落库并让内核换配置。
-Future<void> startManualNodeFlow(BuildContext context, WidgetRef ref) async {
+Future<void> startManualNodeFlow(BuildContext context, WidgetRef ref, {String? initialProtocol}) async {
   final t = ref.read(translationsProvider).requireValue;
 
-  final protocol = await _pickProtocol(context, t);
+  final protocol = initialProtocol ?? await _pickProtocol(context, t);
   if (protocol == null || !context.mounted) return;
 
   final targetGroupId = await _resolveTargetGroupId(ref);
@@ -70,17 +69,7 @@ Future<String?> _pickProtocol(BuildContext context, TranslationsEn t) => showDia
 ///
 /// 优先"当前正看着的手动组"（NekoBox `currentGroup()` 若为 BASIC 就返回它），
 /// 否则第一个手动组；都没有就建「未分组」。
-Future<int?> _resolveTargetGroupId(WidgetRef ref) async {
-  final selectedKey = ref.read(selectedProxyGroupTagProvider);
-  final selectedGroupId = manualGroupIdOf(selectedKey);
-  if (selectedGroupId != null) return selectedGroupId;
-
-  final tabs = ref.read(proxyGroupTabsProvider).valueOrNull ?? const <ProxyGroupTab>[];
-  final firstManual = tabs.where((tab) => tab.groupId != null).firstOrNull;
-  if (firstManual?.groupId != null) return firstManual!.groupId;
-
-  // 一个手动组都没有 —— 注意"空的未分组组不进 Tab"（见 proxyGroupTabsProvider），
-  // 所以这里必须走了库而不是 Tab 列表才能发现它，于是直接交给仓库去确保存在。
-  final notifier = ref.read(proxiesOverviewNotifierProvider.notifier);
-  return notifier.ensureUngroupedGroup();
+Future<int?> _resolveTargetGroupId(WidgetRef ref) {
+  final selectedGroupId = manualGroupIdOf(ref.read(selectedProxyGroupTagProvider));
+  return ref.read(proxyEntityRepositoryProvider).selectedGroupForImport(selectedGroupId);
 }

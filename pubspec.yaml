@@ -109,6 +109,8 @@ dependencies:
   text_scroll: ^0.2.0
   flutter_markdown_plus: ^1.0.6
   # platform-specific  settings
+  # ZIP 节点导入（NekoBox ConfigurationFragment 的逐 entry parseRaw 对应物）。
+  archive: ^4.3.0
   # https://github.com/miguelpruivo/flutter_file_picker/wiki/Setup
   file_picker: ^8.1.7
   installed_apps: # ^1.5.2
@@ -145,6 +147,7 @@ dev_dependencies:
   slang_build_runner: 4.8.1
   flutter_gen_runner: 5.10.0
   dart_mappable_builder: ^4.2.1
+  mocktail: ^1.0.5
   # protoc_builder: ^0.4.1
   # google_protobuf: ^3.20.1;
 

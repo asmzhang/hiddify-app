@@ -8,15 +8,16 @@
 // 人工留给：视觉、真实连接、托盘、真实订阅导入。
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hiddify/core/widget/adaptive_menu.dart';
+import 'package:hiddify/core/widget/nekobox/nk_card.dart';
+import 'package:hiddify/features/connection/widget/connection_fab.dart';
+import 'package:hiddify/features/proxy/widget/proxies_menu_button.dart';
+import 'package:hiddify/features/proxy/widget/proxy_tile.dart';
 
 /// 主界面四要素断言。
 Future<void> smokeMainScreen(WidgetTester tester) async {
   // 诊断输出：失败时能直接看出卡在哪个页面。
-  final diagTexts = tester
-      .widgetList<Text>(find.byType(Text))
-      .take(3)
-      .map((t) => t.data ?? '(rich)')
-      .join(' | ');
+  final diagTexts = tester.widgetList<Text>(find.byType(Text)).take(3).map((t) => t.data ?? '(rich)').join(' | ');
   debugPrint(
     'SMOKE-DIAG Intro: ${tester.any(find.byIcon(Icons.rocket_launch))}, '
     'Scaffold: ${tester.any(find.byType(Scaffold))}, '
@@ -24,8 +25,10 @@ Future<void> smokeMainScreen(WidgetTester tester) async {
     'texts: [$diagTexts]',
   );
 
-  // 1. FAB 连接开关常驻。
+  // 1. FAB 连接开关常驻，并且是 NekoBox 四态实现。
+  expect(find.byType(ConnectionFab), findsOneWidget);
   expect(find.byType(FloatingActionButton), findsOneWidget, reason: 'FAB 连接开关必须在');
+  expect(find.byTooltip('Connect'), findsOneWidget);
 
   // 2. PC 宽窗（宿主窗口 ≥600dp）应有 NavigationRail；窄窗才是抽屉。
   final hasRail = tester.any(find.byType(NavigationRail));
@@ -34,6 +37,10 @@ Future<void> smokeMainScreen(WidgetTester tester) async {
 
   // 3. 移动端底栏不应出现（PC 断点收口）。
   expect(find.byType(BottomNavigationBar), findsNothing, reason: 'PC 不应出现移动端底栏');
+
+  // 4. ⋮ 菜单的组级动作必须拿到当前 Tab，不能静默按空范围执行。
+  final menu = tester.widget<ProxiesMenuButton>(find.byType(ProxiesMenuButton));
+  expect(menu.activeTab, isNotNull, reason: '配置页必须把当前分组传给 ⋮ 菜单');
 }
 
 /// 带上限的 settle：桌面 app 有常驻动画（连接转圈/速率刷新/gRPC 心跳重绘），
@@ -44,6 +51,27 @@ Future<void> settleBounded(WidgetTester tester, {Duration timeout = const Durati
   } catch (_) {
     // 永不空闲动画：接受。
   }
+}
+
+/// ＋ 菜单顶层与 Manual Settings 二级协议菜单可达。
+Future<void> smokeAddMenu(WidgetTester tester) async {
+  await settleBounded(tester);
+  final addButton = find.byIcon(Icons.note_add_rounded);
+  expect(addButton, findsOneWidget, reason: '＋ 添加按钮必须在 AppBar');
+  await tester.tap(addButton);
+  await settleBounded(tester);
+
+  for (final label in ['Import from Clipboard', 'Import from file', 'Manual Settings', 'Add subscription']) {
+    expect(find.text(label).hitTestable(), findsOneWidget, reason: '＋ 菜单缺项：$label');
+  }
+  await tester.tap(find.text('Manual Settings'));
+  await settleBounded(tester);
+  for (final label in ['VMess', 'VLESS', 'Hysteria 1', 'Hysteria 2', 'Custom Config', 'Proxy Chain']) {
+    expect(find.text(label).hitTestable(), findsOneWidget, reason: 'Manual Settings 缺项：$label');
+  }
+
+  await tester.tapAt(const Offset(10, 10));
+  await settleBounded(tester);
 }
 
 /// ⋮ 菜单八项可达断言（en 文案；NekoBox 1:1 对照。UI 语言由 startHiddifyApp 钉在 en）。
@@ -61,10 +89,7 @@ Future<void> smokeOverflowMenu(WidgetTester tester) async {
   await settleBounded(tester);
 
   // 诊断：菜单没弹出/文案不匹配时直接打印可见文本。
-  final menuTexts = tester
-      .widgetList<Text>(find.byType(Text))
-      .map((t) => t.data ?? '(rich)')
-      .join(' | ');
+  final menuTexts = tester.widgetList<Text>(find.byType(Text)).map((t) => t.data ?? '(rich)').join(' | ');
   debugPrint('SMOKE-MENU texts: [$menuTexts]');
 
   const items = [
@@ -82,6 +107,28 @@ Future<void> smokeOverflowMenu(WidgetTester tester) async {
   }
 
   // 收起菜单（点空白处）。
+  await tester.tapAt(const Offset(10, 10));
+  await settleBounded(tester);
+}
+
+/// 第一张真实节点卡的分享菜单可达：标准二维码/剪贴板 + 配置导出组。
+Future<void> smokeNodeShareMenu(WidgetTester tester) async {
+  await settleBounded(tester);
+  final tile = find.byType(ProxyTile).first;
+  expect(tile, findsOneWidget, reason: '配置页至少应有一张真实节点卡');
+
+  final adaptiveMenu = find.descendant(of: tile, matching: find.byType(AdaptiveMenu));
+  expect(adaptiveMenu, findsOneWidget, reason: '普通节点必须有分享菜单');
+  final shareButton = find.descendant(of: adaptiveMenu, matching: find.byType(NkCardAction));
+  expect(shareButton, findsOneWidget);
+  await tester.tap(shareButton);
+  await settleBounded(tester);
+
+  expect(find.text('QR code').hitTestable(), findsOneWidget);
+  expect(find.text('Export to Clipboard').hitTestable(), findsOneWidget);
+  final configurationGroup = find.descendant(of: find.byType(SubmenuButton), matching: find.text('Configuration'));
+  expect(configurationGroup.hitTestable(), findsOneWidget);
+
   await tester.tapAt(const Offset(10, 10));
   await settleBounded(tester);
 }

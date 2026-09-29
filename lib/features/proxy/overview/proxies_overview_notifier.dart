@@ -12,15 +12,18 @@ import 'package:hiddify/features/connection/notifier/system_proxy_notifier.dart'
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/overview/profiles_notifier.dart';
 import 'package:hiddify/features/proxy/data/live_proxy_join.dart';
+import 'package:hiddify/features/proxy/data/node_import.dart';
 import 'package:hiddify/features/proxy/data/offline_proxies.dart';
 import 'package:hiddify/features/proxy/data/offline_proxy_parser.dart';
 import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
+import 'package:hiddify/features/proxy/data/proxy_entity_import.dart';
 import 'package:hiddify/features/proxy/data/runtime_outbound_tags.dart';
 import 'package:hiddify/features/proxy/data/selected_proxy_store.dart';
 import 'package:hiddify/features/proxy/data/tcp_ping.dart';
 import 'package:hiddify/features/proxy/model/proxy_failure.dart';
 import 'package:hiddify/features/proxy/notifier/connection_test_notifier.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
+import 'package:hiddify/hiddifycore/hiddify_core_service_provider.dart';
 import 'package:hiddify/utils/riverpod_utils.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -39,6 +42,11 @@ enum ProxiesSort {
     ProxiesSort.delay => t.pages.proxies.sortOptions.delay,
     ProxiesSort.usage => t.pages.proxies.sortOptions.usage,
   };
+}
+
+bool proxySelectionAlreadyActive(OutboundGroup group, String tag) {
+  if (group.selected == tag) return true;
+  return group.items.any((item) => item.tag == tag && item.isSelected);
 }
 
 @Riverpod(keepAlive: true)
@@ -260,6 +268,7 @@ class ProxiesOverviewNotifier extends _$ProxiesOverviewNotifier with AppLogger {
     loggy.debug("changing proxy, group: [$groupTag] - outbound: [$outboundTag]");
     if (!state.hasValue) return;
     final outbounds = state.value!;
+    if (proxySelectionAlreadyActive(outbounds, outboundTag)) return;
     await ref.read(hapticServiceProvider.notifier).lightImpact();
 
     // **下发的组 tag 必须是运行期 selector 的常量，不是订阅组名。**
@@ -307,7 +316,9 @@ class ProxiesOverviewNotifier extends _$ProxiesOverviewNotifier with AppLogger {
         loggy.info("selection belongs to another profile [$targetProfileId] - switching active profile");
         await ref.read(profilesNotifierProvider.notifier).selectActiveProfile(targetProfileId);
       }
-      loggy.debug("selection saved (coreRunning=$coreRunning, active=$belongsToActive): [$runtimeGroupTag] -> $outboundTag");
+      loggy.debug(
+        "selection saved (coreRunning=$coreRunning, active=$belongsToActive): [$runtimeGroupTag] -> $outboundTag",
+      );
     }
 
     final newselected = outbounds.items.where((e) => e.tag == outboundTag).firstOrNull;
@@ -405,9 +416,7 @@ class ProxiesOverviewNotifier extends _$ProxiesOverviewNotifier with AppLogger {
   /// 手动新建分组（NekoBox `GroupSettingsActivity` 的保存 → `GroupManager.createGroup`）。
   /// 返回新组的主键；失败返回 null。
   Future<int?> createGroup({String? name, bool ungrouped = false}) async {
-    final id = await ref
-        .read(proxyEntityRepositoryProvider)
-        .createGroup(name: name, ungrouped: ungrouped);
+    final id = await ref.read(proxyEntityRepositoryProvider).createGroup(name: name, ungrouped: ungrouped);
     if (id != null) ref.invalidate(proxyGroupTabsProvider);
     return id;
   }
@@ -463,6 +472,76 @@ class ProxiesOverviewNotifier extends _$ProxiesOverviewNotifier with AppLogger {
       await _reloadCoreIfAffected(groupId: groupId);
     }
     return true;
+  }
+
+  /// Configuration 页扫码/剪贴板/文件的节点导入编排。
+  ///
+  /// 订阅 URL 只分类返回，由 UI 确认后走独立 Profile 流；节点链接则在当前 BASIC
+  /// 分组语义下 Parse → 严格计数 → 事务落库 → 单次选组/重载。
+  Future<NodeImportOutcome> importNodeInput(String raw) => importNodeInputs([raw]);
+
+  Future<NodeImportOutcome> importNodeInputs(Iterable<String> rawInputs) =>
+      _importNodeSources([for (final content in rawInputs) (name: null, content: content)]);
+
+  Future<NodeImportOutcome> importNodeFiles(Iterable<NodeImportFileEntry> files) =>
+      _importNodeSources([for (final file in files) (name: file.name, content: file.content)]);
+
+  Future<NodeImportOutcome> _importNodeSources(List<({String? name, String content})> sources) async {
+    final inputs = [for (final source in sources) classifyNodeImportInput(source.content)];
+    if (inputs.isEmpty || inputs.any((input) => input is NodeImportInvalid)) {
+      return const NodeImportFailed(NodeImportFailureReason.invalidInput);
+    }
+    final subscriptions = inputs.whereType<NodeImportSubscription>().toList();
+    if (subscriptions.isNotEmpty) {
+      return inputs.length == 1
+          ? NodeImportNeedsSubscription(subscriptions.single.url)
+          : const NodeImportFailed(NodeImportFailureReason.invalidInput);
+    }
+
+    final selectedGroupId = manualGroupIdOf(ref.read(selectedProxyGroupTagProvider));
+    final repository = ref.read(proxyEntityRepositoryProvider);
+    final coreService = ref.read(hiddifyCoreServiceProvider);
+    final selectionNotifier = ref.read(selectedProxyGroupTagProvider.notifier);
+    final connectionNotifier = ref.read(connectionNotifierProvider.notifier);
+    final activeProfile = await ref.read(activeProfileProvider.future);
+    final targetGroupId = await repository.selectedGroupForImport(selectedGroupId);
+    if (targetGroupId == null) return const NodeImportFailed(NodeImportFailureReason.database);
+
+    final allEntities = <ImportedProxyEntity>[];
+    for (var index = 0; index < inputs.length; index++) {
+      final input = inputs[index];
+      final source = sources[index];
+      final String content;
+      final int? expectedCount;
+      switch (input) {
+        case NodeImportLinks(content: final value, :final candidateCount):
+          content = value;
+          expectedCount = candidateCount;
+        case NodeImportStructured(content: final value):
+          content = value;
+          expectedCount = null;
+        case NodeImportInvalid() || NodeImportSubscription():
+          return const NodeImportFailed(NodeImportFailureReason.invalidInput);
+      }
+      final parsed = await coreService.parseConfigContent(content).run();
+      final configJson = parsed.getOrElse((_) => '');
+      if (configJson.isEmpty) return const NodeImportFailed(NodeImportFailureReason.parseFailed);
+      var entities = extractProxyEntitiesFromConfig(configJson);
+      if (entities == null || (expectedCount != null && entities.length != expectedCount)) {
+        return const NodeImportFailed(NodeImportFailureReason.partialParse);
+      }
+      if (source.name != null) {
+        entities = applyWireGuardFileName(entities, fileName: source.name!, sourceContent: source.content);
+      }
+      allEntities.addAll(entities);
+    }
+
+    final imported = await repository.importNodes(groupId: targetGroupId, entities: allEntities);
+    if (imported != allEntities.length) return const NodeImportFailed(NodeImportFailureReason.database);
+    if (activeProfile != null) await connectionNotifier.reconnect(activeProfile);
+    ref.invalidate(proxyGroupTabsProvider);
+    await selectionNotifier.update(manualGroupTabKey(targetGroupId));
+    return NodeImportSucceeded(imported);
   }
 
   /// **手动新建节点**（NekoBox 节点页工具栏 Manual Settings → `ProfileSettingsActivity` 的
@@ -550,14 +629,10 @@ class ProxiesOverviewNotifier extends _$ProxiesOverviewNotifier with AppLogger {
             Future<void> worker() async {
               while (queue.isNotEmpty && !isCancelled()) {
                 final tag = queue.removeAt(0);
-                final delay = await ref
-                    .read(proxyRepositoryProvider)
-                    .urlTest(tag)
-                    .getOrElse((err) {
-                      loggy.debug("url test failed for [$tag]: $err");
-                      return -1;
-                    })
-                    .run();
+                final delay = await ref.read(proxyRepositoryProvider).urlTest(tag).getOrElse((err) {
+                  loggy.debug("url test failed for [$tag]: $err");
+                  return -1;
+                }).run();
                 tested++;
                 onProgress(tag, delay >= 0 ? '$delay' : 'timeout');
               }
@@ -709,6 +784,7 @@ class ProxiesOverviewNotifier extends _$ProxiesOverviewNotifier with AppLogger {
             onProgress(node.displayName, connectionTestResultKey(result));
           }
         }
+
         await Future.wait([for (var i = 0; i < 5; i++) worker()]);
 
         // 落库（NekoBox `ProfileManager.updateProfile(it)` + postReload 的等价物）：

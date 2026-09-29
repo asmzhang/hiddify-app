@@ -7,6 +7,7 @@ import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/core/preferences/port_preferences.dart';
 import 'package:hiddify/core/preferences/preferences_provider.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
+import 'package:hiddify/core/utils/available_port.dart';
 import 'package:hiddify/core/utils/exception_handler.dart';
 import 'package:hiddify/core/utils/json_merge.dart';
 import 'package:hiddify/features/connection/model/connection_failure.dart';
@@ -53,6 +54,28 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
   SingboxConfigOption? _configOptionsSnapshot;
   @override
   SingboxConfigOption? get configOptionsSnapshot => _configOptionsSnapshot;
+
+  int? _requestedClashApiPort;
+  int? _runtimeClashApiPort;
+
+  Future<SingboxConfigOption> _withAvailableRuntimePorts(SingboxConfigOption options) async {
+    if (!PlatformUtils.isWindows || !options.enableClashApi) {
+      _requestedClashApiPort = null;
+      _runtimeClashApiPort = null;
+      return options;
+    }
+    if (_requestedClashApiPort == options.clashApiPort && _runtimeClashApiPort != null) {
+      return options.copyWith(clashApiPort: _runtimeClashApiPort!);
+    }
+
+    final selected = await selectAvailableLoopbackPort(options.clashApiPort);
+    _requestedClashApiPort = options.clashApiPort;
+    _runtimeClashApiPort = selected;
+    if (selected != options.clashApiPort) {
+      loggy.warning("Clash API port ${options.clashApiPort} is unavailable; using $selected for this app run");
+    }
+    return options.copyWith(clashApiPort: selected);
+  }
 
   bool _initialized = false;
 
@@ -114,65 +137,64 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
   /// 5. 任一步失败 ⇒ 记日志回落现状路径（保证「不会比原来更差」）
   ///
   /// customConfig 为空 ⇒ 与改动前逐字节同路径，零行为变化。
-  TaskEither<ConnectionFailure, Unit> _start(ProfileEntity profile, bool disableMemoryLimit) =>
-      TaskEither(() async {
-        final subscriptionPath = profilePathResolver.file(profile.id).path;
+  TaskEither<ConnectionFailure, Unit> _start(ProfileEntity profile, bool disableMemoryLimit) => TaskEither(() async {
+    final subscriptionPath = profilePathResolver.file(profile.id).path;
 
-        String? entityPath;
-        try {
-          final assembled = await ref.read(proxyEntityRepositoryProvider).assembleOutboundsForProfile(profile.id);
-          if (assembled != null) {
-            final file = profilePathResolver.entityFile(profile.id);
-            await file.writeAsString(assembled);
-            entityPath = file.path;
-          }
-        } catch (e, stackTrace) {
-          loggy.warning("entity config assembly failed, starting from the subscription config instead", e, stackTrace);
+    String? entityPath;
+    try {
+      final assembled = await ref.read(proxyEntityRepositoryProvider).assembleOutboundsForProfile(profile.id);
+      if (assembled != null) {
+        final file = profilePathResolver.entityFile(profile.id);
+        await file.writeAsString(assembled);
+        entityPath = file.path;
+      }
+    } catch (e, stackTrace) {
+      loggy.warning("entity config assembly failed, starting from the subscription config instead", e, stackTrace);
+    }
+
+    // 合并基准 = 实体组装产物，失败回落订阅基准（与现状一致）
+    final basePath = entityPath ?? subscriptionPath;
+
+    final customConfig = ref.read(ConfigOptions.customConfig);
+    if (customConfig.isNotBlank) {
+      // 节点级根配置覆写（切片 8.5）：取**期望选中**节点的那份（NekoBox 的
+      // `proxy.requireBean()` 是选中实体）。查不到/为空 ⇒ null（零行为变化）。
+      // 只在 global 覆写存在时才走 raw 通道 —— 节点覆写单独存在也值得支持，
+      // 但 raw 通道以 global 为门槛保持批次 8 的行为边界（无 global ⇒ 现状路径）。
+      String? selectedNodeConfig;
+      try {
+        final prefs = await ref.read(sharedPreferencesProvider.future);
+        final selection = SelectedProxyStore(prefs);
+        final tag = selection.outboundTag;
+        final belongsHere = selection.profileId.isEmpty || selection.profileId == profile.id;
+        if (belongsHere && tag.isNotEmpty) {
+          final node = await ref.read(proxyEntityRepositoryProvider).nodeByTagAnyGroup(tag);
+          final raw = node?.customConfig.trim() ?? '';
+          if (raw.isNotEmpty) selectedNodeConfig = raw;
         }
+      } catch (_) {
+        loggy.warning("failed to read selected node customConfig - skipped");
+      }
 
-        // 合并基准 = 实体组装产物，失败回落订阅基准（与现状一致）
-        final basePath = entityPath ?? subscriptionPath;
+      final rawResult = await _startWithCustomConfig(
+        customConfig,
+        basePath,
+        profile,
+        disableMemoryLimit,
+        selectedNodeConfig: selectedNodeConfig,
+      ).run();
+      if (rawResult.isRight()) return rawResult;
+      loggy.warning("custom_config raw start failed, falling back to the normal path: $rawResult");
+    }
 
-        final customConfig = ref.read(ConfigOptions.customConfig);
-        if (customConfig.isNotBlank) {
-          // 节点级根配置覆写（切片 8.5）：取**期望选中**节点的那份（NekoBox 的
-          // `proxy.requireBean()` 是选中实体）。查不到/为空 ⇒ null（零行为变化）。
-          // 只在 global 覆写存在时才走 raw 通道 —— 节点覆写单独存在也值得支持，
-          // 但 raw 通道以 global 为门槛保持批次 8 的行为边界（无 global ⇒ 现状路径）。
-          String? selectedNodeConfig;
-          try {
-            final prefs = await ref.read(sharedPreferencesProvider.future);
-            final selection = SelectedProxyStore(prefs);
-            final tag = selection.outboundTag;
-            final belongsHere = selection.profileId.isEmpty || selection.profileId == profile.id;
-            if (belongsHere && tag.isNotEmpty) {
-              final node = await ref.read(proxyEntityRepositoryProvider).nodeByTagAnyGroup(tag);
-              final raw = node?.customConfig.trim() ?? '';
-              if (raw.isNotEmpty) selectedNodeConfig = raw;
-            }
-          } catch (_) {
-            loggy.warning("failed to read selected node customConfig - skipped");
-          }
+    if (entityPath != null) {
+      final result = await singbox.start(entityPath, profile.name, disableMemoryLimit).run();
+      if (result.isRight()) return result;
+      loggy.warning("start from entity config failed, falling back to the subscription config: $result");
+    }
 
-          final rawResult = await _startWithCustomConfig(
-            customConfig,
-            basePath,
-            profile,
-            disableMemoryLimit,
-            selectedNodeConfig: selectedNodeConfig,
-          ).run();
-          if (rawResult.isRight()) return rawResult;
-          loggy.warning("custom_config raw start failed, falling back to the normal path: $rawResult");
-        }
-
-        if (entityPath != null) {
-          final result = await singbox.start(entityPath, profile.name, disableMemoryLimit).run();
-          if (result.isRight()) return result;
-          loggy.warning("start from entity config failed, falling back to the subscription config: $result");
-        }
-
-        return singbox.start(subscriptionPath, profile.name, disableMemoryLimit).run();
-      });
+    return singbox.start(subscriptionPath, profile.name, disableMemoryLimit).run();
+  });
 
   /// 两阶段 raw 启动（设计文档 §8.3 b-d）：内核拼装 → Dart 深合并 → raw 通道启动。
   /// 任何一步失败都返回 Left，由调用方回落现状路径。
@@ -194,10 +216,7 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
   }) => TaskEither(() async {
     // b. 内核正常拼装（raw=false），产出完整最终 JSON
     final fullConfig = await singbox.generateFullConfigByPath(basePath).run();
-    final content = fullConfig.fold(
-      (err) => throw StateError("generate full config failed: $err"),
-      (c) => c,
-    );
+    final content = fullConfig.fold((err) => throw StateError("generate full config failed: $err"), (c) => c);
 
     // c. Dart 侧 NekoBox 语义深合并（最后改卷权）
     final base = jsonDecode(content) as Map<String, dynamic>;
@@ -279,10 +298,11 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
           .mapLeft((l) => ConnectionFailure.invalidConfigOption(null, l))
           .flatMap(
             (overridedOptions) => TaskEither.tryCatch(() async {
-              if (!overridedOptions.chainStatus.isOff()) {
+              final effectiveOptions = await _withAvailableRuntimePorts(overridedOptions);
+              if (!effectiveOptions.chainStatus.isOff()) {
                 final isWarpLicenseAgreed = ref.read(Preferences.warpConsentGiven) == true;
                 final isWarpEnabled =
-                    overridedOptions.unblocker.mode.isWarp() || overridedOptions.extraSecurity.mode.isWarp();
+                    effectiveOptions.unblocker.mode.isWarp() || effectiveOptions.extraSecurity.mode.isWarp();
                 if (!isWarpLicenseAgreed && isWarpEnabled) {
                   final isAgreed = await ref.read(dialogNotifierProvider.notifier).showWarpLicense();
                   if (isAgreed == true) {
@@ -295,7 +315,7 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
 
                 final isPsiphonLicenseAgreed = ref.read(Preferences.psiphonConsentGiven) == true;
                 final isPsiphonEnabled =
-                    overridedOptions.unblocker.mode.isPsiphon() || overridedOptions.extraSecurity.mode.isPsiphon();
+                    effectiveOptions.unblocker.mode.isPsiphon() || effectiveOptions.extraSecurity.mode.isPsiphon();
                 if (!isPsiphonLicenseAgreed && isPsiphonEnabled) {
                   final isAgreed = await ref.read(dialogNotifierProvider.notifier).showPsiphonLicense();
                   if (isAgreed == true) {
@@ -306,8 +326,8 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
                 }
               }
 
-              _configOptionsSnapshot = overridedOptions;
-              await singbox.changeOptions(overridedOptions).run();
+              _configOptionsSnapshot = effectiveOptions;
+              await singbox.changeOptions(effectiveOptions).run();
               return unit;
             }, (err, st) => err is ConnectionFailure ? err : ConnectionFailure.unexpected(err, st)),
           );

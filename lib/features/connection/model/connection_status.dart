@@ -8,6 +8,57 @@ part 'connection_status.freezed.dart';
 /// 与 [ConnectionStatus] 的映射关系见 proxies_overview_page。
 enum NkConnectionState { disconnected, connecting, connected, error }
 
+enum ConnectionFabVisual { stopped, connecting, connected, stopping }
+
+enum ConnectionFabAction { connect, stop }
+
+class ConnectionFabSpec {
+  const ConnectionFabSpec({required this.visual, required this.action, required this.enabled});
+
+  final ConnectionFabVisual visual;
+  final ConnectionFabAction action;
+  final bool enabled;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ConnectionFabSpec && other.visual == visual && other.action == action && other.enabled == enabled;
+
+  @override
+  int get hashCode => Object.hash(visual, action, enabled);
+}
+
+/// NekoBox `ServiceButton.changeState` / `BaseService.State` 的可见交互投影。
+ConnectionFabSpec connectionFabSpec(ConnectionStatus? status) => switch (status) {
+  null => const ConnectionFabSpec(
+    visual: ConnectionFabVisual.stopped,
+    action: ConnectionFabAction.connect,
+    enabled: false,
+  ),
+  Disconnected() => const ConnectionFabSpec(
+    visual: ConnectionFabVisual.stopped,
+    action: ConnectionFabAction.connect,
+    enabled: true,
+  ),
+  Connecting() => const ConnectionFabSpec(
+    visual: ConnectionFabVisual.connecting,
+    action: ConnectionFabAction.stop,
+    enabled: true,
+  ),
+  Connected() => const ConnectionFabSpec(
+    visual: ConnectionFabVisual.connected,
+    action: ConnectionFabAction.stop,
+    enabled: true,
+  ),
+  Disconnecting() => const ConnectionFabSpec(
+    visual: ConnectionFabVisual.stopping,
+    action: ConnectionFabAction.connect,
+    enabled: false,
+  ),
+};
+
+/// NekoBox 的 `serviceState.started` 只在 Connecting / Connected 为真。
+bool connectionNodeInUse(ConnectionStatus? status) => status is Connecting || status is Connected;
+
 @freezed
 sealed class ConnectionStatus with _$ConnectionStatus {
   const ConnectionStatus._();

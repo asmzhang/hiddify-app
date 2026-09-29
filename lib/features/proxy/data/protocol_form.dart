@@ -735,7 +735,12 @@ const _specs = <String, ProtocolFormSpec>{
 };
 
 /// 这个出站类型有没有表单。返回 null ⇒ 调用方不要给 ✎ 入口（照 NekoBox：没写表单的协议就没有编辑页）。
-ProtocolFormSpec? protocolFormSpecFor(String type) => _specs[type.trim().toLowerCase()];
+ProtocolFormSpec? protocolFormSpecFor(String type) {
+  final key = type.trim().toLowerCase();
+  final spec = _specs[key];
+  if (spec == null || key != 'vmess') return spec;
+  return ProtocolFormSpec(type: 'vmess', fields: spec.fields, containers: spec.containers);
+}
 
 /// 「手动新建」菜单里**有表单可用**的协议。
 ///
@@ -769,6 +774,7 @@ const kManualCreatableProtocols = <String>[
   'socks',
   'http',
   'shadowsocks',
+  'vmess',
   'vless',
   'trojan',
   'mieru',

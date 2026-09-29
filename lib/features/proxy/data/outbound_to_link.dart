@@ -54,10 +54,13 @@ const _supportedOutboundTypes = {
   'vmess',
   'trojan',
   'hysteria2',
+  'anytls',
   'tuic',
   'socks',
   'http',
 };
+
+bool outboundTypeHasStandardLink(String type) => _supportedOutboundTypes.contains(type.trim().toLowerCase());
 
 /// 把一条 sing-box 出站定义转成分享链接；不支持/字段残缺时返回 null
 /// （调用方回落到"复制出站 JSON"，不丢功能）。
@@ -84,6 +87,8 @@ String? outboundToLink(Map<String, dynamic> outbound) {
         return _trojan(outbound, server, port, tag);
       case 'hysteria2':
         return _hysteria2(outbound, server, port, tag);
+      case 'anytls':
+        return _anytls(outbound, server, port, tag);
       case 'tuic':
         return _tuic(outbound, server, port, tag);
       case 'socks':
@@ -222,6 +227,21 @@ String? _hysteria2(Map<String, dynamic> o, String server, int port, String tag) 
   return _link('hy2', _userInfo(user, password: pass), server, port, query, tag, colonSplitsUserinfo: true);
 }
 
+/// `anytls://password@host:port?insecure=1&sni=…&fp=…#name`
+///
+/// 对齐 NekoBox `AnyTLSFmt.toUri()` 与 anytls-go URI 规范。password 是完整
+/// userinfo，不具有 user:pass 分隔语义，因此冒号也必须转义后原样保留。
+String? _anytls(Map<String, dynamic> o, String server, int port, String tag) {
+  final password = _str(o, 'password');
+  if (password == null || password.isEmpty) return null;
+  final query = <String, String>{};
+  final tls = _map(o, 'tls');
+  if (tls?['insecure'] == true) query['insecure'] = '1';
+  _putIfPresent(query, 'sni', _str(tls, 'server_name'));
+  _putIfPresent(query, 'fp', _utlsFingerprint(tls));
+  return _link('anytls', password, server, port, query, tag);
+}
+
 /// `tuic://uuid:token@host:port?congestion_control=…&…#name`
 ///
 /// congestion/udp-relay/allow-insecure 三组参数**双写**（下划线版给 NekoBox、
@@ -263,8 +283,15 @@ String? _tuic(Map<String, dynamic> o, String server, int port, String tag) {
 String _socks(Map<String, dynamic> o, String server, int port, String tag) {
   final username = _str(o, 'username') ?? '';
   final password = _str(o, 'password') ?? '';
-  return _link('socks', _userInfo(username, password: password), server, port, const {}, tag,
-      colonSplitsUserinfo: true);
+  return _link(
+    'socks',
+    _userInfo(username, password: password),
+    server,
+    port,
+    const {},
+    tag,
+    colonSplitsUserinfo: true,
+  );
 }
 
 /// `http://user:pass@host:port?sni=…&insecure=1#name`；带 TLS 时 scheme = `https`。
@@ -281,8 +308,7 @@ String _http(Map<String, dynamic> o, String server, int port, String tag) {
   if (tls?['insecure'] == true) query['insecure'] = '1';
   _putIfPresent(query, 'path', _str(o, 'path'));
   final scheme = tls?['enabled'] == true ? 'https' : 'http';
-  return _link(scheme, _userInfo(username, password: password), server, port, query, tag,
-      colonSplitsUserinfo: true);
+  return _link(scheme, _userInfo(username, password: password), server, port, query, tag, colonSplitsUserinfo: true);
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -467,8 +493,7 @@ void _putIfPresent(Map<String, String> query, String key, String? value) {
 String b64UrlNoPad(String input) => base64Url.encode(utf8.encode(input)).replaceAll('=', '');
 
 /// userinfo：密码为空时只放用户名（不产生尾随 `:`）。
-String _userInfo(String username, {String password = ''}) =>
-    password.isEmpty ? username : '$username:$password';
+String _userInfo(String username, {String password = ''}) => password.isEmpty ? username : '$username:$password';
 
 /// 组装链接。host 为 IPv6（含 `:`）时加方括号；query 手工拼接以保持插入
 /// 顺序（Dart 的 queryParameters 语义一致但不保序，这里显式化）。
