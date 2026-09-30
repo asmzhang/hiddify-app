@@ -26,7 +26,7 @@
 
 ## 0. 一句话现状
 
-**工程完整可构建可测（Windows debug 版），NekoBox 复刻的可做项已全部落地（批次 1-14 + 审计 B/C/D + Go 1.27 升级）；主仓库与 core 子模块均全量推送**（截至 `2b8ab9ee` 实证：主仓远端 my = `2b8ab9ee`，core 远端 my = `1075e82`）；
+**工程完整可构建可测（Windows debug 版），NekoBox 复刻的可做项已全部落地（批次 1-14 + 审计 B/C/D + Go 1.27 升级）；主仓库与 core 子模块均全量推送**（截至 `ec1a6adc` 实证：主仓远端 my = `ec1a6adc`，core 远端 my = `1075e82`）；
 2026-09-22 起 UI 复刻进入**「1:1 逐功能对比」新阶段（用户定案，见 §3.0#11）：功能①节点页 ⋮ 菜单已完成（`5bac7b54`）——8 项权威顺序 + radio 排序子菜单 + 文案对齐 + 删「路由」项，L1 结构测试 5 用例 + 全量 111/111 绿；
 **翻译策略定案（§3.0#12）：测试与验收一律以 zh-CN 为基准，en 仅作 slang base_locale 保键同步，其余 8 语言键已脱节（runtime 回退 en 不炸），翻译批次放最后。**
 剩：8 语言翻译批次、~~日志页第二层（watchLogs gRPC 流建立）~~ **已完成（2026-09-30，`2b8ab9ee`，见 §2）**、~~集成测试 smoke 重跑~~（已完成，见 §7）、wireguard 真实握手（需用户凭据）、上游 PR、后续功能②③…。
@@ -108,6 +108,11 @@
   - **根因（测速对话框闪帧）**：`lib/features/proxy/notifier/connection_test_notifier.dart` runTcpPing/runUrlTest 收尾 state 丢 currentNode/currentResult/total/finished → 对话框按 `state.currentNode ?? t.pages.proxies.connectionTest.testing` 闪一帧「测试中…」。修法 = hoist lastNode/lastResult/finishedCount 局部变量，收尾与 catch 双分支保留最后进度；防重入 guard 断言全部原样保留。
   - **测试**：connection_test_notifier_test.dart 新增 4 断言钉死新语义（收尾保留 n3/timeout 与 10/7）；flutter analyze 5 info（= 基线，全在 route_rule_json.dart）、flutter test 155/155。
   - **执行方式备忘**：本提交为 Qwen3.8 子代理按主线写死的逐行补丁 spec 执行、主线逐行审查 diff + 独立复验 analyze/test 后提交——「简单机械工作交 Qwen3.8（用户 2026-09-30 指示），spec 越细越可靠」。
+- **`ec1a6adc` raw 通道 selector 归一化——custom-config「切节点永不生效」根治（2026-09-30，已推送）**：
+  - **根因**：用户 custom-config 用裸键 `outbounds`（List）整体替换出站列表 → 内核契约组 tag=`select`（builder.go 内核常量，内核每次启动丢弃输入组重建）消失、route.final 指向用户自己的 selector（tag 常为订阅原名）→ 应用切节点发 `SelectOutbound("select")` 报 "selector not found" → 点选永不生效。即 2026-09-23 假连接事故（MEMORY.md:42）的 raw 通道遗留形态。
+  - **修法（定案 = 合并后归一化，不动用户输入）**：新增 `lib/features/proxy/data/raw_config_normalize.dart` 的 `normalizeRawConfigSelector(Map<String, dynamic>)`——就地改、返回被改名旧 tag / 无需改返回 null。7 步：outbounds 非空 List → 已有 tag=='select' 即返回 null（契约已满足，绝不动用户配置）→ 候选 = type=='selector' 且 tag 非空非 §hide§ → 目标 = route.final 匹配候选否则首个 → 改名 kRuntimeSelectorTag('select') → 精确相等重写全部引用（route.final / route.rules[].outbound / outbounds[].outbounds[] / .default / .detour）。接入点 = `connection_repository.dart` `_startWithCustomConfig` 节点覆写块后 + `loggy.info("raw config selector normalized: …")`。
+  - **测试**：`test/features/proxy/data/raw_config_normalize_test.dart` 6 用例（zh-CN）：事故形态改名+四类引用重写 / 已有 select 整体不动（含 route.final 指向用户 selector 的意图保护）/ 无 selector 不动 / route.final 指向 urltest 时改首个 selector / §hide§ 不作候选 / 非法形态三种返回 null。全量 165/165、analyze 5 info 基线。
+  - **执行方式**：Qwen3.8 子代理（medium）按主线 spec 实现 3 文件，产出与 spec 零偏差；主线逐行审查 + 独立复验后提交。
 
 ---
 
@@ -154,7 +159,7 @@
    - **chain 三断言**：①内核起+三端口监听零 panic **PASS**；③clash API `/proxies/select` 的 `all` 只有 `chain:us-hk-us`、**零 §hide§** **PASS**；②出口 IP 本次 **INCONCLUSIVE**（09-21 那批节点/凭据已失效：3 个节点 TCP 全通但 anytls 会话 3.0s 后 `use of closed network connection`）——**A/B 对照证明非回归**：用 Go 1.25.6 编的旧 DLL（60.9MB，`build/windows/x64/runner/Debug/hiddify-core.dll`）跑同一配置，日志序列与失败点**逐字一致**。运行态链路由亦正确（日志可见 `chain:us-hk-us` → HK 成员 → 落地服务器 的拨号链）。
    - 落地：`.mise.toml` go → 1.27.1；`Makefile` doctor 改查 go1.27*；§1 Go 行、§4 大坑 #2、§6 命令、docs/BUILD.md 同步。
    - 待办（低优先）：换新订阅后补跑断言②（出口 IP 对照），以恢复 traffic-path 证据链。
-10. **「1:1 逐功能对比」序列（§3.0#13：按用户使用顺序排）**：已做 = 节点页 ⋮ 菜单（`5bac7b54`）‖ 抽屉核验收口（功能②，`6bec5882`：无头/无订阅项/faq-before-about/图标词表对齐）‖ 分组页（功能③，`529ebecc`：工具栏双动作/无 FAB/卡片更新按钮/右滑+undo 删除/菜单词表）‖ 分组设置（功能④，`77e811bf`：NkGroupSettingsSheet + 删除入口）。**下一步按用户动线序**：①**配置页主体**（节点卡 `layout_profile.xml` 1:1——三行 vs 双行、宽屏留白两个观察点在此收口）；②添加配置流（+ 按钮 → URL/扫码/手动入口面板）；③连接链路（FAB 四态/状态条/通知）；④订阅页（含功能②遗留的可达性修复）；⑤路由页；⑥设置页 38 项逐项 1:1（批次 7 只做了覆盖审计）；⑦协议表单字段级 1:1（15 类，依附"手动添加"分支）；⑧日志/仪表板/工具/关于；⑨首启引导（先查 NekoBox 是否存在对应面，可能是"不移植"候选）。**方法纪律**：每功能先抽规格（menu XML/preferences XML/Activity 源码 + strings 词表）→ L1 结构测试红灯 → 修正 → 全绿提交；测试断言一律 zh-CN（§3.0#12）。
+10. **「1:1 逐功能对比」序列（§3.0#13：按用户使用顺序排）**：已做 = 节点页 ⋮ 菜单（`5bac7b54`）‖ 抽屉核验收口（功能②，`6bec5882`）‖ 分组页（功能③，`529ebecc`）‖ 分组设置（功能④，`77e811bf`）‖ **配置页主体**（2026-09-30，`8bc911b5`：NkProfileTile L1 spec 测试 4 用例全绿——卡规格 margin4/elevation2/圆角4+左缘 4dp 选中条、三行结构、状态着色分支、本地配置收起、流量闸门；两个观察点收口=宽屏留白按 NekoBox 原样不做约束、三行 vs 双行按形态分化收口，见 ui-real-device-observations-2026-09-22.md；部件本就 1:1，无修正项）。**下一步按用户动线序**：①**添加配置流**（+ 按钮 → URL/扫码/手动入口面板）；②连接链路（FAB 四态/状态条/通知）；③订阅页（含功能②遗留的可达性修复）；④路由页；⑤设置页 38 项逐项 1:1（批次 7 只做了覆盖审计）；⑥协议表单字段级 1:1（15 类，依附"手动添加"分支）；⑦日志/仪表板/工具/关于；⑧首启引导（先查 NekoBox 是否存在对应面，可能是"不移植"候选）。**方法纪律**：每功能先抽规格（menu XML/preferences XML/Activity 源码 + strings 词表）→ L1 结构测试红灯 → 修正 → 全绿提交；测试断言一律 zh-CN（§3.0#12）。
 
 ---
 
