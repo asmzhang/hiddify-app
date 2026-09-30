@@ -8,7 +8,7 @@
 ## 配置页（宽屏 2560×1408）——已定案（2026-09-30）
 
 1. ~~**节点卡宽屏留白**~~ **已收口**：Throne 实为 Qt 桌面端（cmake/core/res 结构，无 Android layout 可对照）→ 按 NekoBox 窄列表原样收口，不做内容最大宽度约束。
-2. ~~**卡片三行布局**~~ **已收口**：`nk_profile_tile.dart` 行2 显隐已按形态分化（订阅卡显示地址+流量、本地配置整行收起），L1 spec 测试 = `test/features/profile/widget/nk_profile_tile_spec_test.dart`（`8bc911b5`，4 用例全绿）。
+2. ~~**卡片三行布局**~~ **已收口**：`nk_profile_tile.dart` 行2 显隐已按形态分化（订阅卡显示地址+流量、本地配置整行收起），L1 spec 测试 = `test/features/profile/widget/nk_profile_tile_spec_test.dart`（`567a45f4`，4 用例全绿）。
 3. **「快速设置选项」悬浮 chip** 为 hiddify 遗留，NekoBox 主界面无此物 → 不移植/降权清单候选（需所有者定案）。
 
 ## 抽屉（功能②，2026-09-22 已落地）
