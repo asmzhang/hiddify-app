@@ -34,6 +34,7 @@ import 'package:hiddify/features/proxy/widget/chain_settings_page.dart';
 import 'package:hiddify/features/proxy/widget/config_settings_page.dart';
 import 'package:hiddify/features/proxy/widget/connection_test_dialog.dart';
 import 'package:hiddify/features/proxy/widget/manual_node_flow.dart';
+import 'package:hiddify/features/proxy/widget/nk_capture_status_bar.dart';
 import 'package:hiddify/features/proxy/widget/protocol_form_modal.dart';
 import 'package:hiddify/features/proxy/widget/proxies_menu_button.dart';
 import 'package:hiddify/features/proxy/widget/proxy_tile.dart';
@@ -75,18 +76,10 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
     // 列表 / 网格（落盘，见 proxiesListViewProvider）
     final listView = ref.watch(proxiesListViewProvider);
 
-    // 连接状态（给 FAB 四态与底部状态栏用）：区分 已连接 / 连接中 / 错误 / 未连接
+    // 连接状态（给 FAB 四态与底部状态栏用）。四态展示归一映射在
+    // connectionSummaryProvider（底部状态栏/抽屉头共用）与 connectionFabSpec（FAB），
+    // 页面不再双写。
     final connectionStatus = ref.watch(connectionNotifierProvider).valueOrNull;
-    final NkConnectionState nkState;
-    if (connectionStatus is Connected) {
-      nkState = NkConnectionState.connected;
-    } else if (connectionStatus is Connecting || connectionStatus is Disconnecting) {
-      nkState = NkConnectionState.connecting;
-    } else if (connectionStatus is Disconnected && connectionStatus.connectionFailure != null) {
-      nkState = NkConnectionState.error;
-    } else {
-      nkState = NkConnectionState.disconnected;
-    }
 
     // 当前 Tab —— 删除/编辑节点要知道"删的是哪个组里的"。
     ProxyGroupTab? activeTab;
@@ -116,10 +109,10 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
     final statsBarVisible = useState(false);
     useEffect(() {
       final timer = Timer(const Duration(milliseconds: 100), () {
-        statsBarVisible.value = nkState == NkConnectionState.connected;
+        statsBarVisible.value = captureStatsBarVisible(connectionStatus);
       });
       return timer.cancel;
-    }, [nkState]);
+    }, [connectionStatus]);
     final showStatsBar = statsBarVisible.value;
 
     // final selectActiveProxyMutation = useMutation(
@@ -582,60 +575,28 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
   }
 }
 
-/// 底部状态栏（NekoBox `StatsBar` 规格）：主色底 + 白字，**仅已连接时挂载**
-/// （`StatsBar.changeState` 非 Connected 一律 performHide —— 挂载条件在页面侧）。
-///
-/// 内容 = 状态文本（`vpn_connected` = "已连接 , 点击此处测试连接"——文案即点击
-/// 提示）+ 当前节点名（本项目补充能力）+ ▲▼ 实时速率（`updateSpeed` 格式）。
-/// **点击 = 测当前连接延迟**（`MainActivity.kt:94` `stats.testConnection()` 的
-/// 对应物；本项目落点 = 当前组 URL Test，走 [runConnectionTest] 单层 guard，
-/// 规则见 `87a0743f`：一次用户动作 = 恰好一层 guard）。
+/// 底部状态栏页面薄壳：订阅三面 provider（翻译/连接摘要/stats 流）后交给公共
+/// 部件 [NkCaptureStatusBar]（纯参数注入，规格注释见该部件头）。
 class _CaptureStatusBar extends ConsumerWidget {
   const _CaptureStatusBar();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final t = ref.watch(translationsProvider).requireValue;
     final summary = ref.watch(connectionSummaryProvider);
     final stats = ref.watch(statsNotifierProvider).asData?.value ?? SystemInfo.create();
-
-    // 白字（主色底上），与 NekoBox 的 StatsBar 一致。
-    final style = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onPrimary);
-    return Material(
-      color: theme.colorScheme.primary,
-      child: SafeArea(
-        top: false,
-        child: InkWell(
-          onTap: () => unawaited(
-            runConnectionTest(
-              context,
-              ref,
-              // 进度 = 逐节点独立探针（n/N + 当前节点 + 可取消），由 urlTest
-              // 内部的 runTcpPing 承担（守卫纪律：一次用户动作一层守卫）。
-              start: () => ref.read(proxiesOverviewNotifierProvider.notifier).urlTest(),
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                Flexible(
-                  child: Text(t.connection.statsConnected, style: style, overflow: TextOverflow.ellipsis, maxLines: 1),
-                ),
-                if (summary.nodeName != null) ...[
-                  const Gap(8),
-                  Flexible(
-                    child: Text(summary.nodeName!, style: style, overflow: TextOverflow.ellipsis, maxLines: 1),
-                  ),
-                ],
-                const Spacer(),
-                Text("▲ ${stats.uplink.toInt().speed()}", style: style),
-                const Gap(10),
-                Text("▼ ${stats.downlink.toInt().speed()}", style: style),
-              ],
-            ),
-          ),
+    return NkCaptureStatusBar(
+      t: t,
+      summary: summary,
+      uplink: stats.uplink.toInt(),
+      downlink: stats.downlink.toInt(),
+      onTap: () => unawaited(
+        runConnectionTest(
+          context,
+          ref,
+          // 进度 = 逐节点独立探针（n/N + 当前节点 + 可取消），由 urlTest
+          // 内部的 runTcpPing 承担（守卫纪律：一次用户动作一层守卫）。
+          start: () => ref.read(proxiesOverviewNotifierProvider.notifier).urlTest(),
         ),
       ),
     );

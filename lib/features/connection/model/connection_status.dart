@@ -59,6 +59,11 @@ ConnectionFabSpec connectionFabSpec(ConnectionStatus? status) => switch (status)
 /// NekoBox 的 `serviceState.started` 只在 Connecting / Connected 为真。
 bool connectionNodeInUse(ConnectionStatus? status) => status is Connecting || status is Connected;
 
+/// 底部状态条可见性 —— NekoBox `StatsBar.changeState` 的纯映射：
+/// 仅 Connected 显示（performShow），其余一律 performHide。
+/// 页面侧另有 100ms 延迟 Timer（postWhenStarted+100ms 对齐），此函数只承担状态判定。
+bool captureStatsBarVisible(ConnectionStatus? status) => status is Connected;
+
 @freezed
 sealed class ConnectionStatus with _$ConnectionStatus {
   const ConnectionStatus._();
