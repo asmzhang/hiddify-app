@@ -112,9 +112,13 @@ class ConnectionTestNotifier extends _$ConnectionTestNotifier with AppLogger {
     // 本地计数（审计修正）：worker 池并发回调 onProgress 时，若用
     // `state.finished + 1` 做递增，两个回调读到同一个 state 会互相覆盖丢计数。
     var finished = 0;
+    String? lastNode;
+    String? lastResult;
     try {
       final result = await body(() => cancel.isCompleted, (node, result) {
         finished += 1;
+        lastNode = node;
+        lastResult = result;
         state = ConnectionTestState(
           running: true,
           total: total,
@@ -127,14 +131,29 @@ class ConnectionTestNotifier extends _$ConnectionTestNotifier with AppLogger {
       // 收尾：复位防重入 + 保留计数（NekoBox 测完对话框关掉，但进度快照无意义，
       // 这里保留 finished 是为了取消防重入后调用方还能读到本轮计数）。
       // running: false 是本行的语义核心，显式写出（lint 对默认值报冗余，已豁免）。
-      // ignore: avoid_redundant_argument_values
-      state = ConnectionTestState(running: false, total: total, finished: finished, cancelled: cancel.isCompleted);
+      state = ConnectionTestState(
+        // ignore: avoid_redundant_argument_values
+        running: false,
+        total: total,
+        finished: finished,
+        currentNode: lastNode,
+        currentResult: lastResult,
+        cancelled: cancel.isCompleted,
+      );
       return result;
     } catch (e, stackTrace) {
       loggy.warning("connection test failed", e, stackTrace);
       // 失败也要复位防重入——否则一次异常后测试入口永久失灵。
-      // ignore: avoid_redundant_argument_values
-      state = ConnectionTestState(running: false, total: total, finished: finished, cancelled: cancel.isCompleted);
+      // 失败也保留最后进度，防对话框闪回测试中。
+      state = ConnectionTestState(
+        // ignore: avoid_redundant_argument_values
+        running: false,
+        total: total,
+        finished: finished,
+        currentNode: lastNode,
+        currentResult: lastResult,
+        cancelled: cancel.isCompleted,
+      );
       rethrow;
     } finally {
       _cancel = null;
@@ -160,15 +179,17 @@ class ConnectionTestNotifier extends _$ConnectionTestNotifier with AppLogger {
       return null;
     }
     state = ConnectionTestState(running: true, total: total);
+    var finishedCount = 0;
     try {
       await body((finished) {
-        state = ConnectionTestState(running: true, total: total, finished: finished);
+        finishedCount = finished;
+        state = ConnectionTestState(running: true, total: total, finished: finishedCount);
       });
-      state = const ConnectionTestState();
+      state = ConnectionTestState(total: total, finished: finishedCount);
       return true;
     } catch (e, stackTrace) {
       loggy.warning("url test failed", e, stackTrace);
-      state = const ConnectionTestState();
+      state = ConnectionTestState(total: total, finished: finishedCount);
       rethrow;
     }
   }

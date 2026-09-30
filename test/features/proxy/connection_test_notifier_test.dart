@@ -55,8 +55,8 @@ void main() {
     addTearDown(container.dispose);
     final notifier = container.read(connectionTestNotifierProvider.notifier);
 
-    // 逐条进度在过程中抓快照：收尾状态是新建的（按设计不保留 currentNode/
-    // currentResult——那时对话框已经关了，留着没有意义）。
+    // 逐条进度在过程中抓快照；收尾状态保留最后一条进度（lastNode/lastResult），
+    // 防对话框关闭前闪回"测试中"空帧。
     String? nodeAfterFirst;
     String? resultAfterLast;
     final count = await notifier.runTcpPing(
@@ -78,6 +78,9 @@ void main() {
     expect(state.running, isFalse);
     expect(state.finished, 3);
     expect(state.total, 3);
+    // 收尾保留最后一条进度（新语义，2026-09-30）：防对话框闪回"测试中"空帧。
+    expect(state.currentNode, 'n3');
+    expect(state.currentResult, 'timeout');
   });
 
   test('测试体抛错也复位防重入（否则一次异常后入口永久失灵）', () async {
@@ -111,5 +114,9 @@ void main() {
     expect(ok, isTrue);
     expect(progress, [3, 7], reason: '绝对进度逐次回报，对话框 n/N 据此刷新');
     expect(container.read(connectionTestNotifierProvider).running, isFalse);
+    // 收尾保留计数（新语义，2026-09-30）：防对话框闪回 0/N。
+    final state = container.read(connectionTestNotifierProvider);
+    expect(state.total, 10);
+    expect(state.finished, 7);
   });
 }

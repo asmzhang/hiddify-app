@@ -524,12 +524,21 @@ class HiddifyCoreService with InfraLogger {
   // SingboxConfigOption? latestOptions;
 
   Stream<List<LogMessage>> watchLogs(String path) async* {
+    // 日志页第二层修复（2026-09-30）：先吐当前缓冲，再转发监听流。
+    // 此前 logController（BehaviorSubject）无种子、core 未初始化时直接 return——
+    // 两条路都是零事件，LogsOverviewNotifier 的 asyncMap 收不到首个事件，
+    // state 永远停在 AsyncLoading，页面无限转圈。
+    yield logBuffer;
     if (!core.isInitialized()) {
-      loggy.debug("core is not initialized, returning empty log stream");
+      loggy.debug("core is not initialized, yielding buffered logs only");
       return;
     }
-    await startListeningLogs("bg", core.bgClient);
+    // 桌面端单通道（fg==bg）：fg 恒开，bg 仅在双通道时开——照 setup() 的模式，
+    // 避免对同一 client 建两条 logListener 导致 logBuffer 重复入账。
     await startListeningLogs("fg", core.fgClient);
+    if (!core.isSingleChannel()) {
+      await startListeningLogs("bg", core.bgClient);
+    }
     try {
       yield* logController.stream;
     } catch (e) {
