@@ -50,7 +50,7 @@
 | GOMODCACHE | 已固化 `go env -w GOMODCACHE=$env:USERPROFILE/go/pkg/mod2` |
 | 网络代理 | `socks5h://127.0.0.1:7890` 可用 —— 核心库下载失败时给 curl 加 `--proxy` |
 | proto 工具链 | **protoc 28.0 + protoc-gen-go v1.34.2 + protoc_plugin 23.0.0**（版本必须钉死，见 §4.3） |
-| 测试订阅 | cpdd：`https://cpdd.one/sub?token=***REMOVED***`（**39 anytls**）；yfjc：`https://yfjc.xyz/api/v1/client/subscribe?token=***REMOVED***`（21 vless + 15 hysteria2，**无 anytls 属正常**） |
+| 测试订阅 | 见 `.workbuddy/tokens.md`（token 不入库：cpdd 39 anytls；yfjc 21 vless + 15 hysteria2，无 anytls 属正常） |
 | 订阅 UA 机制 | App UA（`HiddifyNext/... sing-box v2ray`）→ 面板返回 sing-box JSON（anytls 保留）；浏览器 UA 会返回 Clash YAML（丢 anytls） |
 | 深链导入 | `hiddify://import/<订阅URL>` → 弹确认框 + 预填 sheet。**有防零点击 SSRF 的确认设计，需人工点两次，不要绕过** |
 
@@ -137,7 +137,7 @@
 6. ~~审计 C 安全包~~ **必修项已完成**（2026-09-22，见下）。原「威胁模型待定案」提法撤销——本地构建 sentry_dsn 为空编译期常量 → Sentry 全禁用，不存在「分发二选一」的现状问题。**必修三项落地**：①`Random.secure()`——gRPC secret（core_interface_desktop.dart）+ STUN txId（stun_client.dart），全库仅此两处 `Random()`；②9 处空/吞异常 catch 补日志（原审计说 3 处已过时）：closeFront×2（debug 级）、ip_utils（注释说明兜底语义）、directories_provider（stderr）、config_settings_page×2（debug/stderr）、config_assembly×5（`_assemblyLog` stderr helper——纯 Dart 模块不引 loggy）；③Sentry token 泄漏堵住：`scrubSensitiveUrls`（sentry_utils.dart，regex 剥 http(s) URL 的 query 尾巴，log 包裹符 `)]` 不误伤）接进 `SentryLoggyIntegration` 的 breadcrumb+event 出口——实测 3 处日志消息嵌订阅 URL（profiles_notifier×2/profile_notifier），6 个单测钉住（test/utils/sentry_utils_test.dart）。flutter test 82/82 + analyze 干净。**分发时才修（未做）**：gRPC mTLS/随机端口（上游 mTLS 代码在 core_interface 被注释）、分发版 Sentry 配置审查。**不修**：loopback 明文 gRPC（127.0.0.1:17078 + secret 鉴权，自用维持现状）
 7. ~~审计 D 架构包~~ **复核完成**（2026-09-23，全部按「先复核现状再动手」原则逐项验证）：
    - **core→features 逆依赖**：原审计「14 处」**已过时**——实测 0（layering.md 记录的 47→0 收敛早已完成），无需行动。
-   - **json_editor.dart 拆分**：**不做**。1690 行是 vendored 第三方（json_editor_flutter），analysis_options 已排除 + 文件头已注明来源版本，roadmap-2026-09-14 原建议（exclude + 注明）已满足；拆分反而制造升级障碍。
+   - **json_editor.dart 拆分**：**不做**。1690 行是 vendored 第三方（json_editor_flutter），analysis_options 已排除 + 文件头已注明来源版本（原 2026-09-14 roadmap 建议：exclude + 注明，该 roadmap 已删除）；拆分反而制造升级障碍。
    - **riverpod 风格**：**无真混用**。4 个「混用」文件实际是同文件内两种注解各司其职——`@Riverpod(keepAlive: true)` 给保活 class notifier、`@riverpod` 给 autoDispose provider，这是 riverpod_generator 的生命周期语义不是风格漂移。仅 1 处裸 `@Riverpod()` 空括号（per_app_proxy_loading_notifier）归一为 `@riverpod`（语义等同）。准则：按生命周期选注解，不按口味。
    - **业务测试**：补齐 config_assembly 两大零覆盖区（+18 测试，31/31 绿）——`buildChainOutbounds`（两跳/三跳 detour 方向锚点、嵌套展平、环/自引用 null、endpoint/内置/组/full 形态拒绝、重复成员 #N 后缀、覆写合并、空链 null）+ `applyEntitiesToOutbounds` endpoints 段（legacy wg outbound 剔除 K1、覆盖/追加/stale 删除/坏 payload 跳过/不新建空段）。detour 方向期望按实现+ NekoBox 定案修正（落地穿过入口侧、UI 首行直连——写测试时理解反了被红测当场纠正，锚点价值即此）。drift 迁移已有 migration_test，未动。
    - **老审计（2026-09-15）遗留抽查**：#9 `startedByUser` 仍只写不读（唯一读取点 connection_wrapper.dart:52 在注释块里）；#11 IpInfoNotifier guard 语义未变。两者是上游 hiddify 自带行为且无功能损害，**降级为观察项不行动**（动它们 = 超出 NekoBox 对照范围的自由发挥）。
