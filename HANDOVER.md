@@ -26,10 +26,10 @@
 
 ## 0. 一句话现状
 
-**工程完整可构建可测（Windows debug 版），NekoBox 复刻的可做项已全部落地（批次 1-14 + 审计 B/C/D + Go 1.27 升级）；主仓库与 core 子模块均全量推送**（截至 `6b1681e3` 实证：主仓远端 my = `6b1681e3`，core 远端 my = `1075e82`）；
+**工程完整可构建可测（Windows debug 版），NekoBox 复刻的可做项已全部落地（批次 1-14 + 审计 B/C/D + Go 1.27 升级）；主仓库与 core 子模块均全量推送**（截至 `2b8ab9ee` 实证：主仓远端 my = `2b8ab9ee`，core 远端 my = `1075e82`）；
 2026-09-22 起 UI 复刻进入**「1:1 逐功能对比」新阶段（用户定案，见 §3.0#11）：功能①节点页 ⋮ 菜单已完成（`5bac7b54`）——8 项权威顺序 + radio 排序子菜单 + 文案对齐 + 删「路由」项，L1 结构测试 5 用例 + 全量 111/111 绿；
 **翻译策略定案（§3.0#12）：测试与验收一律以 zh-CN 为基准，en 仅作 slang base_locale 保键同步，其余 8 语言键已脱节（runtime 回退 en 不炸），翻译批次放最后。**
-剩：8 语言翻译批次、日志页第二层（watchLogs gRPC 流建立）、集成测试 smoke 重跑、wireguard 真实握手（需用户凭据）、上游 PR、后续功能②③…。
+剩：8 语言翻译批次、~~日志页第二层（watchLogs gRPC 流建立）~~ **已完成（2026-09-30，`2b8ab9ee`，见 §2）**、~~集成测试 smoke 重跑~~（已完成，见 §7）、wireguard 真实握手（需用户凭据）、上游 PR、后续功能②③…。
 
 > 接手前必读上方「接手须知」：本文内容分 A（实证事实）/ B（所有者定案，见 §3.0）/ C（推断待验证，见 §7）三层，采信方式各不同。
 
@@ -103,6 +103,11 @@
   - **八项权威顺序**：更新当前组订阅 → 清空流量统计数据 → 删除重复的服务器 → TCPing → URL Test → 清理测试结果 → 清理不可用配置 → 排序（子菜单 原始/以名称/以延时，`checkableBehavior="single"` 语义；hiddify 遗留 usage 排序枚举保留但不进菜单）。**删「路由」项**（NekoBox 路由在抽屉，`nav_items.dart` 确认可达性不破坏）。
   - **测试**：`test/features/proxy/proxies_menu_test.dart` 5 用例（L1 结构对等：项数/顺序/逐词文案 vs zh-rCN 词表/无「路由」回归/子菜单无 usage/勾选态跟随/组件可独立构建）；全量 111/111 绿；analyze 干净。
   - **slang 键变更**：删 `sort`/`testDelay`/`testAll`/`updateSubscriptions` 及 orderOptions 旧值；增 `urlTest`("URL Test")/`order`/`orderOptions.origin|name|delay`/`tcpPing`("TCPing")/`updateSubscription`("Update current Group's subscription")。en/zh-CN/zh-TW 三语已对齐；**其余 8 语言键脱节未动**（见 §7）。
+- **`2b8ab9ee` 日志页第二层修复 + 测速对话框闪帧修复（2026-09-30，已推送）**：
+  - **根因（日志页无限转圈）**：`lib/hiddifycore/hiddify_core_service.dart` 的 `watchLogs` 两条路都是零事件流——logController（BehaviorSubject）无种子、core 未初始化直接 return；`LogsOverviewNotifier` 的 asyncMap 收不到首个事件，state 永停 AsyncLoading。修法 = 方法开头 `yield logBuffer;`（立即首事件，空列表也行）再走未初始化分支；订阅顺序改 fg 恒开 + bg 仅 `!isSingleChannel()`（照 setup() 模式）——此前桌面单通道无条件 bg+fg 双订阅同一 client，logBuffer 重复入账。
+  - **根因（测速对话框闪帧）**：`lib/features/proxy/notifier/connection_test_notifier.dart` runTcpPing/runUrlTest 收尾 state 丢 currentNode/currentResult/total/finished → 对话框按 `state.currentNode ?? t.pages.proxies.connectionTest.testing` 闪一帧「测试中…」。修法 = hoist lastNode/lastResult/finishedCount 局部变量，收尾与 catch 双分支保留最后进度；防重入 guard 断言全部原样保留。
+  - **测试**：connection_test_notifier_test.dart 新增 4 断言钉死新语义（收尾保留 n3/timeout 与 10/7）；flutter analyze 5 info（= 基线，全在 route_rule_json.dart）、flutter test 155/155。
+  - **执行方式备忘**：本提交为 Qwen3.8 子代理按主线写死的逐行补丁 spec 执行、主线逐行审查 diff + 独立复验 analyze/test 后提交——「简单机械工作交 Qwen3.8（用户 2026-09-30 指示），spec 越细越可靠」。
 
 ---
 
