@@ -260,7 +260,7 @@ flutter build windows --release
 ## 7. 未验证清单（C 层：待验证假设 + 未跑过的通道；新会话优先用"新眼睛"审这里）
 
 **未跑过的通道（证据真空，勿默认可用）**：
-- ~~本地 2 个提交未推送~~ **已全量推送（2026-09-30 ls-remote 实证：主仓远端 my = `6b1681e3`，core 远端 my = `1075e82`，0 未推送）**。历史备忘：推送用 `git -c http.proxy=http://127.0.0.1:35496 push` 覆盖全局 7890 配置，推后用 `git ls-remote origin my` 核对（本地 tracking ref 显示 `[gone]` 是 §4.12 沙箱幻象，别信）。
+- ~~本地 2 个提交未推送~~ **已全量推送（2026-09-30 ls-remote 实证：主仓远端 my = `6b1681e3`，core 远端 my = `1075e82`，0 未推送）**。推送备忘（2026-09-30 更新）：三种通道成败随会话网络变化——按 **直连（`-c http.proxy= -c https.proxy=` 显式禁代理）→ `http://127.0.0.1:35496` → 全局 7890** 顺序轮试；推后用 `git ls-remote origin my` 核对（本地 tracking ref 显示 `[gone]` 是 §4.12 沙箱幻象，别信）。
 - ~~集成测试 smoke_test.dart 本体未重跑~~ **已完成（2026-09-24）**：集成测试两层根因已修（bootstrap.dart:40 `FlutterError.onError` 被 `Logger.logFlutterError` 顶掉不转发 → binding.dart:1018 崩；physicalSize 2560×1400 假视口 vs 真窗口 868×668），integration_test 重写为单 testWidgets + dumpUi，用户终端验证全绿（`+1 All tests passed`）。
 - **8 语言翻译批次（明确放最后）**：ar/es/fa/fr/id/pt-BR/ru/tr 的 proxies 相关键已脱节——缺 `urlTest`/`order`/`orderOptions.*`/`tcpPing` 新词，多 `sort`/`testDelay`/`testAll`/`updateSubscriptions` 旧键。**现状可安全运行**（slang fallback 回退 en），只在做翻译批次时才需要补；届时 NekoBox `values-ar/-es/-fa/-fr/-in/-pt-rBR/-ru/-tr/strings.xml` 是对应词表来源。
 - **CI 全绿未背书**：审计 B 的 sha256-OK 校验路径、flutter-version-file、core-libs 缓存都只在本地静态验证过（pyyaml 解析/失败路径实证），**push 后首次 CI 才是最终背书**。
