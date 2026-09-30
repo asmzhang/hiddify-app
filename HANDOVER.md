@@ -26,10 +26,10 @@
 
 ## 0. 一句话现状
 
-**工程完整可构建可测（Windows debug 版），NekoBox 复刻的可做项已全部落地（批次 1-14 + 审计 B/C/D + Go 1.27 升级），主仓库已推送至 f020a526（core eb52b62）；
+**工程完整可构建可测（Windows debug 版），NekoBox 复刻的可做项已全部落地（批次 1-14 + 审计 B/C/D + Go 1.27 升级）；主仓库与 core 子模块均全量推送**（截至 `6b1681e3` 实证：主仓远端 my = `6b1681e3`，core 远端 my = `1075e82`）；
 2026-09-22 起 UI 复刻进入**「1:1 逐功能对比」新阶段（用户定案，见 §3.0#11）：功能①节点页 ⋮ 菜单已完成（`5bac7b54`）——8 项权威顺序 + radio 排序子菜单 + 文案对齐 + 删「路由」项，L1 结构测试 5 用例 + 全量 111/111 绿；
 **翻译策略定案（§3.0#12）：测试与验收一律以 zh-CN 为基准，en 仅作 slang base_locale 保键同步，其余 8 语言键已脱节（runtime 回退 en 不炸），翻译批次放最后。**
-剩：**本地 2 个提交未推送**（`87a0743f` URL 测速修复 + `5bac7b54` 功能①）、8 语言翻译批次、集成测试 smoke 重跑、wireguard 真实握手、上游 PR、后续功能②③…。
+剩：8 语言翻译批次、日志页第二层（watchLogs gRPC 流建立）、集成测试 smoke 重跑、wireguard 真实握手（需用户凭据）、上游 PR、后续功能②③…。
 
 > 接手前必读上方「接手须知」：本文内容分 A（实证事实）/ B（所有者定案，见 §3.0）/ C（推断待验证，见 §7）三层，采信方式各不同。
 
@@ -56,7 +56,7 @@
 
 ---
 
-## 2. 提交清单（2026-09-14 会话 16 个 + 9-16~9-20 批次 1-9，**均未推送 origin/my**）
+## 2. 提交清单（2026-09-14 会话 16 个 + 9-16~9-20 批次 1-9；~~均未推送~~ **2026-09-30 已全量推送**）
 
 **环境/修复（换机恢复，09-14）**
 - `f904b5e4` Makefile PATH 截断修复 / `25559a81` doctor Go 版本检查 / `92db036d` 钉死代码生成器版本
@@ -96,8 +96,8 @@
   - **抓到并修复批次 9 遗留 bug**：sing-box 内核对 wireguard endpoint 的每个 peer **硬校验 allowed_ips**（`transport/wireguard/endpoint.go:82` "missing allowed ips for peer N"），而批次 9 表单 8 字段没有 allowed_ips（NekoBox Bean 也没有——它的 legacy 扁平 outbound 形态无此约束）。修复 = 内核 `patchWarp` 给缺失 allowed_ips 的 peer 补默认 `0.0.0.0/0 + ::/0`（full-tunnel，与 WARP builder warp.go:57 同语义），在 parse 与 final 两阶段都生效（parse 阶段的 CheckConfigOptions 也会初始化 endpoint 校验）。
   - **验证闭环**：不带 allowed_ips 的 wg endpoint 配置 → HiddifyCli 真启动成功（`sing-box started 5.05s`）→ endpoint 进 selector 组 → final 配置里 allowed_ips 已自动补上。go test 全绿无回归。
   - **实连清单（剩）**：需用户提供真实 wireguard 凭据（private_key/peer public_key/endpoint host:port/local address CIDR），在 app 表单填入真节点后 FAB 连接验证握手；测试残留已清理（bin/wg-test 删除）。
-- **`87a0743f` URL 测速无反应修复（本地，未推送）**：⋮ 菜单「URL Test」点了只闪一下对话框、零进度零报错——**双重重入 guard**：页面外层包了一次 `runUrlTest`，`proxiesOverviewNotifier.urlTest()` 内部又包一次；外层置 running=true 后内层 guard 误判「已在跑」直接 return，核心 RPC 从未发出（外层还报成功）。tcpPingNodes 只有一层 guard 所以 TCPing 一直正常——同组对照定位的关键。修复：`urlTest()` 变纯测试体，guard+对话框归调用方（页面），规则钉进注释「**一次用户动作 = 恰好一层 guard**」；「already running」分支现在显式打出嵌套提示；新增 `test/features/proxy/connection_test_notifier_test.dart`（4 用例钉死嵌套拒绝/单层执行/guard 必复位/抛异常也复位）。flutter test 106/106。
-- **功能① 节点页 ⋮ 菜单 1:1（`5bac7b54`，本地，未推送；1:1 逐功能对比阶段第一项）**：
+- **`87a0743f` URL 测速无反应修复（已推送）**：⋮ 菜单「URL Test」点了只闪一下对话框、零进度零报错——**双重重入 guard**：页面外层包了一次 `runUrlTest`，`proxiesOverviewNotifier.urlTest()` 内部又包一次；外层置 running=true 后内层 guard 误判「已在跑」直接 return，核心 RPC 从未发出（外层还报成功）。tcpPingNodes 只有一层 guard 所以 TCPing 一直正常——同组对照定位的关键。修复：`urlTest()` 变纯测试体，guard+对话框归调用方（页面），规则钉进注释「**一次用户动作 = 恰好一层 guard**」；「already running」分支现在显式打出嵌套提示；新增 `test/features/proxy/connection_test_notifier_test.dart`（4 用例钉死嵌套拒绝/单层执行/guard 必复位/抛异常也复位）。flutter test 106/106。
+- **功能① 节点页 ⋮ 菜单 1:1（`5bac7b54`，已推送；1:1 逐功能对比阶段第一项）**：
   - **规格源**：`S:\test\NekoBoxForAndroid\app\src\main\res\menu\add_profile_menu.xml`（`action_misc` 内层 8 项，顺序权威）+ 三语词表 `values/strings.xml` / `values-zh-rCN` / `values-zh-rTW`（TCPing/URL Test 是 `translatable="false"` 固定词，全语言不译）。行为参照 `ConfigurationFragment.kt`（更新订阅 460-475 / 清流量 495-532 / 去重 534-580 / TCPing 694-832 / URL Test 834-901 / 清理 1110-1155）。
   - **产出**：菜单从页面内联 `PopupMenuButton<String>`（9 项乱序 + 'sort' 弹窗 + 'route' 项）抽成 `lib/features/proxy/widget/proxies_menu_button.dart`（MenuAnchor + MenuItemButton + SubmenuButton radio 子菜单，✓ 标当前排序项）；页面只留 `const ProxiesMenuButton()`。
   - **八项权威顺序**：更新当前组订阅 → 清空流量统计数据 → 删除重复的服务器 → TCPing → URL Test → 清理测试结果 → 清理不可用配置 → 排序（子菜单 原始/以名称/以延时，`checkableBehavior="single"` 语义；hiddify 遗留 usage 排序枚举保留但不进菜单）。**删「路由」项**（NekoBox 路由在抽屉，`nav_items.dart` 确认可达性不破坏）。
@@ -260,8 +260,8 @@ flutter build windows --release
 ## 7. 未验证清单（C 层：待验证假设 + 未跑过的通道；新会话优先用"新眼睛"审这里）
 
 **未跑过的通道（证据真空，勿默认可用）**：
-- **本地 2 个提交未推送**（2026-09-22 ls-remote 实证：远端 `my` = `f020a526`，本地 tracking ref 显示 `[gone]` 是 §4.12 沙箱幻象）：`87a0743f`（URL 测速双重 guard 修复）+ `5bac7b54`（功能①⋮ 菜单 1:1）。推送时机/代理连通在用户手上；推送用 `git -c http.proxy=http://127.0.0.1:35496 push` 覆盖全局 7890 配置，推后用 `git ls-remote origin my` 核对。
-- **集成测试 smoke_test.dart 本体未重跑**：功能①改了 8 项 en 文案与 more_vert 定位方式（`find.byType(PopupMenuButton<String>)` → `find.byIcon(Icons.more_vert)`），单测 111/111 绿但集成流未跑（需 ensure_plugin_junctions + Windows device + 孤儿 Hiddify.exe 先杀）。
+- ~~本地 2 个提交未推送~~ **已全量推送（2026-09-30 ls-remote 实证：主仓远端 my = `6b1681e3`，core 远端 my = `1075e82`，0 未推送）**。历史备忘：推送用 `git -c http.proxy=http://127.0.0.1:35496 push` 覆盖全局 7890 配置，推后用 `git ls-remote origin my` 核对（本地 tracking ref 显示 `[gone]` 是 §4.12 沙箱幻象，别信）。
+- ~~集成测试 smoke_test.dart 本体未重跑~~ **已完成（2026-09-24）**：集成测试两层根因已修（bootstrap.dart:40 `FlutterError.onError` 被 `Logger.logFlutterError` 顶掉不转发 → binding.dart:1018 崩；physicalSize 2560×1400 假视口 vs 真窗口 868×668），integration_test 重写为单 testWidgets + dumpUi，用户终端验证全绿（`+1 All tests passed`）。
 - **8 语言翻译批次（明确放最后）**：ar/es/fa/fr/id/pt-BR/ru/tr 的 proxies 相关键已脱节——缺 `urlTest`/`order`/`orderOptions.*`/`tcpPing` 新词，多 `sort`/`testDelay`/`testAll`/`updateSubscriptions` 旧键。**现状可安全运行**（slang fallback 回退 en），只在做翻译批次时才需要补；届时 NekoBox `values-ar/-es/-fa/-fr/-in/-pt-rBR/-ru/-tr/strings.xml` 是对应词表来源。
 - **CI 全绿未背书**：审计 B 的 sha256-OK 校验路径、flutter-version-file、core-libs 缓存都只在本地静态验证过（pyyaml 解析/失败路径实证），**push 后首次 CI 才是最终背书**。
 - **Android/iOS/Linux/macOS 构建链**：新机器全未实测（流程在 BUILD.md/CI 里）。批次 9-14 的新 UI（表单/chain/config）从未在真机/安卓上跑过。
@@ -281,6 +281,6 @@ flutter build windows --release
 ## 8. 下一个 AI 的第一分钟（操作序列）
 
 1. 读本文 §0 现状 + §3.0 定案清单（12 条）+ §4 大坑实录（尤其 #8 代理变量 / #13 slang deferred / #12 git ref 幻象）。
-2. `git -C S:\test\1\hiddify-app status --short` 确认干净；`git log --oneline -3` 应见 `5bac7b54`（功能①）在顶；`git ls-remote origin my` 核对推送状态（tracking `[gone]` 是幻象，别信）。
+2. `git -C S:\test\1\hiddify-app status --short` 确认干净；`git log --oneline -3` 应见文档整理提交（≥`6b1681e3`，**截至 2026-09-30 全量已推送**）在顶；`git ls-remote origin my` 核对推送状态（tracking `[gone]` 是幻象，别信）。
 3. 用户说「继续」时：按 §3 剩余 #10 的候选序列选功能②（推荐抽屉核验收口，规格 `S:\test\NekoBoxForAndroid\app\src\main\res\menu\nav_drawer.xml`），**先给方案再动手**；测试写法照抄 `test/features/proxy/proxies_menu_test.dart`（含 §4.13 slang 泵法）。
 4. 跑测试前记得 unset 四个代理变量；跑完以输出尾部 `All tests passed` 为准。
