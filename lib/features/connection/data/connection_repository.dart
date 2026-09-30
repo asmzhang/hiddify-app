@@ -15,6 +15,7 @@ import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/profile/data/profile_path_resolver.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
 import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
+import 'package:hiddify/features/proxy/data/raw_config_normalize.dart';
 import 'package:hiddify/features/proxy/data/selected_proxy_store.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/hiddifycore/hiddify_core_service.dart';
@@ -229,6 +230,14 @@ class ConnectionRepositoryImpl with ExceptionHandler, InfraLogger implements Con
       } catch (_) {
         loggy.warning("selected node customConfig is invalid - skipped");
       }
+    }
+
+    // raw 通道 selector 归一化：用户配置裸键 outbounds 整体替换后契约组 `select`
+    // 消失、route.final 指向用户自己的 selector → SelectOutbound("select") 报
+    // "selector not found" → 点选永不生效。把该 selector 改名回 `select` 并重写引用。
+    final normalizedFrom = normalizeRawConfigSelector(merged);
+    if (normalizedFrom != null) {
+      loggy.info("raw config selector normalized: $normalizedFrom -> select");
     }
 
     // 端口固定 + 入站规范化（NekoBox/Throne 功能基准：固定端口 + 可配置）：
