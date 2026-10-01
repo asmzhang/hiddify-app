@@ -90,7 +90,9 @@
       "autoSave": {
         "success": "Değişiklikler otomatik olarak kaydedildi"
       }
-    }
+    },
+    "more": "Daha fazla",
+    "undo": "Geri al"
   },
   "intro": {
     "banner": "Sınırsız bir internet için ihtiyacınız olan her şey",
@@ -140,7 +142,123 @@
         "endpointBlocked": "WireGuard endpoints cannot be chain members",
         "empty": "Add at least one member",
         "saved": "Chain saved"
-      }
+      },
+      "addMenu": {
+        "addProfile": "Profil ekle",
+        "addSubscription": "Abonelik ekle",
+        "importClipboard": "Panodan içe aktar",
+        "importFile": "Dosyadan içe aktar",
+        "manualInput": "Manuel ayarlar",
+        "scanQr": "QR kodu tara"
+      },
+      "clearTestResults": "Test sonuçlarını temizle",
+      "clearTrafficStats": "Trafik istatistiklerini temizle",
+      "connectionTest": {
+        "testing": "Test ediliyor…",
+        "title": "Bağlantı testi"
+      },
+      "customConfig": {
+        "configType": "Bu JSON tam bir sing-box yapılandırmasıdır (her şeyin yerine geçer)",
+        "created": "Yapılandırma oluşturuldu",
+        "jsonInvalid": "Geçersiz JSON: değer tek bir JSON nesnesi olmalı.",
+        "outboundType": "Bu JSON tek bir outbound (\"type\" anahtarı içerir)",
+        "saved": "Yapılandırma kaydedildi",
+        "serverConfig": "Yapılandırma JSON",
+        "title": "Özel yapılandırma"
+      },
+      "deleteUnavailable": "Kullanılamayanları temizle",
+      "form": {
+        "allowInsecure": "Güvensiz bağlama izin ver",
+        "alpn": "Uygulama katmanı protokol müzakeresi",
+        "certificates": "Sertifikalar",
+        "created": "Düğüm oluşturuldu",
+        "createTitle": "Yeni düğüm",
+        "customConfig": "Özel yapılandırma JSON",
+        "customConfigInvalid": "Geçersiz JSON: değer tek bir JSON nesnesi olmalı.",
+        "customOutbound": "Özel outbound JSON",
+        "earlyDataHeaderName": "Erken Veri Başlığı Adı",
+        "flow": "Flow",
+        "hopInterval": "Port atlama aralığı (saniye)",
+        "host": "HTTP Sunucusu",
+        "invalidNumber": "Bir sayı girin",
+        "jsonInvalid": "Bu düğümün outbound JSON dosyası ayrıştırılamıyor",
+        "localAddress": "Yerel adresler (CIDR)",
+        "manual": "Manuel ayarlar",
+        "method": "Şifreleme yöntemi",
+        "packetEncoding": "Paket kodlama",
+        "password": "Şifre",
+        "path": "HTTP yolu",
+        "peerPreSharedKey": "Önceden paylaşılmış anahtar",
+        "peerPublicKey": "Eş genel anahtarı",
+        "pluginConfig": "Yapılandır…",
+        "pluginName": "Eklenti",
+        "privateKey": "Özel anahtar",
+        "profileName": "Profil adı",
+        "realityPubKey": "Reality genel anahtarı",
+        "realityShortId": "Reality ShortId",
+        "required": "Zorunlu",
+        "reserved": "Reserved",
+        "saved": "Düğüm güncellendi",
+        "section": {
+          "plugin": "Eklenti",
+          "proxy": "Sunucu ayarları",
+          "security": "TLS güvenlik ayarları",
+          "ws": "WebSocket ayarları"
+        },
+        "security": "Aktarım katmanı şifrelemesi",
+        "selectProtocol": "Protokol seç",
+        "serverAddress": "Sunucu",
+        "serverAllowInsecure": "Güvensiz bağlama izin ver",
+        "serverALPN": "Uygulama katmanı protokol müzakeresi",
+        "serverAuthBase64": "Kimlik doğrulama yükü (base64)",
+        "serverAuthString": "Kimlik doğrulama yükü (dize)",
+        "serverCertificates": "Sertifikalar",
+        "serverConnectionReceiveWindow": "QUIC bağlantı alma penceresi",
+        "serverDownloadSpeed": "En yüksek indirme hızı (Mbps)",
+        "serverInsecureConcurrency": "Güvensiz eşzamanlılık",
+        "serverMTU": "MTU",
+        "serverObfs": "Obfuscation şifresi",
+        "serverPassword": "Şifre",
+        "serverPassword1": "Özel anahtar parolası",
+        "serverPort": "Uzak bağlantı noktası",
+        "serverPorts": "Uzak bağlantı noktası",
+        "serverPrivateKey": "Özel anahtar",
+        "serverProtocol": "Protokol",
+        "serverSNI": "Sunucu Adı Göstergesi",
+        "serverStreamReceiveWindow": "QUIC akış alma penceresi",
+        "serverUploadSpeed": "En yüksek yükleme hızı (Mbps)",
+        "serverUsername": "Kullanıcı adı",
+        "sni": "Sunucu Adı Göstergesi",
+        "title": "Düğümü düzenle",
+        "transport": "Ağ",
+        "unsupported": "Bu protokolün düzenleme formu yok",
+        "utlsFingerprint": "uTLS parmak izi",
+        "uuid": "Kullanıcı kimliği",
+        "version": "Protokol sürümü",
+        "wsMaxEarlyData": "En fazla erken veri"
+      },
+      "groupNotSubscription": "Grup türü abonelik değil",
+      "msg": {
+        "exportToClipboard": "Düğümleri panoya kopyala",
+        "exportToFile": "Düğümleri dosyaya aktar",
+        "nodeRemoved": "Düğüm kaldırıldı",
+        "noDuplicates": "Yinelenen sunucu bulunamadı",
+        "noUnavailable": "Kullanılamayan sunucu bulunamadı",
+        "testDomainNotFound": "Etki alanı bulunamadı",
+        "testRefused": "Bağlantı reddedildi",
+        "testTimeout": "Zaman aşımı",
+        "testUnreachable": "Ulaşılamaz"
+      },
+      "order": "Sıralama",
+      "orderOptions": {
+        "delay": "Gecikmeye göre",
+        "name": "Ada göre",
+        "origin": "Orijinal"
+      },
+      "removeDuplicate": "Yinelenen sunucuları kaldır",
+      "tcpPing": "TCPing",
+      "updateSubscription": "Geçerli grubun aboneliğini güncelle",
+      "urlTest": "URL Test"
     },
     "profiles": {
       "title": "Profiller",
@@ -218,7 +336,8 @@
       "sourceCode": "Kaynak kodu",
       "telegramChannel": "Telegram kanalı",
       "termsAndConditions": "Şartlar ve Koşullar",
-      "privacyPolicy": "Gizlilik Politikası"
+      "privacyPolicy": "Gizlilik Politikası",
+      "faq": "Belgeler"
     },
     "settings": {
       "title": "Ayarlar",
@@ -265,7 +384,13 @@
         "urlTestInterval": "URL testi aralığı",
         "clashApiPort": "Clash API portu",
         "useXrayCoreWhenPossible": "Mümkün olduğunda xray-core kullan",
-        "useXrayCoreWhenPossibleMsg": "Abonelik bağlantılarını ayrıştırırken xray-core kullanın. Bu seçeneği etkinleştirmek için bağlantıyı yeniden içe aktarmanız gerekir."
+        "useXrayCoreWhenPossibleMsg": "Abonelik bağlantılarını ayrıştırırken xray-core kullanın. Bu seçeneği etkinleştirmek için bağlantıyı yeniden içe aktarmanız gerekir.",
+        "allowInsecureOnRequest": "Abonelikleri güncellerken güvensiz bağlamaya izin ver",
+        "alwaysShowAddress": "Adresi her zaman göster",
+        "alwaysShowAddressSum": "Yapılandırma kartlarında sunucu adresini her zaman göster",
+        "profileTrafficStatistics": "Profil trafik istatistikleri",
+        "profileTrafficStatisticsSum": "Devre dışı bırakıldığında kullanılan trafik sayılmaz",
+        "themePalette": "Tema rengi"
       },
       "routing": {
         "title": "Yönlendirme",
@@ -319,7 +444,9 @@
               "domain": "Alan adı",
               "domain_suffixe": "Alan adı son eki",
               "domain_keyword": "Alan adı anahtar kelimesi",
-              "domain_regex": "Alan adı regex"
+              "domain_regex": "Alan adı regex",
+              "config": "Özel yapılandırma",
+              "outbound_tag": "Düğüme yönlendir"
             },
             "outbound(map)": {
               "proxy": "Proxy",
@@ -340,13 +467,25 @@
               "stun": "STUN",
               "dns": "DNS",
               "bittorrent": "BitTorrent"
-            }
+            },
+            "configHint": "sing-box kural semantiğine göre kural başına geçersiz kılma, örn.\n{\n  \"domain_suffix\": [\"extra.example.com\"]\n}\nAyrıştırmadan önce oluşturulan kuralın üzerine birleştirilir.",
+            "configInvalid": "Geçersiz JSON nesnesi",
+            "outboundTagNone": "Varsayılan (yukarıdaki outbound'u kullan)",
+            "validDomainInput": "NekoBox önekli etki alanları, örn.\n@:pages.settings.routing.routeRule.rule.validDomainInputEx",
+            "validDomainInputEx": "geosite:cn · full:example.com · domain:example.org\nregexp:^ads\\d+\\.com$ · keyword:ads · salt-etki-alani.com"
           },
           "genericList": {
             "addNew": "Yeni değer ekle",
             "update": "Değeri güncelle",
             "clearList": "Listeyi temizle",
             "clearListMsg": "Tüm öğeler silindi"
+          },
+          "androidApps": {
+            "clearSelection": "Seçimi temizle",
+            "hideSystemApps": "Sistem uygulamalarını gizle",
+            "pageTitle": "Android uygulamaları",
+            "showSystemApps": "Sistem uygulamalarını göster",
+            "uninstalled": "Kaldırılmış"
           }
         },
         "generalOptions": {
@@ -416,7 +555,8 @@
                 "msg": "Uygulama bazlı proxy için otomatik seçim özelliği, bölge \"${region}\" olarak değiştirildiği için devre dışı bırakıldı"
               }
             }
-          }
+          },
+          "bypassLanInCore": "Çekirdekte LAN'ı atla"
         },
         "predefinedRules": {
           "title": "Önceden tanımlanmış kurallar",
@@ -577,7 +717,48 @@
           "selectProfile": "Profil seçin",
           "conduitPairingId": "Conduit eşleşme ID'si"
         }
-      }
+      },
+      "customConfig": {
+        "cleared": "Özel yapılandırma temizlendi",
+        "hint": "Çekirdek yapılandırmayı oluşturduktan sonra nihai yapılandırmaya birleştirilen sing-box JSON (NekoBox globalCustomConfig karşılığı). Map: derin birleştirme; \"key+\": listenin sonuna ekle; \"+key\": listenin başına ekle; normal anahtar: tamamen değiştir. Devre dışı bırakmak için boş bırakın.",
+        "invalidJson": "Geçersiz JSON: değer tek bir JSON nesnesi olmalı.",
+        "saved": "Özel yapılandırma kaydedildi",
+        "subtitle": "Özel JSON'u nihai yapılandırmaya birleştir",
+        "title": "Özel yapılandırma"
+      },
+      "misc": "Diğer"
+    },
+    "groups": {
+      "cardUpdate": "Güncelle",
+      "clearConfirm": "Bu grubun tüm düğümleri temizlensin mi? Grubun kendisi korunur.",
+      "cleared": "Grup temizlendi",
+      "clearNodes": "Düğümleri temizle",
+      "clearProfiles": "Temizle",
+      "confirm": "Onayla",
+      "create": "Grup oluştur",
+      "created": "Grup oluşturuldu",
+      "defaultName": "Grupsuz",
+      "deleteConfirm": "Bu grubu kaldırmak istediğinizden emin misiniz?",
+      "deleted": "Grup silindi",
+      "deleteUndoMsg": "${name} silindi",
+      "edit": "Grubu düzenle",
+      "empty": "Boş grup",
+      "exportToClipboard": "Panoya aktar",
+      "exportToFile": "Dosyaya aktar",
+      "name": "Grup adı",
+      "neverUpdated": "Henüz güncellenmedi",
+      "nodeCount": "$n proxy",
+      "renamed": "Grup yeniden adlandırıldı",
+      "settings": "Grup ayarları",
+      "shareQr": "QR kodu",
+      "shareSubscription": "Aboneliği paylaş",
+      "subscriptionHint": "Abonelik bağlantısı ve otomatik güncelleme, Abonelikler sayfasından yönetilir",
+      "title": "Grup",
+      "undo": "Geri al",
+      "updateAll": "Tüm abonelikleri güncelle"
+    },
+    "traffic": {
+      "title": "sing-box Panosu"
     }
   },
   "components": {
@@ -667,6 +848,14 @@
       "importRouteRuleByDeepLinkWarning": {
         "title": "Rota kuralını içe aktar?",
         "message": "Güvenilmeyen kaynaklardan rota kurallarını içe aktarmak bir güvenlik riski olabilir\nYalnızca bu bağlantıya güveniyorsanız devam edin"
+      },
+      "deduplicate": {
+        "msg": "Aşağıdaki yinelenen sunucular silinecek:",
+        "title": "Yinelenen sunucular kaldırılsın mı?"
+      },
+      "deleteUnavailable": {
+        "msg": "Bu profili kaldırmak istediğinizden emin misiniz?",
+        "title": "Onayla"
       }
     },
     "experimentalNotice": {
@@ -722,7 +911,11 @@
     "disconnect": "Bağlantıyı kes",
     "disconnecting": "Bağlantı kesiliyor...",
     "reconnect": "Yeniden bağlan",
-    "reconnectMsg": "Değişiklikleri uygulamak için yeniden bağlanılıyor..."
+    "reconnectMsg": "Değişiklikleri uygulamak için yeniden bağlanılıyor...",
+    "disconnected": "Bağlı değil",
+    "statsConnected": "Bağlandı, bağlantıyı test etmek için buraya dokunun",
+    "stop": "Durdur",
+    "stopping": "Durduruluyor…"
   },
   "errors": {
     "unexpected": "Beklenmeyen hata",

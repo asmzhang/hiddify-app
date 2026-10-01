@@ -91,7 +91,8 @@
       "autoSave": {
         "success": "更改已自動儲存"
       }
-    }
+    },
+    "undo": "復原"
   },
   "intro": {
     "banner": "暢享無限制網路的所需一切",
@@ -128,7 +129,9 @@
       "undo": "還原",
       "deleteUndoMsg": "${name} 已刪除",
       "clearConfirm": "清空該分組的全部節點？分組本身將保留。",
-      "cleared": "分組已清空"
+      "cleared": "分組已清空",
+      "shareSubscription": "分享訂閱",
+      "updateAll": "更新所有訂閱"
     },
     "proxies": {
       "title": "代理",
@@ -233,7 +236,15 @@
         "serverPassword1": "私鑰通行碼",
         "version": "協定版本",
         "serverInsecureConcurrency": "並行連線數（不安全）",
-        "serverMTU": "MTU"
+        "serverMTU": "MTU",
+        "customConfig": "自訂設定 JSON",
+        "customConfigInvalid": "JSON 無效：必須是單一 JSON 物件。",
+        "customOutbound": "自訂出站 JSON",
+        "localAddress": "本地位址 (CIDR)",
+        "peerPreSharedKey": "預先共用金鑰",
+        "peerPublicKey": "對端公鑰",
+        "privateKey": "私鑰",
+        "reserved": "Reserved"
       },
       "activeProxy": "當前代理",
       "unknownIp": "未知 IP",
@@ -264,6 +275,15 @@
         "endpointBlocked": "WireGuard 端點不能作為鏈成員",
         "empty": "至少新增一個節點",
         "saved": "鏈已儲存"
+      },
+      "customConfig": {
+        "configType": "此 JSON 為完整的 sing-box 設定（整體替代）",
+        "created": "設定已建立",
+        "jsonInvalid": "JSON 無效：必須是單一 JSON 物件。",
+        "outboundType": "此 JSON 為單一出站（含 \"type\" 鍵）",
+        "saved": "設定已儲存",
+        "serverConfig": "設定 JSON",
+        "title": "自訂設定"
       }
     },
     "profiles": {
@@ -387,16 +407,17 @@
         "debugMode": "偵錯模式",
         "debugModeMsg": "重新啟動應用程式以套用此變更",
         "logLevel": "日誌級別",
-      "alwaysShowAddress": "始終顯示位址",
-      "alwaysShowAddressSum": "使用在設定檔卡片中顯示伺服器位址",
-      "profileTrafficStatistics": "設定檔流量統計資料",
-      "profileTrafficStatisticsSum": "當停用時，使用的流量將不會被統計",
+        "alwaysShowAddress": "始終顯示位址",
+        "alwaysShowAddressSum": "使用在設定檔卡片中顯示伺服器位址",
+        "profileTrafficStatistics": "設定檔流量統計資料",
+        "profileTrafficStatisticsSum": "當停用時，使用的流量將不會被統計",
         "connectionTestUrl": "連線測試 URL",
         "urlTestInterval": "URL 測試間隔",
         "allowInsecureOnRequest": "更新訂閱時允許不安全連線",
         "clashApiPort": "Clash API 連接埠",
         "useXrayCoreWhenPossible": "盡可能使用 xray-core",
-        "useXrayCoreWhenPossibleMsg": "解析訂閱連結時使用 xray-core。您需要重新匯入訂閱連結才能啟用此選項"
+        "useXrayCoreWhenPossibleMsg": "解析訂閱連結時使用 xray-core。您需要重新匯入訂閱連結才能啟用此選項",
+        "themePalette": "主題色"
       },
       "routing": {
         "title": "路由",
@@ -614,9 +635,8 @@
           "system": "系統",
           "gvisor": "gVisor"
         },
-        "mixedPort": "混合連接埠",
+        "mixedPort": "混合埠",
         "tproxyPort": "透明代理連接埠",
-      "mixedPort": "混合埠",
         "directPort": "本地 Direct 連接埠",
         "redirectPort": "重新導向連接埠",
         "lanSharing": "VPN 共享",
@@ -724,7 +744,18 @@
           "selectProfile": "選擇設定檔",
           "conduitPairingId": "Conduit 配對 ID"
         }
+      },
+      "customConfig": {
+        "cleared": "自訂設定已清空",
+        "hint": "sing-box JSON，在核心組裝完成後深合併進最終設定（對應 NekoBox globalCustomConfig）。Map：遞迴深合併；\"key+\"：附加至清單結尾；\"+key\"：插入清單開頭；一般鍵：整體取代。留空表示停用。",
+        "invalidJson": "JSON 無效：必須是單一 JSON 物件。",
+        "saved": "自訂設定已儲存",
+        "subtitle": "將自訂 JSON 合併進最終設定",
+        "title": "自訂設定"
       }
+    },
+    "traffic": {
+      "title": "sing-box 儀表板"
     }
   },
   "components": {
@@ -880,7 +911,8 @@
     "disconnect": "中斷連線",
     "disconnecting": "中斷連線中...",
     "reconnect": "重新連線",
-    "reconnectMsg": "正在重新連線以套用變更..."
+    "reconnectMsg": "正在重新連線以套用變更...",
+    "stop": "停止"
   },
   "errors": {
     "unexpected": "意外錯誤",

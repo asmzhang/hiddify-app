@@ -90,7 +90,9 @@
       "autoSave": {
         "success": "Modifications enregistrées automatiquement avec succès"
       }
-    }
+    },
+    "more": "Plus",
+    "undo": "Annuler"
   },
   "intro": {
     "banner": "Tout ce dont vous avez besoin pour un internet sans restrictions",
@@ -140,7 +142,123 @@
         "endpointBlocked": "WireGuard endpoints cannot be chain members",
         "empty": "Add at least one member",
         "saved": "Chain saved"
-      }
+      },
+      "addMenu": {
+        "addProfile": "Ajouter un profil",
+        "addSubscription": "Ajouter un abonnement",
+        "importClipboard": "Importer depuis le presse-papiers",
+        "importFile": "Importer depuis un fichier",
+        "manualInput": "Paramètres manuels",
+        "scanQr": "Scanner le code QR"
+      },
+      "clearTestResults": "Effacer les résultats de test",
+      "clearTrafficStats": "Effacer les statistiques de trafic",
+      "connectionTest": {
+        "testing": "Test en cours…",
+        "title": "Test de connexion"
+      },
+      "customConfig": {
+        "configType": "Ce JSON est une configuration sing-box complète (remplace tout)",
+        "created": "Configuration créée",
+        "jsonInvalid": "JSON invalide : la valeur doit être un seul objet JSON.",
+        "outboundType": "Ce JSON est un outbound unique (contient la clé \"type\")",
+        "saved": "Configuration enregistrée",
+        "serverConfig": "JSON de configuration",
+        "title": "Configuration personnalisée"
+      },
+      "deleteUnavailable": "Effacer les indisponibles",
+      "form": {
+        "allowInsecure": "Autoriser non sécurisé",
+        "alpn": "Négociation de protocole de couche application",
+        "certificates": "Certificats",
+        "created": "Nœud créé",
+        "createTitle": "Nouveau nœud",
+        "customConfig": "JSON de configuration personnalisée",
+        "customConfigInvalid": "JSON invalide : la valeur doit être un seul objet JSON.",
+        "customOutbound": "JSON d'outbound personnalisé",
+        "earlyDataHeaderName": "Nom d'en-tête des premières données",
+        "flow": "Flow",
+        "hopInterval": "Intervalle de saut de port (secondes)",
+        "host": "Hôte HTTP",
+        "invalidNumber": "Saisissez un nombre",
+        "jsonInvalid": "Le JSON outbound de ce nœud ne peut pas être analysé",
+        "localAddress": "Adresses locales (CIDR)",
+        "manual": "Paramètres manuels",
+        "method": "Méthode de chiffrement",
+        "packetEncoding": "Encodage des paquets",
+        "password": "Mot de passe",
+        "path": "Chemin HTTP",
+        "peerPreSharedKey": "Clé pré-partagée",
+        "peerPublicKey": "Clé publique du pair",
+        "pluginConfig": "Configurer…",
+        "pluginName": "Plugin",
+        "privateKey": "Clé privée",
+        "profileName": "Nom du profil",
+        "realityPubKey": "Clé publique Reality",
+        "realityShortId": "Reality ShortId",
+        "required": "Obligatoire",
+        "reserved": "Reserved",
+        "saved": "Nœud mis à jour",
+        "section": {
+          "plugin": "Plugin",
+          "proxy": "Paramètres du serveur",
+          "security": "Paramètres de sécurité TLS",
+          "ws": "Paramètres WebSocket"
+        },
+        "security": "Chiffrement de la couche transport",
+        "selectProtocol": "Sélectionner le protocole",
+        "serverAddress": "Serveur",
+        "serverAllowInsecure": "Autoriser non sécurisé",
+        "serverALPN": "Négociation de protocole de couche application",
+        "serverAuthBase64": "Charge d'authentification (base64)",
+        "serverAuthString": "Charge d'authentification (chaîne)",
+        "serverCertificates": "Certificats",
+        "serverConnectionReceiveWindow": "Fenêtre de réception de connexion QUIC",
+        "serverDownloadSpeed": "Vitesse de téléchargement max (Mbps)",
+        "serverInsecureConcurrency": "Concurrence non sécurisée",
+        "serverMTU": "MTU",
+        "serverObfs": "Mot de passe d'obfuscation",
+        "serverPassword": "Mot de passe",
+        "serverPassword1": "Phrase secrète de la clé privée",
+        "serverPort": "Port distant",
+        "serverPorts": "Port distant",
+        "serverPrivateKey": "Clé privée",
+        "serverProtocol": "Protocole",
+        "serverSNI": "Indication du nom du serveur",
+        "serverStreamReceiveWindow": "Fenêtre de réception de flux QUIC",
+        "serverUploadSpeed": "Vitesse de téléversement max (Mbps)",
+        "serverUsername": "Nom d'utilisateur",
+        "sni": "Indication du nom du serveur",
+        "title": "Modifier le nœud",
+        "transport": "Réseau",
+        "unsupported": "Ce protocole n'a pas de formulaire d'édition",
+        "utlsFingerprint": "Empreinte uTLS",
+        "uuid": "ID utilisateur",
+        "version": "Version du protocole",
+        "wsMaxEarlyData": "Premières données max"
+      },
+      "groupNotSubscription": "Le type du groupe n'est pas un abonnement",
+      "msg": {
+        "exportToClipboard": "Copier les nœuds vers le presse-papiers",
+        "exportToFile": "Exporter les nœuds vers un fichier",
+        "nodeRemoved": "Nœud supprimé",
+        "noDuplicates": "Aucun serveur dupliqué trouvé",
+        "noUnavailable": "Aucun serveur indisponible trouvé",
+        "testDomainNotFound": "Domaine introuvable",
+        "testRefused": "Connexion refusée",
+        "testTimeout": "Délai dépassé",
+        "testUnreachable": "Injoignable"
+      },
+      "order": "Ordre",
+      "orderOptions": {
+        "delay": "Par latence",
+        "name": "Par nom",
+        "origin": "Origine"
+      },
+      "removeDuplicate": "Supprimer les serveurs dupliqués",
+      "tcpPing": "TCPing",
+      "updateSubscription": "Mettre à jour l'abonnement du groupe actuel",
+      "urlTest": "URL Test"
     },
     "profiles": {
       "title": "Profils",
@@ -218,7 +336,8 @@
       "sourceCode": "Code source",
       "telegramChannel": "Canal Telegram",
       "termsAndConditions": "Conditions d'utilisation",
-      "privacyPolicy": "Politique de confidentialité"
+      "privacyPolicy": "Politique de confidentialité",
+      "faq": "Documentation"
     },
     "settings": {
       "title": "Paramètres",
@@ -265,7 +384,13 @@
         "urlTestInterval": "Intervalle de test de l'URL",
         "clashApiPort": "Port de l'API Clash",
         "useXrayCoreWhenPossible": "Utiliser xray-core si possible",
-        "useXrayCoreWhenPossibleMsg": "Utilisez xray-core lors de l'analyse des liens d'abonnement. Vous devez réimporter le lien pour activer cette option"
+        "useXrayCoreWhenPossibleMsg": "Utilisez xray-core lors de l'analyse des liens d'abonnement. Vous devez réimporter le lien pour activer cette option",
+        "allowInsecureOnRequest": "Autoriser non sécurisé lors de la mise à jour des abonnements",
+        "alwaysShowAddress": "Toujours afficher l'adresse",
+        "alwaysShowAddressSum": "Toujours afficher l'adresse du serveur sur les cartes de configuration",
+        "profileTrafficStatistics": "Statistiques de trafic du profil",
+        "profileTrafficStatisticsSum": "Une fois désactivé, le trafic utilisé ne sera pas comptabilisé",
+        "themePalette": "Couleur du thème"
       },
       "routing": {
         "title": "Routage",
@@ -319,7 +444,9 @@
               "domain": "Domaine",
               "domain_suffixe": "Suffixe de domaine",
               "domain_keyword": "Mot-clé de domaine",
-              "domain_regex": "Expression régulière de domaine"
+              "domain_regex": "Expression régulière de domaine",
+              "config": "Configuration personnalisée",
+              "outbound_tag": "Router vers le nœud"
             },
             "outbound(map)": {
               "proxy": "Proxy",
@@ -340,13 +467,25 @@
               "stun": "STUN",
               "dns": "DNS",
               "bittorrent": "BitTorrent"
-            }
+            },
+            "configHint": "Remplacement par règle selon la sémantique des règles sing-box, par ex.\n{\n  \"domain_suffix\": [\"extra.example.com\"]\n}\nFusionné sur la règle assemblée avant l'analyse.",
+            "configInvalid": "Objet JSON invalide",
+            "outboundTagNone": "Par défaut (utiliser l'outbound ci-dessus)",
+            "validDomainInput": "Domaines avec préfixes NekoBox, comme\n@:pages.settings.routing.routeRule.rule.validDomainInputEx",
+            "validDomainInputEx": "geosite:cn · full:example.com · domain:example.org\nregexp:^ads\\d+\\.com$ · keyword:ads · domaine-nu.com"
           },
           "genericList": {
             "addNew": "Ajouter une nouvelle valeur",
             "update": "Mettre à jour la valeur",
             "clearList": "Vider la liste",
             "clearListMsg": "Tous les éléments ont été supprimés"
+          },
+          "androidApps": {
+            "clearSelection": "Effacer la sélection",
+            "hideSystemApps": "Masquer les applications système",
+            "pageTitle": "Applications Android",
+            "showSystemApps": "Afficher les applications système",
+            "uninstalled": "Désinstallée"
           }
         },
         "generalOptions": {
@@ -416,7 +555,8 @@
                 "msg": "La fonction de sélection automatique pour le proxy par application a été désactivée en raison du changement de région vers \"${region}\""
               }
             }
-          }
+          },
+          "bypassLanInCore": "Contourner le LAN dans le cœur"
         },
         "predefinedRules": {
           "title": "Règles prédéfinies",
@@ -577,7 +717,48 @@
           "selectProfile": "Sélectionner le profil",
           "conduitPairingId": "ID d'appariement Conduit"
         }
-      }
+      },
+      "customConfig": {
+        "cleared": "Configuration personnalisée effacée",
+        "hint": "JSON sing-box fusionné dans la configuration finale après sa construction par le cœur (équivalent NekoBox globalCustomConfig). Map : fusion profonde ; \"key+\" : ajout en fin de liste ; \"+key\" : insertion en début de liste ; clé simple : remplacement total. Laisser vide pour désactiver.",
+        "invalidJson": "JSON invalide : la valeur doit être un seul objet JSON.",
+        "saved": "Configuration personnalisée enregistrée",
+        "subtitle": "Fusionner le JSON personnalisé dans la configuration finale",
+        "title": "Configuration personnalisée"
+      },
+      "misc": "Divers"
+    },
+    "groups": {
+      "cardUpdate": "Mettre à jour",
+      "clearConfirm": "Effacer tous les nœuds de ce groupe ? Le groupe lui-même sera conservé.",
+      "cleared": "Groupe vidé",
+      "clearNodes": "Vider les nœuds",
+      "clearProfiles": "Vider",
+      "confirm": "Confirmer",
+      "create": "Créer un groupe",
+      "created": "Groupe créé",
+      "defaultName": "Sans groupe",
+      "deleteConfirm": "Voulez-vous vraiment supprimer ce groupe ?",
+      "deleted": "Groupe supprimé",
+      "deleteUndoMsg": "${name} supprimé",
+      "edit": "Modifier le groupe",
+      "empty": "Groupe vide",
+      "exportToClipboard": "Exporter vers le presse-papiers",
+      "exportToFile": "Exporter vers un fichier",
+      "name": "Nom du groupe",
+      "neverUpdated": "Pas encore mis à jour",
+      "nodeCount": "$n proxys",
+      "renamed": "Groupe renommé",
+      "settings": "Paramètres du groupe",
+      "shareQr": "Code QR",
+      "shareSubscription": "Partager l'abonnement",
+      "subscriptionHint": "Le lien d'abonnement et la mise à jour automatique sont gérés sur la page Abonnements",
+      "title": "Groupe",
+      "undo": "Annuler",
+      "updateAll": "Mettre à jour tous les abonnements"
+    },
+    "traffic": {
+      "title": "Tableau de bord sing-box"
     }
   },
   "components": {
@@ -659,6 +840,22 @@
           "title": "Supprimer la règle",
           "msg": "Êtes-vous sûr de vouloir supprimer la règle \"$rulename\" ?"
         }
+      },
+      "addProfileByDeepLinkWarning": {
+        "message": "Un lien externe provenant de \"${host}\" demande d'ajouter un nouveau profil. Voulez-vous l'importer ?",
+        "title": "Ajouter un profil ?"
+      },
+      "deduplicate": {
+        "msg": "Les serveurs dupliqués suivants seront supprimés :",
+        "title": "Supprimer les serveurs dupliqués ?"
+      },
+      "deleteUnavailable": {
+        "msg": "Voulez-vous vraiment supprimer ce profil ?",
+        "title": "Confirmer"
+      },
+      "importRouteRuleByDeepLinkWarning": {
+        "message": "L'importation de règles de routage depuis des sources non fiables peut présenter un risque de sécurité\nNe continuez que si vous faites confiance à ce lien",
+        "title": "Importer la règle de routage ?"
       }
     },
     "experimentalNotice": {
@@ -714,7 +911,11 @@
     "disconnect": "Déconnecter",
     "disconnecting": "Déconnexion en cours...",
     "reconnect": "Reconnecter",
-    "reconnectMsg": "Reconnexion pour prendre en compte les changements..."
+    "reconnectMsg": "Reconnexion pour prendre en compte les changements...",
+    "disconnected": "Non connecté",
+    "statsConnected": "Connecté, appuyez ici pour tester la connexion",
+    "stop": "Arrêter",
+    "stopping": "Arrêt…"
   },
   "errors": {
     "unexpected": "Erreur inattendue",

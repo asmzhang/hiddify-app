@@ -96,7 +96,9 @@
       "autoSave": {
         "success": "تم حفظ التغييرات تلقائيًا بنجاح"
       }
-    }
+    },
+    "more": "المزيد",
+    "undo": "تراجع"
   },
   "intro": {
     "banner": "كل ما تحتاجه لإنترنت بلا قيود",
@@ -146,7 +148,123 @@
         "endpointBlocked": "WireGuard endpoints cannot be chain members",
         "empty": "Add at least one member",
         "saved": "Chain saved"
-      }
+      },
+      "addMenu": {
+        "addProfile": "إضافة ملف شخصي",
+        "addSubscription": "إضافة اشتراك",
+        "importClipboard": "استيراد من الحافظة",
+        "importFile": "استيراد من ملف",
+        "manualInput": "إعدادات يدوية",
+        "scanQr": "مسح رمز QR"
+      },
+      "clearTestResults": "مسح نتائج الاختبار",
+      "clearTrafficStats": "مسح إحصاءات حركة البيانات",
+      "connectionTest": {
+        "testing": "جارٍ الاختبار…",
+        "title": "اختبار الاتصال"
+      },
+      "customConfig": {
+        "configType": "ملف JSON هذا إعداد كامل لـ sing-box (يستبدل كل شيء)",
+        "created": "تم إنشاء الإعداد",
+        "jsonInvalid": "JSON غير صالح: يجب أن يكون كائن JSON واحدًا.",
+        "outboundType": "ملف JSON هذا مخرج واحد (يحتوي على المفتاح \"type\")",
+        "saved": "تم حفظ الإعداد",
+        "serverConfig": "إعداد JSON",
+        "title": "إعداد مخصص"
+      },
+      "deleteUnavailable": "مسح غير المتاحة",
+      "form": {
+        "allowInsecure": "السماح باتصال غير آمن",
+        "alpn": "التفاوض على البروتوكول في طبقة التطبيق",
+        "certificates": "الشهادات",
+        "created": "تم إنشاء العقدة",
+        "createTitle": "عقدة جديدة",
+        "customConfig": "JSON إعداد مخصص",
+        "customConfigInvalid": "JSON غير صالح: يجب أن يكون كائن JSON واحدًا.",
+        "customOutbound": "JSON مخرج مخصص",
+        "earlyDataHeaderName": "اسم ترويسة البيانات المبكرة",
+        "flow": "التدفق",
+        "hopInterval": "فاصل تنقل المنفذ (ثانية)",
+        "host": "مضيف HTTP",
+        "invalidNumber": "أدخل رقمًا",
+        "jsonInvalid": "تعذّر تحليل JSON الصادر لهذه العقدة",
+        "localAddress": "العناوين المحلية (CIDR)",
+        "manual": "إعدادات يدوية",
+        "method": "طريقة التشفير",
+        "packetEncoding": "ترميز الحزم",
+        "password": "كلمة المرور",
+        "path": "مسار HTTP",
+        "peerPreSharedKey": "المفتاح المشترك مسبقًا",
+        "peerPublicKey": "المفتاح العام للنظير",
+        "pluginConfig": "إعداد…",
+        "pluginName": "الإضافة",
+        "privateKey": "المفتاح الخاص",
+        "profileName": "اسم الملف الشخصي",
+        "realityPubKey": "المفتاح العام Reality",
+        "realityShortId": "المعرّف القصير Reality",
+        "required": "مطلوب",
+        "reserved": "Reserved",
+        "saved": "تم تحديث العقدة",
+        "section": {
+          "plugin": "الإضافة",
+          "proxy": "إعدادات الخادم",
+          "security": "إعدادات أمان TLS",
+          "ws": "إعدادات WebSocket"
+        },
+        "security": "تشفير طبقة النقل",
+        "selectProtocol": "اختر البروتوكول",
+        "serverAddress": "الخادم",
+        "serverAllowInsecure": "السماح باتصال غير آمن",
+        "serverALPN": "التفاوض على البروتوكول في طبقة التطبيق",
+        "serverAuthBase64": "حمولة المصادقة (base64)",
+        "serverAuthString": "حمولة المصادقة (سلسلة)",
+        "serverCertificates": "الشهادات",
+        "serverConnectionReceiveWindow": "نافذة استقبال اتصال QUIC",
+        "serverDownloadSpeed": "أقصى سرعة تنزيل (Mbps)",
+        "serverInsecureConcurrency": "التزامن غير الآمن",
+        "serverMTU": "MTU",
+        "serverObfs": "كلمة مرور التشويش",
+        "serverPassword": "كلمة المرور",
+        "serverPassword1": "عبارة مرور المفتاح الخاص",
+        "serverPort": "المنفذ البعيد",
+        "serverPorts": "المنفذ البعيد",
+        "serverPrivateKey": "المفتاح الخاص",
+        "serverProtocol": "البروتوكول",
+        "serverSNI": "تسمية اسم الخادم",
+        "serverStreamReceiveWindow": "نافذة استقبال تدفق QUIC",
+        "serverUploadSpeed": "أقصى سرعة رفع (Mbps)",
+        "serverUsername": "اسم المستخدم",
+        "sni": "تسمية اسم الخادم",
+        "title": "تعديل العقدة",
+        "transport": "الشبكة",
+        "unsupported": "لا يوجد نموذج تعديل لهذا البروتوكول",
+        "utlsFingerprint": "بصمة uTLS",
+        "uuid": "معرف المستخدم",
+        "version": "إصدار البروتوكول",
+        "wsMaxEarlyData": "أقصى بيانات مبكرة"
+      },
+      "groupNotSubscription": "نوع المجموعة ليس اشتراكًا",
+      "msg": {
+        "exportToClipboard": "نسخ العقد إلى الحافظة",
+        "exportToFile": "تصدير العقد إلى ملف",
+        "nodeRemoved": "تمت إزالة العقدة",
+        "noDuplicates": "لم يتم العثور على خوادم مكررة",
+        "noUnavailable": "لم يتم العثور على خوادم غير متاحة",
+        "testDomainNotFound": "النطاق غير موجود",
+        "testRefused": "تم رفض الاتصال",
+        "testTimeout": "انتهت المهلة",
+        "testUnreachable": "غير قابل للوصول"
+      },
+      "order": "الترتيب",
+      "orderOptions": {
+        "delay": "حسب التأخير",
+        "name": "حسب الاسم",
+        "origin": "الأصلي"
+      },
+      "removeDuplicate": "إزالة الخوادم المكررة",
+      "tcpPing": "TCPing",
+      "updateSubscription": "تحديث اشتراك المجموعة الحالية",
+      "urlTest": "URL Test"
     },
     "profiles": {
       "title": "الملفات الشخصية",
@@ -224,7 +342,8 @@
       "sourceCode": "الكود المصدري",
       "telegramChannel": "قناة التيليجرام",
       "termsAndConditions": "الشروط والأحكام",
-      "privacyPolicy": "سياسة الخصوصية"
+      "privacyPolicy": "سياسة الخصوصية",
+      "faq": "المستندات"
     },
     "settings": {
       "title": "الإعدادات",
@@ -271,7 +390,13 @@
         "urlTestInterval": "فاصل اختبار الرابط",
         "clashApiPort": "منفذ Clash API",
         "useXrayCoreWhenPossible": "استخدام xray-core عند الإمكان",
-        "useXrayCoreWhenPossibleMsg": "استخدم xray-core عند تحليل روابط الاشتراك. تحتاج إلى إعادة استيراد الرابط لتفعيل هذا الخيار"
+        "useXrayCoreWhenPossibleMsg": "استخدم xray-core عند تحليل روابط الاشتراك. تحتاج إلى إعادة استيراد الرابط لتفعيل هذا الخيار",
+        "allowInsecureOnRequest": "السماح باتصال غير آمن عند تحديث الاشتراكات",
+        "alwaysShowAddress": "إظهار العنوان دائمًا",
+        "alwaysShowAddressSum": "إظهار عنوان الخادم دائمًا على بطاقات الإعدادات",
+        "profileTrafficStatistics": "إحصاءات حركة الملف الشخصي",
+        "profileTrafficStatisticsSum": "عند التعطيل لن يتم احتساب حركة البيانات المستخدمة",
+        "themePalette": "لون السمة"
       },
       "routing": {
         "title": "التوجيه",
@@ -325,7 +450,9 @@
               "domain": "النطاق",
               "domain_suffixe": "لاحقة النطاق",
               "domain_keyword": "كلمة مفتاحية للنطاق",
-              "domain_regex": "تعبير نمطي للنطاق"
+              "domain_regex": "تعبير نمطي للنطاق",
+              "config": "إعداد مخصص",
+              "outbound_tag": "التوجيه إلى عقدة"
             },
             "outbound(map)": {
               "proxy": "بروكسي",
@@ -346,13 +473,25 @@
               "stun": "STUN",
               "dns": "DNS",
               "bittorrent": "BitTorrent"
-            }
+            },
+            "configHint": "تجاوز خاص بكل قاعدة وفق دلالات قواعد sing-box، مثال:\n{\n  \"domain_suffix\": [\"extra.example.com\"]\n}\nيُدمج فوق القاعدة المُجمَّعة قبل التحليل.",
+            "configInvalid": "كائن JSON غير صالح",
+            "outboundTagNone": "الافتراضي (استخدام الصادر أعلاه)",
+            "validDomainInput": "نطاقات ببادئات NekoBox، مثل\n@:pages.settings.routing.routeRule.rule.validDomainInputEx",
+            "validDomainInputEx": "geosite:cn · full:example.com · domain:example.org\nregexp:^ads\\d+\\.com$ · keyword:ads · مجرد-النطاق.com"
           },
           "genericList": {
             "addNew": "إضافة قيمة جديدة",
             "update": "تحديث القيمة",
             "clearList": "مسح القائمة",
             "clearListMsg": "تم حذف جميع العناصر"
+          },
+          "androidApps": {
+            "clearSelection": "مسح التحديد",
+            "hideSystemApps": "إخفاء تطبيقات النظام",
+            "pageTitle": "تطبيقات أندرويد",
+            "showSystemApps": "إظهار تطبيقات النظام",
+            "uninstalled": "غير مثبت"
           }
         },
         "generalOptions": {
@@ -422,7 +561,8 @@
                 "msg": "تم تعطيل ميزة الاختيار التلقائي للبروكسي بسبب تغيير المنطقة إلى \"${region}\""
               }
             }
-          }
+          },
+          "bypassLanInCore": "تجاوز الشبكة المحلية في النواة"
         },
         "predefinedRules": {
           "title": "القواعد المحددة مسبقًا",
@@ -583,7 +723,48 @@
           "selectProfile": "اختر ملف تعريف",
           "conduitPairingId": "معرف اقتران Conduit"
         }
-      }
+      },
+      "customConfig": {
+        "cleared": "تم مسح الإعداد المخصص",
+        "hint": "ملف sing-box JSON، يُدمج بعمق في الإعداد النهائي بعد أن يبنيه النواة (مقابل NekoBox globalCustomConfig). Map: دمج عميق؛ \"key+\": إضافة إلى نهاية القائمة؛ \"+key\": إدراج في بداية القائمة؛ المفتاح العادي: استبدال كامل. اتركه فارغًا للتعطيل.",
+        "invalidJson": "JSON غير صالح: يجب أن يكون كائن JSON واحدًا.",
+        "saved": "تم حفظ الإعداد المخصص",
+        "subtitle": "دمج JSON مخصص في الإعداد النهائي",
+        "title": "إعداد مخصص"
+      },
+      "misc": "أخرى"
+    },
+    "groups": {
+      "cardUpdate": "تحديث",
+      "clearConfirm": "مسح جميع عقد هذه المجموعة؟ سيتم الاحتفاظ بالمجموعة نفسها.",
+      "cleared": "تم مسح المجموعة",
+      "clearNodes": "مسح العقد",
+      "clearProfiles": "مسح",
+      "confirm": "تأكيد",
+      "create": "إنشاء مجموعة",
+      "created": "تم إنشاء المجموعة",
+      "defaultName": "بدون مجموعة",
+      "deleteConfirm": "هل تريد بالتأكيد إزالة هذه المجموعة؟",
+      "deleted": "تم حذف المجموعة",
+      "deleteUndoMsg": "تم حذف ${name}",
+      "edit": "تعديل المجموعة",
+      "empty": "مجموعة فارغة",
+      "exportToClipboard": "تصدير إلى الحافظة",
+      "exportToFile": "تصدير إلى ملف",
+      "name": "اسم المجموعة",
+      "neverUpdated": "لم يُحدَّث بعد",
+      "nodeCount": "$n بروكسي",
+      "renamed": "تمت إعادة تسمية المجموعة",
+      "settings": "إعدادات المجموعة",
+      "shareQr": "رمز QR",
+      "shareSubscription": "مشاركة الاشتراك",
+      "subscriptionHint": "يُدار رابط الاشتراك والتحديث التلقائي من صفحة «الاشتراكات»",
+      "title": "المجموعة",
+      "undo": "تراجع",
+      "updateAll": "تحديث جميع الاشتراكات"
+    },
+    "traffic": {
+      "title": "لوحة sing-box"
     }
   },
   "components": {
@@ -673,6 +854,14 @@
       "importRouteRuleByDeepLinkWarning": {
         "title": "استيراد قاعدة التوجيه؟",
         "message": "قد يشكل استيراد قواعد التوجيه من مصادر غير موثوقة خطراً أمنياً\nتابع فقط إذا كنت تثق في هذا الرابط"
+      },
+      "deduplicate": {
+        "msg": "سيتم حذف الخوادم المكررة التالية:",
+        "title": "إزالة الخوادم المكررة؟"
+      },
+      "deleteUnavailable": {
+        "msg": "هل تريد بالتأكيد إزالة هذا الملف الشخصي؟",
+        "title": "تأكيد"
       }
     },
     "experimentalNotice": {
@@ -728,7 +917,11 @@
     "disconnect": "قطع الاتصال",
     "disconnecting": "جاري قطع الاتصال...",
     "reconnect": "إعادة الاتصال",
-    "reconnectMsg": "جاري إعادة الاتصال لتطبيق التغييرات..."
+    "reconnectMsg": "جاري إعادة الاتصال لتطبيق التغييرات...",
+    "disconnected": "غير متصل",
+    "statsConnected": "متصل، انقر هنا لاختبار الاتصال",
+    "stop": "إيقاف",
+    "stopping": "جارٍ الإيقاف…"
   },
   "errors": {
     "unexpected": "خطأ غير متوقع",

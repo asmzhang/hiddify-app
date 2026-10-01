@@ -90,7 +90,9 @@
       "autoSave": {
         "success": "Perubahan berhasil disimpan secara otomatis"
       }
-    }
+    },
+    "more": "Lainnya",
+    "undo": "Urungkan"
   },
   "intro": {
     "banner": "Semua yang Anda butuhkan untuk internet tanpa batasan",
@@ -140,7 +142,123 @@
         "endpointBlocked": "WireGuard endpoints cannot be chain members",
         "empty": "Add at least one member",
         "saved": "Chain saved"
-      }
+      },
+      "addMenu": {
+        "addProfile": "Tambah profil",
+        "addSubscription": "Tambah langganan",
+        "importClipboard": "Impor dari papan klip",
+        "importFile": "Impor dari file",
+        "manualInput": "Pengaturan manual",
+        "scanQr": "Pindai kode QR"
+      },
+      "clearTestResults": "Hapus hasil uji",
+      "clearTrafficStats": "Hapus statistik lalu lintas",
+      "connectionTest": {
+        "testing": "Menguji…",
+        "title": "Uji koneksi"
+      },
+      "customConfig": {
+        "configType": "JSON ini adalah konfigurasi sing-box lengkap (menggantikan semuanya)",
+        "created": "Konfigurasi dibuat",
+        "jsonInvalid": "JSON tidak valid: nilai harus berupa satu objek JSON.",
+        "outboundType": "JSON ini adalah outbound tunggal (memuat kunci \"type\")",
+        "saved": "Konfigurasi tersimpan",
+        "serverConfig": "JSON konfigurasi",
+        "title": "Konfigurasi kustom"
+      },
+      "deleteUnavailable": "Hapus yang tak tersedia",
+      "form": {
+        "allowInsecure": "Izinkan tidak aman",
+        "alpn": "Negosiasi protokol lapisan aplikasi",
+        "certificates": "Sertifikat",
+        "created": "Node dibuat",
+        "createTitle": "Node baru",
+        "customConfig": "JSON konfigurasi kustom",
+        "customConfigInvalid": "JSON tidak valid: nilai harus berupa satu objek JSON.",
+        "customOutbound": "JSON outbound kustom",
+        "earlyDataHeaderName": "Nama header data awal",
+        "flow": "Flow",
+        "hopInterval": "Interval lompatan port (detik)",
+        "host": "Host HTTP",
+        "invalidNumber": "Masukkan angka",
+        "jsonInvalid": "JSON outbound node ini tidak dapat diurai",
+        "localAddress": "Alamat lokal (CIDR)",
+        "manual": "Pengaturan manual",
+        "method": "Metode enkripsi",
+        "packetEncoding": "Pengodean paket",
+        "password": "Kata sandi",
+        "path": "Jalur HTTP",
+        "peerPreSharedKey": "Kunci pra-bagi",
+        "peerPublicKey": "Kunci publik peer",
+        "pluginConfig": "Konfigurasi…",
+        "pluginName": "Plugin",
+        "privateKey": "Kunci privat",
+        "profileName": "Nama profil",
+        "realityPubKey": "Kunci publik Reality",
+        "realityShortId": "Reality ShortId",
+        "required": "Wajib",
+        "reserved": "Reserved",
+        "saved": "Node diperbarui",
+        "section": {
+          "plugin": "Plugin",
+          "proxy": "Pengaturan server",
+          "security": "Pengaturan keamanan TLS",
+          "ws": "Pengaturan WebSocket"
+        },
+        "security": "Enkripsi lapisan transport",
+        "selectProtocol": "Pilih protokol",
+        "serverAddress": "Server",
+        "serverAllowInsecure": "Izinkan tidak aman",
+        "serverALPN": "Negosiasi protokol lapisan aplikasi",
+        "serverAuthBase64": "Muatan autentikasi (base64)",
+        "serverAuthString": "Muatan autentikasi (string)",
+        "serverCertificates": "Sertifikat",
+        "serverConnectionReceiveWindow": "Jendela penerimaan koneksi QUIC",
+        "serverDownloadSpeed": "Kecepatan unduhan maks (Mbps)",
+        "serverInsecureConcurrency": "Konkurensi tidak aman",
+        "serverMTU": "MTU",
+        "serverObfs": "Kata sandi obfuscation",
+        "serverPassword": "Kata sandi",
+        "serverPassword1": "Frasa sandi kunci privat",
+        "serverPort": "Port jarak jauh",
+        "serverPorts": "Port jarak jauh",
+        "serverPrivateKey": "Kunci privat",
+        "serverProtocol": "Protokol",
+        "serverSNI": "Indikasi nama server",
+        "serverStreamReceiveWindow": "Jendela penerimaan aliran QUIC",
+        "serverUploadSpeed": "Kecepatan unggahan maks (Mbps)",
+        "serverUsername": "Nama pengguna",
+        "sni": "Indikasi nama server",
+        "title": "Edit node",
+        "transport": "Jaringan",
+        "unsupported": "Protokol ini tidak memiliki formulir edit",
+        "utlsFingerprint": "Sidik jari uTLS",
+        "uuid": "ID pengguna",
+        "version": "Versi protokol",
+        "wsMaxEarlyData": "Data awal maksimum"
+      },
+      "groupNotSubscription": "Jenis grup bukan langganan",
+      "msg": {
+        "exportToClipboard": "Salin node ke papan klip",
+        "exportToFile": "Ekspor node ke file",
+        "nodeRemoved": "Node dihapus",
+        "noDuplicates": "Tidak ada server duplikat ditemukan",
+        "noUnavailable": "Tidak ada server tak tersedia ditemukan",
+        "testDomainNotFound": "Domain tidak ditemukan",
+        "testRefused": "Koneksi ditolak",
+        "testTimeout": "Habis waktu",
+        "testUnreachable": "Tidak dapat dijangkau"
+      },
+      "order": "Urutan",
+      "orderOptions": {
+        "delay": "Berdasarkan latensi",
+        "name": "Berdasarkan nama",
+        "origin": "Asli"
+      },
+      "removeDuplicate": "Hapus server duplikat",
+      "tcpPing": "TCPing",
+      "updateSubscription": "Perbarui langganan grup saat ini",
+      "urlTest": "URL Test"
     },
     "profiles": {
       "title": "Profil",
@@ -218,7 +336,8 @@
       "sourceCode": "Kode sumber",
       "telegramChannel": "Saluran Telegram",
       "termsAndConditions": "Syarat dan Ketentuan",
-      "privacyPolicy": "Kebijakan Privasi"
+      "privacyPolicy": "Kebijakan Privasi",
+      "faq": "Dokumentasi"
     },
     "settings": {
       "title": "Pengaturan",
@@ -265,7 +384,13 @@
         "urlTestInterval": "Interval uji URL",
         "clashApiPort": "Port API Clash",
         "useXrayCoreWhenPossible": "Gunakan xray-core jika memungkinkan",
-        "useXrayCoreWhenPossibleMsg": "Gunakan xray-core saat mengurai tautan langganan. Anda perlu mengimpor ulang tautan untuk mengaktifkan opsi ini."
+        "useXrayCoreWhenPossibleMsg": "Gunakan xray-core saat mengurai tautan langganan. Anda perlu mengimpor ulang tautan untuk mengaktifkan opsi ini.",
+        "allowInsecureOnRequest": "Izinkan tidak aman saat memperbarui langganan",
+        "alwaysShowAddress": "Selalu tampilkan alamat",
+        "alwaysShowAddressSum": "Selalu tampilkan alamat server pada kartu konfigurasi",
+        "profileTrafficStatistics": "Statistik lalu lintas profil",
+        "profileTrafficStatisticsSum": "Jika dinonaktifkan, lalu lintas terpakai tidak dihitung",
+        "themePalette": "Warna tema"
       },
       "routing": {
         "title": "Perutean",
@@ -319,7 +444,9 @@
               "domain": "Domain",
               "domain_suffixe": "Sufiks domain",
               "domain_keyword": "Kata kunci domain",
-              "domain_regex": "Regex domain"
+              "domain_regex": "Regex domain",
+              "config": "Konfigurasi kustom",
+              "outbound_tag": "Rutekan ke node"
             },
             "outbound(map)": {
               "proxy": "Proxy",
@@ -340,13 +467,25 @@
               "stun": "STUN",
               "dns": "DNS",
               "bittorrent": "BitTorrent"
-            }
+            },
+            "configHint": "Penimpaan per-aturan dengan semantik aturan sing-box, mis.\n{\n  \"domain_suffix\": [\"extra.example.com\"]\n}\nDigabungkan di atas aturan yang dirakit sebelum penguraian.",
+            "configInvalid": "Objek JSON tidak valid",
+            "outboundTagNone": "Bawaan (gunakan outbound di atas)",
+            "validDomainInput": "Domain dengan prefiks NekoBox, mis.\n@:pages.settings.routing.routeRule.rule.validDomainInputEx",
+            "validDomainInputEx": "geosite:cn · full:example.com · domain:example.org\nregexp:^ads\\d+\\.com$ · keyword:ads · domain-telanjang.com"
           },
           "genericList": {
             "addNew": "Tambah nilai baru",
             "update": "Perbarui nilai",
             "clearList": "Bersihkan daftar",
             "clearListMsg": "Semua item dihapus"
+          },
+          "androidApps": {
+            "clearSelection": "Hapus pilihan",
+            "hideSystemApps": "Sembunyikan aplikasi sistem",
+            "pageTitle": "Aplikasi Android",
+            "showSystemApps": "Tampilkan aplikasi sistem",
+            "uninstalled": "Tidak terpasang"
           }
         },
         "generalOptions": {
@@ -416,7 +555,8 @@
                 "msg": "Fitur pilihan otomatis untuk proxy per aplikasi dinonaktifkan karena perubahan wilayah menjadi \"${region}\""
               }
             }
-          }
+          },
+          "bypassLanInCore": "Lewati LAN di inti"
         },
         "predefinedRules": {
           "title": "Aturan yang telah ditentukan",
@@ -577,7 +717,48 @@
           "selectProfile": "Pilih profil",
           "conduitPairingId": "ID pemasangan Conduit"
         }
-      }
+      },
+      "customConfig": {
+        "cleared": "Konfigurasi kustom dihapus",
+        "hint": "JSON sing-box yang digabungkan ke konfigurasi akhir setelah inti membangunnya (padanan NekoBox globalCustomConfig). Map: penggabungan mendalam; \"key+\": tambah ke akhir daftar; \"+key\": sisipkan di awal daftar; kunci biasa: ganti menyeluruh. Biarkan kosong untuk menonaktifkan.",
+        "invalidJson": "JSON tidak valid: nilai harus berupa satu objek JSON.",
+        "saved": "Konfigurasi kustom tersimpan",
+        "subtitle": "Gabungkan JSON kustom ke konfigurasi akhir",
+        "title": "Konfigurasi kustom"
+      },
+      "misc": "Lainnya"
+    },
+    "groups": {
+      "cardUpdate": "Perbarui",
+      "clearConfirm": "Hapus semua node di grup ini? Grup itu sendiri dipertahankan.",
+      "cleared": "Grup dikosongkan",
+      "clearNodes": "Kosongkan node",
+      "clearProfiles": "Kosongkan",
+      "confirm": "Konfirmasi",
+      "create": "Buat grup",
+      "created": "Grup dibuat",
+      "defaultName": "Tanpa grup",
+      "deleteConfirm": "Yakin ingin menghapus grup ini?",
+      "deleted": "Grup dihapus",
+      "deleteUndoMsg": "${name} dihapus",
+      "edit": "Edit grup",
+      "empty": "Grup kosong",
+      "exportToClipboard": "Ekspor ke papan klip",
+      "exportToFile": "Ekspor ke file",
+      "name": "Nama grup",
+      "neverUpdated": "Belum diperbarui",
+      "nodeCount": "$n proxy",
+      "renamed": "Grup diganti nama",
+      "settings": "Pengaturan grup",
+      "shareQr": "Kode QR",
+      "shareSubscription": "Bagikan langganan",
+      "subscriptionHint": "Tautan langganan dan pembaruan otomatis dikelola di halaman Langganan",
+      "title": "Grup",
+      "undo": "Urungkan",
+      "updateAll": "Perbarui semua langganan"
+    },
+    "traffic": {
+      "title": "Dasbor sing-box"
     }
   },
   "components": {
@@ -667,6 +848,14 @@
       "importRouteRuleByDeepLinkWarning": {
         "title": "Impor aturan rute?",
         "message": "Mengimpor aturan rute dari sumber yang tidak tepercaya dapat menjadi risiko keamanan\nLanjutkan hanya jika Anda mempercayai tautan ini"
+      },
+      "deduplicate": {
+        "msg": "Server duplikat berikut akan dihapus:",
+        "title": "Hapus server duplikat?"
+      },
+      "deleteUnavailable": {
+        "msg": "Yakin ingin menghapus profil ini?",
+        "title": "Konfirmasi"
       }
     },
     "experimentalNotice": {
@@ -722,7 +911,11 @@
     "disconnect": "Putuskan",
     "disconnecting": "Memutuskan...",
     "reconnect": "Sambungkan kembali",
-    "reconnectMsg": "Menyambungkan kembali untuk menerapkan perubahan..."
+    "reconnectMsg": "Menyambungkan kembali untuk menerapkan perubahan...",
+    "disconnected": "Tidak terhubung",
+    "statsConnected": "Terhubung, ketuk di sini untuk menguji koneksi",
+    "stop": "Berhenti",
+    "stopping": "Menghentikan…"
   },
   "errors": {
     "unexpected": "Kesalahan tak terduga",

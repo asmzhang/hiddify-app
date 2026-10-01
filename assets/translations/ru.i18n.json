@@ -94,7 +94,9 @@
       "autoSave": {
         "success": "Изменения автоматически сохранены"
       }
-    }
+    },
+    "more": "Ещё",
+    "undo": "Отменить"
   },
   "intro": {
     "banner": "Все, что вам нужно для интернета без ограничений",
@@ -144,7 +146,123 @@
         "endpointBlocked": "WireGuard endpoints cannot be chain members",
         "empty": "Add at least one member",
         "saved": "Chain saved"
-      }
+      },
+      "addMenu": {
+        "addProfile": "Добавить профиль",
+        "addSubscription": "Добавить подписку",
+        "importClipboard": "Импорт из буфера обмена",
+        "importFile": "Импорт из файла",
+        "manualInput": "Ручная настройка",
+        "scanQr": "Сканировать QR-код"
+      },
+      "clearTestResults": "Очистить результаты теста",
+      "clearTrafficStats": "Очистить статистику трафика",
+      "connectionTest": {
+        "testing": "Проверка…",
+        "title": "Проверка соединения"
+      },
+      "customConfig": {
+        "configType": "Этот JSON — полная конфигурация sing-box (заменяет всё)",
+        "created": "Конфигурация создана",
+        "jsonInvalid": "Недопустимый JSON: значение должно быть одним объектом JSON.",
+        "outboundType": "Этот JSON — одиночный outbound (содержит ключ \"type\")",
+        "saved": "Конфигурация сохранена",
+        "serverConfig": "JSON конфигурации",
+        "title": "Своя конфигурация"
+      },
+      "deleteUnavailable": "Очистить недоступные",
+      "form": {
+        "allowInsecure": "Разрешить небезопасное",
+        "alpn": "Согласование протокола прикладного уровня",
+        "certificates": "Сертификаты",
+        "created": "Узел создан",
+        "createTitle": "Новый узел",
+        "customConfig": "JSON своей конфигурации",
+        "customConfigInvalid": "Недопустимый JSON: значение должно быть одним объектом JSON.",
+        "customOutbound": "JSON своего outbound",
+        "earlyDataHeaderName": "Имя заголовка ранних данных",
+        "flow": "Flow",
+        "hopInterval": "Интервал прыжка порта (секунды)",
+        "host": "HTTP-хост",
+        "invalidNumber": "Введите число",
+        "jsonInvalid": "Не удаётся разобрать outbound JSON этого узла",
+        "localAddress": "Локальные адреса (CIDR)",
+        "manual": "Ручная настройка",
+        "method": "Метод шифрования",
+        "packetEncoding": "Кодирование пакетов",
+        "password": "Пароль",
+        "path": "HTTP-путь",
+        "peerPreSharedKey": "Предварительно распределённый ключ",
+        "peerPublicKey": "Публичный ключ пира",
+        "pluginConfig": "Настроить…",
+        "pluginName": "Плагин",
+        "privateKey": "Приватный ключ",
+        "profileName": "Имя профиля",
+        "realityPubKey": "Публичный ключ Reality",
+        "realityShortId": "Reality ShortId",
+        "required": "Обязательно",
+        "reserved": "Reserved",
+        "saved": "Узел обновлён",
+        "section": {
+          "plugin": "Плагин",
+          "proxy": "Настройки сервера",
+          "security": "Настройки безопасности TLS",
+          "ws": "Настройки WebSocket"
+        },
+        "security": "Шифрование транспортного уровня",
+        "selectProtocol": "Выберите протокол",
+        "serverAddress": "Сервер",
+        "serverAllowInsecure": "Разрешить небезопасное",
+        "serverALPN": "Согласование протокола прикладного уровня",
+        "serverAuthBase64": "Данные аутентификации (base64)",
+        "serverAuthString": "Данные аутентификации (строка)",
+        "serverCertificates": "Сертификаты",
+        "serverConnectionReceiveWindow": "Окно приёма соединения QUIC",
+        "serverDownloadSpeed": "Макс. скорость загрузки (Мбит/с)",
+        "serverInsecureConcurrency": "Небезопасная параллельность",
+        "serverMTU": "MTU",
+        "serverObfs": "Пароль обфускации",
+        "serverPassword": "Пароль",
+        "serverPassword1": "Парольная фраза приватного ключа",
+        "serverPort": "Удалённый порт",
+        "serverPorts": "Удалённый порт",
+        "serverPrivateKey": "Приватный ключ",
+        "serverProtocol": "Протокол",
+        "serverSNI": "Указание имени сервера",
+        "serverStreamReceiveWindow": "Окно приёма потока QUIC",
+        "serverUploadSpeed": "Макс. скорость отдачи (Мбит/с)",
+        "serverUsername": "Имя пользователя",
+        "sni": "Указание имени сервера",
+        "title": "Изменить узел",
+        "transport": "Сеть",
+        "unsupported": "Для этого протокола нет формы редактирования",
+        "utlsFingerprint": "Отпечаток uTLS",
+        "uuid": "ID пользователя",
+        "version": "Версия протокола",
+        "wsMaxEarlyData": "Максимум ранних данных"
+      },
+      "groupNotSubscription": "Тип группы — не подписка",
+      "msg": {
+        "exportToClipboard": "Копировать узлы в буфер обмена",
+        "exportToFile": "Экспортировать узлы в файл",
+        "nodeRemoved": "Узел удалён",
+        "noDuplicates": "Дублирующиеся серверы не найдены",
+        "noUnavailable": "Недоступные серверы не найдены",
+        "testDomainNotFound": "Домен не найден",
+        "testRefused": "Соединение отклонено",
+        "testTimeout": "Истекло время",
+        "testUnreachable": "Недоступно"
+      },
+      "order": "Сортировка",
+      "orderOptions": {
+        "delay": "По задержке",
+        "name": "По имени",
+        "origin": "Исходный"
+      },
+      "removeDuplicate": "Удалить дублирующиеся серверы",
+      "tcpPing": "TCPing",
+      "updateSubscription": "Обновить подписку текущей группы",
+      "urlTest": "URL Test"
     },
     "profiles": {
       "title": "Профили",
@@ -222,7 +340,8 @@
       "sourceCode": "Исходный код",
       "telegramChannel": "Канал в Telegram",
       "termsAndConditions": "Условия использования",
-      "privacyPolicy": "Политика конфиденциальности"
+      "privacyPolicy": "Политика конфиденциальности",
+      "faq": "Документация"
     },
     "settings": {
       "title": "Настройки",
@@ -269,7 +388,13 @@
         "urlTestInterval": "Интервал теста URL",
         "clashApiPort": "Порт Clash API",
         "useXrayCoreWhenPossible": "Использовать xray-core, если возможно",
-        "useXrayCoreWhenPossibleMsg": "Использовать xray-core при обработке ссылок на подписку. Необходимо повторно импортировать ссылку, чтобы включить эту опцию."
+        "useXrayCoreWhenPossibleMsg": "Использовать xray-core при обработке ссылок на подписку. Необходимо повторно импортировать ссылку, чтобы включить эту опцию.",
+        "allowInsecureOnRequest": "Разрешать небезопасное при обновлении подписок",
+        "alwaysShowAddress": "Всегда показывать адрес",
+        "alwaysShowAddressSum": "Всегда показывать адрес сервера на карточках конфигураций",
+        "profileTrafficStatistics": "Статистика трафика профиля",
+        "profileTrafficStatisticsSum": "Если отключено, использованный трафик не учитывается",
+        "themePalette": "Цвет темы"
       },
       "routing": {
         "title": "Маршрутизация",
@@ -323,7 +448,9 @@
               "domain": "Домен",
               "domain_suffixe": "Суффикс домена",
               "domain_keyword": "Ключевое слово домена",
-              "domain_regex": "Регулярное выражение домена"
+              "domain_regex": "Регулярное выражение домена",
+              "config": "Своя конфигурация",
+              "outbound_tag": "Маршрутизировать на узел"
             },
             "outbound(map)": {
               "proxy": "Прокси",
@@ -344,13 +471,25 @@
               "stun": "STUN",
               "dns": "DNS",
               "bittorrent": "BitTorrent"
-            }
+            },
+            "configHint": "Переопределение для каждого правила в семантике правил sing-box, например\n{\n  \"domain_suffix\": [\"extra.example.com\"]\n}\nВстраивается поверх собранного правила перед разбором.",
+            "configInvalid": "Недопустимый объект JSON",
+            "outboundTagNone": "По умолчанию (использовать outbound выше)",
+            "validDomainInput": "Домены с префиксами NekoBox, например\n@:pages.settings.routing.routeRule.rule.validDomainInputEx",
+            "validDomainInputEx": "geosite:cn · full:example.com · domain:example.org\nregexp:^ads\\d+\\.com$ · keyword:ads · голый-домен.com"
           },
           "genericList": {
             "addNew": "Добавить новое значение",
             "update": "Обновить значение",
             "clearList": "Очистить список",
             "clearListMsg": "Все элементы удалены"
+          },
+          "androidApps": {
+            "clearSelection": "Очистить выбор",
+            "hideSystemApps": "Скрыть системные приложения",
+            "pageTitle": "Приложения Android",
+            "showSystemApps": "Показать системные приложения",
+            "uninstalled": "Не установлено"
           }
         },
         "generalOptions": {
@@ -420,7 +559,8 @@
                 "msg": "Функция автовыбора для прокси приложений была отключена из-за смены региона на \"${region}\""
               }
             }
-          }
+          },
+          "bypassLanInCore": "Обход LAN в ядре"
         },
         "predefinedRules": {
           "title": "Предопределенные правила",
@@ -581,7 +721,48 @@
           "selectProfile": "Выберите профиль",
           "conduitPairingId": "ID сопряжения Conduit"
         }
-      }
+      },
+      "customConfig": {
+        "cleared": "Своя конфигурация очищена",
+        "hint": "JSON sing-box, встраиваемый в итоговую конфигурацию после её сборки ядром (аналог NekoBox globalCustomConfig). Map: глубокое слияние; \"key+\": добавить в конец списка; \"+key\": вставить в начало списка; обычный ключ: полная замена. Оставьте пустым, чтобы отключить.",
+        "invalidJson": "Недопустимый JSON: значение должно быть одним объектом JSON.",
+        "saved": "Своя конфигурация сохранена",
+        "subtitle": "Встроить свой JSON в итоговую конфигурацию",
+        "title": "Своя конфигурация"
+      },
+      "misc": "Прочее"
+    },
+    "groups": {
+      "cardUpdate": "Обновить",
+      "clearConfirm": "Очистить все узлы этой группы? Сама группа будет сохранена.",
+      "cleared": "Группа очищена",
+      "clearNodes": "Очистить узлы",
+      "clearProfiles": "Очистить",
+      "confirm": "Подтвердить",
+      "create": "Создать группу",
+      "created": "Группа создана",
+      "defaultName": "Без группы",
+      "deleteConfirm": "Вы уверены, что хотите удалить эту группу?",
+      "deleted": "Группа удалена",
+      "deleteUndoMsg": "${name} удалено",
+      "edit": "Изменить группу",
+      "empty": "Пустая группа",
+      "exportToClipboard": "Экспорт в буфер обмена",
+      "exportToFile": "Экспорт в файл",
+      "name": "Название группы",
+      "neverUpdated": "Ещё не обновлялось",
+      "nodeCount": "$n прокси",
+      "renamed": "Группа переименована",
+      "settings": "Настройки группы",
+      "shareQr": "QR-код",
+      "shareSubscription": "Поделиться подпиской",
+      "subscriptionHint": "Ссылка на подписку и автообновление управляются на странице «Подписки»",
+      "title": "Группа",
+      "undo": "Отменить",
+      "updateAll": "Обновить все подписки"
+    },
+    "traffic": {
+      "title": "Панель sing-box"
     }
   },
   "components": {
@@ -671,6 +852,14 @@
       "importRouteRuleByDeepLinkWarning": {
         "title": "Импортировать правило маршрутизации?",
         "message": "Импорт правил маршрутизации из ненадежных источников может быть риском для безопасности\nПродолжайте только если вы доверяете этой ссылке"
+      },
+      "deduplicate": {
+        "msg": "Следующие дублирующиеся серверы будут удалены:",
+        "title": "Удалить дублирующиеся серверы?"
+      },
+      "deleteUnavailable": {
+        "msg": "Вы уверены, что хотите удалить этот профиль?",
+        "title": "Подтвердить"
       }
     },
     "experimentalNotice": {
@@ -726,7 +915,11 @@
     "disconnect": "Отключить",
     "disconnecting": "Отключение...",
     "reconnect": "Переподключить",
-    "reconnectMsg": "Переподключение для учета изменений..."
+    "reconnectMsg": "Переподключение для учета изменений...",
+    "disconnected": "Нет подключения",
+    "statsConnected": "Подключено, нажмите здесь, чтобы проверить соединение",
+    "stop": "Остановить",
+    "stopping": "Остановка…"
   },
   "errors": {
     "unexpected": "Непредвиденная ошибка",

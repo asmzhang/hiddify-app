@@ -90,7 +90,9 @@
       "autoSave": {
         "success": "Cambios guardados automáticamente con éxito"
       }
-    }
+    },
+    "more": "Más",
+    "undo": "Deshacer"
   },
   "intro": {
     "banner": "Todo lo que necesitas para un internet sin restricciones",
@@ -140,7 +142,123 @@
         "endpointBlocked": "WireGuard endpoints cannot be chain members",
         "empty": "Add at least one member",
         "saved": "Chain saved"
-      }
+      },
+      "addMenu": {
+        "addProfile": "Añadir perfil",
+        "addSubscription": "Añadir suscripción",
+        "importClipboard": "Importar del portapapeles",
+        "importFile": "Importar de archivo",
+        "manualInput": "Ajustes manuales",
+        "scanQr": "Escanear código QR"
+      },
+      "clearTestResults": "Borrar resultados de prueba",
+      "clearTrafficStats": "Borrar estadísticas de tráfico",
+      "connectionTest": {
+        "testing": "Probando…",
+        "title": "Prueba de conexión"
+      },
+      "customConfig": {
+        "configType": "Este JSON es una configuración completa de sing-box (reemplaza todo)",
+        "created": "Configuración creada",
+        "jsonInvalid": "JSON no válido: el valor debe ser un único objeto JSON.",
+        "outboundType": "Este JSON es un outbound único (tiene la clave \"type\")",
+        "saved": "Configuración guardada",
+        "serverConfig": "JSON de configuración",
+        "title": "Configuración personalizada"
+      },
+      "deleteUnavailable": "Borrar no disponibles",
+      "form": {
+        "allowInsecure": "Permitir inseguro",
+        "alpn": "Negociación de protocolo de capa de aplicación",
+        "certificates": "Certificados",
+        "created": "Nodo creado",
+        "createTitle": "Nuevo nodo",
+        "customConfig": "JSON de configuración personalizada",
+        "customConfigInvalid": "JSON no válido: el valor debe ser un único objeto JSON.",
+        "customOutbound": "JSON de outbound personalizado",
+        "earlyDataHeaderName": "Nombre de cabecera de datos tempranos",
+        "flow": "Flow",
+        "hopInterval": "Intervalo de salto de puerto (segundos)",
+        "host": "Host HTTP",
+        "invalidNumber": "Introduce un número",
+        "jsonInvalid": "No se puede analizar el JSON outbound de este nodo",
+        "localAddress": "Direcciones locales (CIDR)",
+        "manual": "Ajustes manuales",
+        "method": "Método de cifrado",
+        "packetEncoding": "Codificación de paquetes",
+        "password": "Contraseña",
+        "path": "Ruta HTTP",
+        "peerPreSharedKey": "Clave precompartida",
+        "peerPublicKey": "Clave pública del par",
+        "pluginConfig": "Configurar…",
+        "pluginName": "Plugin",
+        "privateKey": "Clave privada",
+        "profileName": "Nombre del perfil",
+        "realityPubKey": "Clave pública Reality",
+        "realityShortId": "Reality ShortId",
+        "required": "Obligatorio",
+        "reserved": "Reserved",
+        "saved": "Nodo actualizado",
+        "section": {
+          "plugin": "Plugin",
+          "proxy": "Ajustes del servidor",
+          "security": "Ajustes de seguridad TLS",
+          "ws": "Ajustes de WebSocket"
+        },
+        "security": "Cifrado de capa de transporte",
+        "selectProtocol": "Seleccionar protocolo",
+        "serverAddress": "Servidor",
+        "serverAllowInsecure": "Permitir inseguro",
+        "serverALPN": "Negociación de protocolo de capa de aplicación",
+        "serverAuthBase64": "Carga de autenticación (base64)",
+        "serverAuthString": "Carga de autenticación (cadena)",
+        "serverCertificates": "Certificados",
+        "serverConnectionReceiveWindow": "Ventana de recepción de conexión QUIC",
+        "serverDownloadSpeed": "Velocidad máxima de descarga (Mbps)",
+        "serverInsecureConcurrency": "Concurrencia insegura",
+        "serverMTU": "MTU",
+        "serverObfs": "Contraseña de ofuscación",
+        "serverPassword": "Contraseña",
+        "serverPassword1": "Frase de la clave privada",
+        "serverPort": "Puerto remoto",
+        "serverPorts": "Puerto remoto",
+        "serverPrivateKey": "Clave privada",
+        "serverProtocol": "Protocolo",
+        "serverSNI": "Indicación de nombre de servidor",
+        "serverStreamReceiveWindow": "Ventana de recepción de flujo QUIC",
+        "serverUploadSpeed": "Velocidad máxima de subida (Mbps)",
+        "serverUsername": "Nombre de usuario",
+        "sni": "Indicación de nombre de servidor",
+        "title": "Editar nodo",
+        "transport": "Red",
+        "unsupported": "Este protocolo no tiene formulario de edición",
+        "utlsFingerprint": "Huella uTLS",
+        "uuid": "ID de usuario",
+        "version": "Versión del protocolo",
+        "wsMaxEarlyData": "Datos tempranos máximos"
+      },
+      "groupNotSubscription": "El tipo de grupo no es suscripción",
+      "msg": {
+        "exportToClipboard": "Copiar nodos al portapapeles",
+        "exportToFile": "Exportar nodos a archivo",
+        "nodeRemoved": "Nodo eliminado",
+        "noDuplicates": "No se encontraron servidores duplicados",
+        "noUnavailable": "No se encontraron servidores no disponibles",
+        "testDomainNotFound": "Dominio no encontrado",
+        "testRefused": "Conexión rechazada",
+        "testTimeout": "Tiempo agotado",
+        "testUnreachable": "Inalcanzable"
+      },
+      "order": "Orden",
+      "orderOptions": {
+        "delay": "Por retraso",
+        "name": "Por nombre",
+        "origin": "Original"
+      },
+      "removeDuplicate": "Eliminar servidores duplicados",
+      "tcpPing": "TCPing",
+      "updateSubscription": "Actualizar la suscripción del grupo actual",
+      "urlTest": "URL Test"
     },
     "profiles": {
       "title": "Perfiles",
@@ -218,7 +336,8 @@
       "sourceCode": "Código fuente",
       "telegramChannel": "Canal de Telegram",
       "termsAndConditions": "Términos y condiciones",
-      "privacyPolicy": "Política de privacidad"
+      "privacyPolicy": "Política de privacidad",
+      "faq": "Documentación"
     },
     "settings": {
       "title": "Ajustes",
@@ -265,7 +384,13 @@
         "urlTestInterval": "Intervalo de prueba de URL",
         "clashApiPort": "Puerto de la API de Clash",
         "useXrayCoreWhenPossible": "Usar xray-core cuando sea posible",
-        "useXrayCoreWhenPossibleMsg": "Usa xray-core al analizar enlaces de suscripción. Necesitas reimportar el enlace para habilitar esta opción"
+        "useXrayCoreWhenPossibleMsg": "Usa xray-core al analizar enlaces de suscripción. Necesitas reimportar el enlace para habilitar esta opción",
+        "allowInsecureOnRequest": "Permitir inseguro al actualizar suscripciones",
+        "alwaysShowAddress": "Mostrar siempre la dirección",
+        "alwaysShowAddressSum": "Mostrar siempre la dirección del servidor en las tarjetas de configuración",
+        "profileTrafficStatistics": "Estadísticas de tráfico del perfil",
+        "profileTrafficStatisticsSum": "Al desactivarlo no se contará el tráfico usado",
+        "themePalette": "Color del tema"
       },
       "routing": {
         "title": "Enrutamiento",
@@ -319,7 +444,9 @@
               "domain": "Dominio",
               "domain_suffixe": "Sufijo de dominio",
               "domain_keyword": "Palabra clave de dominio",
-              "domain_regex": "Expresión regular de dominio"
+              "domain_regex": "Expresión regular de dominio",
+              "config": "Configuración personalizada",
+              "outbound_tag": "Enrutar a nodo"
             },
             "outbound(map)": {
               "proxy": "Proxy",
@@ -340,13 +467,25 @@
               "stun": "STUN",
               "dns": "DNS",
               "bittorrent": "BitTorrent"
-            }
+            },
+            "configHint": "Anulación por regla con la semántica de reglas de sing-box, p. ej.\n{\n  \"domain_suffix\": [\"extra.example.com\"]\n}\nSe fusiona sobre la regla ensamblada antes del análisis.",
+            "configInvalid": "Objeto JSON no válido",
+            "outboundTagNone": "Predeterminado (usar outbound de arriba)",
+            "validDomainInput": "Dominios con prefijos NekoBox, como\n@:pages.settings.routing.routeRule.rule.validDomainInputEx",
+            "validDomainInputEx": "geosite:cn · full:example.com · domain:example.org\nregexp:^ads\\d+\\.com$ · keyword:ads · dominio-simple.com"
           },
           "genericList": {
             "addNew": "Añadir nuevo valor",
             "update": "Actualizar valor",
             "clearList": "Limpiar lista",
             "clearListMsg": "Todos los elementos han sido eliminados"
+          },
+          "androidApps": {
+            "clearSelection": "Borrar selección",
+            "hideSystemApps": "Ocultar aplicaciones del sistema",
+            "pageTitle": "Aplicaciones de Android",
+            "showSystemApps": "Mostrar aplicaciones del sistema",
+            "uninstalled": "Desinstalada"
           }
         },
         "generalOptions": {
@@ -416,7 +555,8 @@
                 "msg": "La función de selección automática para el proxy por aplicación se ha desactivado debido al cambio de región a \"${region}\""
               }
             }
-          }
+          },
+          "bypassLanInCore": "Omitir LAN en el núcleo"
         },
         "predefinedRules": {
           "title": "Reglas predefinidas",
@@ -577,7 +717,48 @@
           "selectProfile": "Seleccionar perfil",
           "conduitPairingId": "ID de emparejamiento de Conduit"
         }
-      }
+      },
+      "customConfig": {
+        "cleared": "Configuración personalizada borrada",
+        "hint": "JSON de sing-box que se fusiona en la configuración final tras construirla el núcleo (equivale a globalCustomConfig de NekoBox). Map: fusión profunda; \"key+\": añadir al final de la lista; \"+key\": insertar al principio de la lista; clave normal: reemplazo total. Deja vacío para desactivar.",
+        "invalidJson": "JSON no válido: el valor debe ser un único objeto JSON.",
+        "saved": "Configuración personalizada guardada",
+        "subtitle": "Fusionar JSON personalizado en la configuración final",
+        "title": "Configuración personalizada"
+      },
+      "misc": "Otros"
+    },
+    "groups": {
+      "cardUpdate": "Actualizar",
+      "clearConfirm": "¿Borrar todos los nodos de este grupo? El grupo se conservará.",
+      "cleared": "Grupo vaciado",
+      "clearNodes": "Borrar nodos",
+      "clearProfiles": "Vaciar",
+      "confirm": "Confirmar",
+      "create": "Crear grupo",
+      "created": "Grupo creado",
+      "defaultName": "Sin grupo",
+      "deleteConfirm": "¿Seguro que quieres eliminar este grupo?",
+      "deleted": "Grupo eliminado",
+      "deleteUndoMsg": "${name} eliminado",
+      "edit": "Editar grupo",
+      "empty": "Grupo vacío",
+      "exportToClipboard": "Exportar al portapapeles",
+      "exportToFile": "Exportar a archivo",
+      "name": "Nombre del grupo",
+      "neverUpdated": "Aún sin actualizar",
+      "nodeCount": "$n proxies",
+      "renamed": "Grupo renombrado",
+      "settings": "Ajustes del grupo",
+      "shareQr": "Código QR",
+      "shareSubscription": "Compartir suscripción",
+      "subscriptionHint": "El enlace de suscripción y la actualización automática se gestionan en la página de Suscripciones",
+      "title": "Grupo",
+      "undo": "Deshacer",
+      "updateAll": "Actualizar todas las suscripciones"
+    },
+    "traffic": {
+      "title": "Panel de sing-box"
     }
   },
   "components": {
@@ -667,6 +848,14 @@
       "importRouteRuleByDeepLinkWarning": {
         "title": "¿Importar regla de enrutamiento?",
         "message": "Importar reglas de enrutamiento desde fuentes no confiables puede ser un riesgo de seguridad\nSolo continúe si confía en este enlace"
+      },
+      "deduplicate": {
+        "msg": "Se eliminarán los siguientes servidores duplicados:",
+        "title": "¿Eliminar servidores duplicados?"
+      },
+      "deleteUnavailable": {
+        "msg": "¿Seguro que quieres eliminar este perfil?",
+        "title": "Confirmar"
       }
     },
     "experimentalNotice": {
@@ -722,7 +911,11 @@
     "disconnect": "Desconectar",
     "disconnecting": "Desconectando...",
     "reconnect": "Reconectar",
-    "reconnectMsg": "Reconectando para aplicar los cambios..."
+    "reconnectMsg": "Reconectando para aplicar los cambios...",
+    "disconnected": "No conectado",
+    "statsConnected": "Conectado, toca aquí para probar la conexión",
+    "stop": "Detener",
+    "stopping": "Deteniendo…"
   },
   "errors": {
     "unexpected": "Error inesperado",

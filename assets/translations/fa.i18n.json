@@ -90,7 +90,9 @@
       "autoSave": {
         "success": "تغییرات با موفقیت به‌طور خودکار ذخیره شد"
       }
-    }
+    },
+    "more": "بیشتر",
+    "undo": "واگرد"
   },
   "intro": {
     "banner": "هرآنچه برای اینترنت بدون محدودیت نیاز دارید",
@@ -140,7 +142,123 @@
         "endpointBlocked": "WireGuard endpoints cannot be chain members",
         "empty": "Add at least one member",
         "saved": "Chain saved"
-      }
+      },
+      "addMenu": {
+        "addProfile": "افزودن پروفایل",
+        "addSubscription": "افزودن اشتراک",
+        "importClipboard": "درون‌ریزی از کلیپ‌بورد",
+        "importFile": "درون‌ریزی از فایل",
+        "manualInput": "تنظیمات دستی",
+        "scanQr": "اسکن کد QR"
+      },
+      "clearTestResults": "پاک‌سازی نتایج تست",
+      "clearTrafficStats": "پاک‌سازی آمار ترافیک",
+      "connectionTest": {
+        "testing": "در حال تست…",
+        "title": "تست اتصال"
+      },
+      "customConfig": {
+        "configType": "این JSON یک پیکربندی کامل sing-box است (جایگزین همه‌چیز می‌شود)",
+        "created": "پیکربندی ایجاد شد",
+        "jsonInvalid": "JSON نامعتبر است: مقدار باید یک شیء JSON باشد.",
+        "outboundType": "این JSON یک outbound تکی است (دارای کلید \"type\")",
+        "saved": "پیکربندی ذخیره شد",
+        "serverConfig": "JSON پیکربندی",
+        "title": "پیکربندی سفارشی"
+      },
+      "deleteUnavailable": "پاک‌سازی موارد ناموجود",
+      "form": {
+        "allowInsecure": "اجازه اتصال ناامن",
+        "alpn": "مذاکره پروتکل لایه کاربرد",
+        "certificates": "گواهی‌ها",
+        "created": "گره ایجاد شد",
+        "createTitle": "گره جدید",
+        "customConfig": "JSON پیکربندی سفارشی",
+        "customConfigInvalid": "JSON نامعتبر است: مقدار باید یک شیء JSON باشد.",
+        "customOutbound": "JSON outbound سفارشی",
+        "earlyDataHeaderName": "نام هدر داده‌های اولیه",
+        "flow": "جریان",
+        "hopInterval": "فاصله پرش پورت (ثانیه)",
+        "host": "میزبان HTTP",
+        "invalidNumber": "یک عدد وارد کنید",
+        "jsonInvalid": "JSON خروجی این گره قابل تجزیه نیست",
+        "localAddress": "آدرس‌های محلی (CIDR)",
+        "manual": "تنظیمات دستی",
+        "method": "روش رمزنگاری",
+        "packetEncoding": "کدگذاری بسته",
+        "password": "رمز",
+        "path": "مسیر HTTP",
+        "peerPreSharedKey": "کلید از پیش مشترک",
+        "peerPublicKey": "کلید عمومی همتا",
+        "pluginConfig": "پیکربندی…",
+        "pluginName": "افزونه",
+        "privateKey": "کلید خصوصی",
+        "profileName": "نام پروفایل",
+        "realityPubKey": "کلید عمومی Reality",
+        "realityShortId": "شناسه کوتاه Reality",
+        "required": "ضروری",
+        "reserved": "Reserved",
+        "saved": "گره به‌روزرسانی شد",
+        "section": {
+          "plugin": "افزونه",
+          "proxy": "تنظیمات سرور",
+          "security": "تنظیمات امنیتی TLS",
+          "ws": "تنظیمات WebSocket"
+        },
+        "security": "رمزنگاری لایه انتقال",
+        "selectProtocol": "انتخاب پروتکل",
+        "serverAddress": "سرور",
+        "serverAllowInsecure": "اجازه اتصال ناامن",
+        "serverALPN": "مذاکره پروتکل لایه کاربرد",
+        "serverAuthBase64": "محتوای احراز هویت (base64)",
+        "serverAuthString": "محتوای احراز هویت (رشته)",
+        "serverCertificates": "گواهی‌ها",
+        "serverConnectionReceiveWindow": "پنجره دریافت اتصال QUIC",
+        "serverDownloadSpeed": "حداکثر سرعت دانلود (Mbps)",
+        "serverInsecureConcurrency": "همزمانی ناامن",
+        "serverMTU": "MTU",
+        "serverObfs": "رمز مخفی‌سازی",
+        "serverPassword": "رمز",
+        "serverPassword1": "عبارت رمز کلید خصوصی",
+        "serverPort": "پورت راه دور",
+        "serverPorts": "پورت راه دور",
+        "serverPrivateKey": "کلید خصوصی",
+        "serverProtocol": "پروتکل",
+        "serverSNI": "نشانگر نام سرور",
+        "serverStreamReceiveWindow": "پنجره دریافت جریان QUIC",
+        "serverUploadSpeed": "حداکثر سرعت آپلود (Mbps)",
+        "serverUsername": "نام کاربری",
+        "sni": "نشانگر نام سرور",
+        "title": "ویرایش گره",
+        "transport": "شبکه",
+        "unsupported": "این پروتکل فرم ویرایش ندارد",
+        "utlsFingerprint": "اثر انگشت uTLS",
+        "uuid": "شناسه کاربری",
+        "version": "نسخه پروتکل",
+        "wsMaxEarlyData": "حداکثر داده اولیه"
+      },
+      "groupNotSubscription": "نوع گروه اشتراک نیست",
+      "msg": {
+        "exportToClipboard": "کپی گره‌ها به کلیپ‌بورد",
+        "exportToFile": "خروجی گره‌ها به فایل",
+        "nodeRemoved": "گره حذف شد",
+        "noDuplicates": "سرور تکراری پیدا نشد",
+        "noUnavailable": "سرور ناموجود پیدا نشد",
+        "testDomainNotFound": "دامنه پیدا نشد",
+        "testRefused": "اتصال رد شد",
+        "testTimeout": "زمان تمام شد",
+        "testUnreachable": "خارج از دسترس"
+      },
+      "order": "مرتب‌سازی",
+      "orderOptions": {
+        "delay": "بر اساس تأخیر",
+        "name": "بر اساس نام",
+        "origin": "اصلی"
+      },
+      "removeDuplicate": "حذف سرورهای تکراری",
+      "tcpPing": "TCPing",
+      "updateSubscription": "به‌روزرسانی اشتراک گروه فعلی",
+      "urlTest": "URL Test"
     },
     "profiles": {
       "title": "پروفایل‌ها",
@@ -218,7 +336,8 @@
       "sourceCode": "کد منبع",
       "telegramChannel": "کانال تلگرام",
       "termsAndConditions": "شرایط و ضوابط",
-      "privacyPolicy": "سیاست حفظ حریم خصوصی"
+      "privacyPolicy": "سیاست حفظ حریم خصوصی",
+      "faq": "مستندات"
     },
     "settings": {
       "title": "تنظیمات",
@@ -265,7 +384,13 @@
         "urlTestInterval": "فاصله زمانی تست URL",
         "clashApiPort": "پورت Clash API",
         "useXrayCoreWhenPossible": "استفاده از xray-core در صورت امکان",
-        "useXrayCoreWhenPossibleMsg": "هنگام پردازش لینک‌های اشتراک از xray-core استفاده شود. برای فعال‌سازی این گزینه باید لینک اشتراک را مجدداً وارد کنید."
+        "useXrayCoreWhenPossibleMsg": "هنگام پردازش لینک‌های اشتراک از xray-core استفاده شود. برای فعال‌سازی این گزینه باید لینک اشتراک را مجدداً وارد کنید.",
+        "allowInsecureOnRequest": "اجازه اتصال ناامن هنگام به‌روزرسانی اشتراک‌ها",
+        "alwaysShowAddress": "همیشه نمایش آدرس",
+        "alwaysShowAddressSum": "نمایش همیشگی آدرس سرور روی کارت‌های پیکربندی",
+        "profileTrafficStatistics": "آمار ترافیک پروفایل",
+        "profileTrafficStatisticsSum": "در صورت غیرفعال بودن، ترافیک مصرفی شمارش نمی‌شود",
+        "themePalette": "رنگ پوسته"
       },
       "routing": {
         "title": "مسیریابی",
@@ -319,7 +444,9 @@
               "domain": "دامنه",
               "domain_suffixe": "پسوند دامنه",
               "domain_keyword": "کلمه کلیدی دامنه",
-              "domain_regex": "عبارت منظم دامنه"
+              "domain_regex": "عبارت منظم دامنه",
+              "config": "پیکربندی سفارشی",
+              "outbound_tag": "مسیریابی به گره"
             },
             "outbound(map)": {
               "proxy": "پروکسی",
@@ -340,13 +467,25 @@
               "stun": "STUN",
               "dns": "DNS",
               "bittorrent": "BitTorrent"
-            }
+            },
+            "configHint": "بازنویسی هر قاعده بر اساس معناشناسی قواعد sing-box، مثلاً\n{\n  \"domain_suffix\": [\"extra.example.com\"]\n}\nپیش از تجزیه، روی قاعدهٔ مونتاژشده ادغام می‌شود.",
+            "configInvalid": "شیء JSON نامعتبر",
+            "outboundTagNone": "پیش‌فرض (استفاده از outbound بالا)",
+            "validDomainInput": "دامنه با پیشوندهای NekoBox، مانند\n@:pages.settings.routing.routeRule.rule.validDomainInputEx",
+            "validDomainInputEx": "geosite:cn · full:example.com · domain:example.org\nregexp:^ads\\d+\\.com$ · keyword:ads · دامنه-ساده.com"
           },
           "genericList": {
             "addNew": "افزودن مقدار جدید",
             "update": "به‌روزرسانی مقدار",
             "clearList": "پاک کردن لیست",
             "clearListMsg": "تمام موارد حذف شدند"
+          },
+          "androidApps": {
+            "clearSelection": "پاک کردن انتخاب",
+            "hideSystemApps": "پنهان کردن برنامه‌های سیستمی",
+            "pageTitle": "برنامه‌های اندروید",
+            "showSystemApps": "نمایش برنامه‌های سیستمی",
+            "uninstalled": "حذف شده"
           }
         },
         "generalOptions": {
@@ -416,7 +555,8 @@
                 "msg": "قابلیت انتخاب خودکار برای پروکسی هر برنامه به دلیل تغییر منطقه به \"${region}\" غیرفعال شد"
               }
             }
-          }
+          },
+          "bypassLanInCore": "دور زدن LAN در هسته"
         },
         "predefinedRules": {
           "title": "قوانین پیش‌فرض",
@@ -577,7 +717,48 @@
           "selectProfile": "انتخاب پروفایل",
           "conduitPairingId": "شناسه جفت‌سازی Conduit"
         }
-      }
+      },
+      "customConfig": {
+        "cleared": "پیکربندی سفارشی پاک شد",
+        "hint": "JSON sing-box، پس از ساخته‌شدن توسط هسته در پیکربندی نهایی ادغام عمیق می‌شود (معادل NekoBox globalCustomConfig). Map: ادغام عمیق؛ \"key+\": افزودن به انتهای فهرست؛ \"+key\": درج در ابتدای فهرست؛ کلید معمولی: جایگزینی کامل. برای غیرفعال‌سازی خالی بگذارید.",
+        "invalidJson": "JSON نامعتبر است: مقدار باید یک شیء JSON باشد.",
+        "saved": "پیکربندی سفارشی ذخیره شد",
+        "subtitle": "ادغام JSON سفارشی در پیکربندی نهایی",
+        "title": "پیکربندی سفارشی"
+      },
+      "misc": "سایر"
+    },
+    "groups": {
+      "cardUpdate": "به‌روزرسانی",
+      "clearConfirm": "پاک‌سازی همه گره‌های این گروه؟ خود گروه باقی می‌ماند.",
+      "cleared": "گروه پاک‌سازی شد",
+      "clearNodes": "پاک‌سازی گره‌ها",
+      "clearProfiles": "پاک‌سازی",
+      "confirm": "تأیید",
+      "create": "ایجاد گروه",
+      "created": "گروه ایجاد شد",
+      "defaultName": "بدون گروه",
+      "deleteConfirm": "مطمئنید که می‌خواهید این گروه را حذف کنید؟",
+      "deleted": "گروه حذف شد",
+      "deleteUndoMsg": "${name} حذف شد",
+      "edit": "ویرایش گروه",
+      "empty": "گروه خالی",
+      "exportToClipboard": "خروجی به کلیپ‌بورد",
+      "exportToFile": "خروجی به فایل",
+      "name": "نام گروه",
+      "neverUpdated": "هنوز به‌روزرسانی نشده",
+      "nodeCount": "$n پروکسی",
+      "renamed": "گروه تغییر نام یافت",
+      "settings": "تنظیمات گروه",
+      "shareQr": "کد QR",
+      "shareSubscription": "اشتراک‌گذاری اشتراک",
+      "subscriptionHint": "لینک اشتراک و به‌روزرسانی خودکار در صفحهٔ «اشتراک‌ها» مدیریت می‌شود",
+      "title": "گروه",
+      "undo": "واگرد",
+      "updateAll": "به‌روزرسانی همه اشتراک‌ها"
+    },
+    "traffic": {
+      "title": "داشبورد sing-box"
     }
   },
   "components": {
@@ -667,6 +848,14 @@
       "importRouteRuleByDeepLinkWarning": {
         "title": "وارد کردن قانون مسیریابی؟",
         "message": "وارد کردن قوانین مسیریابی از منابع غیرقابل اعتماد می‌تواند ریسک امنیتی باشد\nفقط در صورتی که به این لینک اعتماد دارید ادامه دهید"
+      },
+      "deduplicate": {
+        "msg": "سرورهای تکراری زیر حذف خواهند شد:",
+        "title": "حذف سرورهای تکراری؟"
+      },
+      "deleteUnavailable": {
+        "msg": "مطمئنید که می‌خواهید این پروفایل را حذف کنید؟",
+        "title": "تأیید"
       }
     },
     "experimentalNotice": {
@@ -722,7 +911,11 @@
     "disconnect": "قطع اتصال",
     "disconnecting": "در حال قطع اتصال...",
     "reconnect": "اتصال مجدد",
-    "reconnectMsg": "در حال اتصال مجدد برای اعمال تغییرات..."
+    "reconnectMsg": "در حال اتصال مجدد برای اعمال تغییرات...",
+    "disconnected": "وصل نشد",
+    "statsConnected": "متصل شد؛ برای تست اتصال اینجا را لمس کنید",
+    "stop": "توقف",
+    "stopping": "در حال توقف…"
   },
   "errors": {
     "unexpected": "خطای غیرمنتظره",
