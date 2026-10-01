@@ -16,13 +16,13 @@ import 'package:hiddify/hiddifycore/generated/v2/config/route_rule.pb.dart';
 ///
 /// Empty list => send "rules": [] — still a no-op on the Go side because
 /// makeUserRouteRules iterates an empty slice, but the contract stays explicit.
-Map<String, dynamic> routeRuleToCoreJson(final List<Rule> rules) {
+Map<String, dynamic> routeRuleToCoreJson(List<Rule> rules) {
   return {
     'rules': [for (final rule in rules) _ruleToCoreJson(rule)],
   };
 }
 
-Map<String, dynamic> _ruleToCoreJson(final Rule rule) {
+Map<String, dynamic> _ruleToCoreJson(Rule rule) {
   final json = <String, dynamic>{};
 
   // Scalars: only emit when explicitly set, so the payload stays clean and
@@ -71,7 +71,7 @@ Map<String, dynamic> _ruleToCoreJson(final Rule rule) {
 /// Inverse mapping, for round-tripping: core JSON -> Rule messages. Used by
 /// the "import rules" flow so hand-edited payloads survive the exact contract
 /// instead of proto3 JSON.
-List<Rule> coreJsonToRules(final Map<String, dynamic> json) {
+List<Rule> coreJsonToRules(Map<String, dynamic> json) {
   final rawRules = json['rules'];
   if (rawRules is! List) return const [];
   return [
@@ -80,7 +80,7 @@ List<Rule> coreJsonToRules(final Map<String, dynamic> json) {
   ];
 }
 
-Rule _ruleFromCoreJson(final Map<String, dynamic> json) {
+Rule _ruleFromCoreJson(Map<String, dynamic> json) {
   final rule = Rule();
   if (json['list_order'] is int) rule.listOrder = json['list_order'] as int;
   if (json['enabled'] == true) rule.enabled = true;
@@ -128,5 +128,5 @@ Rule _ruleFromCoreJson(final Map<String, dynamic> json) {
 }
 
 /// Convenience for the export/import flows that pass through plain strings.
-String routeRuleToCoreJsonString(final List<Rule> rules) =>
+String routeRuleToCoreJsonString(List<Rule> rules) =>
     jsonEncode(routeRuleToCoreJson(rules));
