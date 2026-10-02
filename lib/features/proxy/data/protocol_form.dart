@@ -34,6 +34,7 @@ class ProtocolField {
     this.pathControllerId,
     this.siblings = const {},
     this.disabledBy,
+    this.disabledWhen = const {},
     this.required = false,
     this.section,
     this.valueSuffix,
@@ -73,10 +74,23 @@ class ProtocolField {
   /// `reality.public_key` 非空则 `{enabled:true, ...}`。写在 [path] 的**父级**。
   final Map<String, String> siblings;
 
-  /// 联动置灰：值取该 id 字段的表单值，`'true'` ⇒ 本行禁用（enabled:false 置灰）。
-  /// 照 NekoBox tuic 的 `sni.isEnabled = !disableSNI.isChecked`
-  /// （`TuicSettingsActivity.kt:55-61`：勾「禁用 SNI」时 SNI 输入框置灰不可编辑）。
+  /// 联动置灰的**控制器字段 id**：取该字段当前表单值，命中 [disabledWhen] ⇒ 本行禁用
+  /// （enabled:false 置灰、仍可见、不清值）。
+  ///
+  /// 两处用法（都取自 NekoBox，但**显示机制做了归一**，见下）：
+  /// - tuic：照 `sni.isEnabled = !disableSNI.isChecked`（`TuicSettingsActivity.kt:55-61`），
+  ///   控制器是布尔开关，[disabledWhen] 留空即默认 `{'true'}`。
+  /// - socks：照 `password.isVisible = version == SOCKSBean.PROTOCOL_SOCKS5`
+  ///   （`SocksSettingsActivity.kt:53-55`），控制器是协议下拉，[disabledWhen] = `{'4','4a'}`。
+  ///   NekoBox 用 `isVisible`（整行隐藏），我方统一用 enabled:false 置灰 —— 本表单的既定
+  ///   惯例是不做动态隐藏（隐藏会让行数变化、且用户看不见"为什么少了这个字段"）；
+  ///   值同样保留并照写（NekoBox 隐藏的 Preference 也保留其值 → `SOCKSFmt.kt:66-75` 照写
+  ///   `password`），故两者写出的 payload 完全一致，差异仅在显示。
   final String? disabledBy;
+
+  /// 命中即置灰的取值集合（比对 [disabledBy] 字段的**去空白**表单值）。
+  /// 留空 ⇒ 默认 `{'true'}`（布尔开关语义，tuic 用）。
+  final Set<String> disabledWhen;
 
   /// 写入前追加的后缀（仅对**纯数字**值生效）。动机：内核 `hop_interval` 是
   /// `badoption.Duration`，**必须带单位**（sing `my_time.ParseDuration`：裸数字报
@@ -596,6 +610,17 @@ const _shadowsocksSpec = ProtocolFormSpec(
 /// （内核 `socks.ParseVersion` 只认这三个串）。这里直接列**最终取值**，
 /// 跳过中间那层整数编码（同 [kPacketEncodings] 的处理）。
 /// `sUoT` 未纳入 —— 理由同 shadowsocks（`udp_over_tcp` 是对象、表单只有布尔）。
+///
+/// **密码随协议置灰**（`SocksSettingsActivity.kt:53-55`：
+/// `password.isVisible = version == SOCKSBean.PROTOCOL_SOCKS5`）。
+/// 内核侧确有实义：`socks.Client.DialContext` 对 4/4a 走
+/// `ClientHandshake4(tcpConn, command, address, c.username)`
+/// （sing `protocol/socks/client.go:130`）——**只传 username，password 根本不参与握手**。
+/// 未选（空串）= 不写 `version` 键 ⇒ 内核取默认 Version5（`option` 层
+/// `outbound.go:41-45` `if options.Version != ""` 否则 Version5），故空值不禁用。
+/// 与 NekoBox 的差异仅在**显示方式**：它整行隐藏，本表单按既定惯例置灰
+/// （不做动态隐藏）；值保留且照写 —— NekoBox 隐藏的 Preference 同样保留其值，
+/// `SOCKSFmt.kt:66-75` 也照写 `password`，两边 payload 完全一致。
 const _socksSpec = ProtocolFormSpec(
   type: 'socks',
   fields: [
@@ -603,7 +628,13 @@ const _socksSpec = ProtocolFormSpec(
     ProtocolField(id: 'serverPort', kind: ProtocolFieldKind.integer, path: ['server_port']),
     ProtocolField(id: 'serverProtocol', kind: ProtocolFieldKind.choice, path: ['version'], choices: ['4', '4a', '5']),
     ProtocolField(id: 'serverUsername', kind: ProtocolFieldKind.text, path: ['username']),
-    ProtocolField(id: 'serverPassword', kind: ProtocolFieldKind.text, path: ['password']),
+    ProtocolField(
+      id: 'serverPassword',
+      kind: ProtocolFieldKind.text,
+      path: ['password'],
+      disabledBy: 'serverProtocol',
+      disabledWhen: {'4', '4a'},
+    ),
   ],
 );
 
@@ -708,7 +739,8 @@ const _tuicSpec = ProtocolFormSpec(
       choices: ['', 'cubic', 'new_reno', 'bbr'],
     ),
     ProtocolField(id: 'serverDisableSNI', kind: ProtocolFieldKind.boolean, path: ['tls', 'disable_sni']),
-    // 置灰联动照 NekoBox：勾「禁用 SNI」⇒ SNI 输入框 enabled=false（仍可见）
+    // 置灰联动照 NekoBox：勾「禁用 SNI」⇒ SNI 输入框 enabled=false（仍可见）。
+    // 控制器是布尔开关 ⇒ disabledWhen 留空走默认 {'true'}。
     ProtocolField(id: 'serverSNI', kind: ProtocolFieldKind.text, path: ['tls', 'server_name'], disabledBy: 'serverDisableSNI'),
     ProtocolField(id: 'serverReduceRTT', kind: ProtocolFieldKind.boolean, path: ['zero_rtt_handshake']),
     ProtocolField(id: 'serverAllowInsecure', kind: ProtocolFieldKind.boolean, path: ['tls', 'insecure']),
@@ -1140,6 +1172,17 @@ List<Object>? resolveProtocolFieldPath(ProtocolField field, {required Map<String
   final controller = field.pathControllerId;
   if (controller == null) return field.path;
   return field.pathByChoice[(values[controller] ?? '').trim()];
+}
+
+/// 该字段在当前表单取值下是否可交互（UI 据此置灰）。
+///
+/// [ProtocolField.disabledBy] 为空 ⇒ 恒 true。否则取控制器字段的**去空白**值，
+/// 落在 [ProtocolField.disabledWhen]（留空时默认 `{'true'}`，布尔开关语义）里 ⇒ false。
+bool protocolFieldEnabled(ProtocolField field, {required Map<String, String> values}) {
+  final controller = field.disabledBy;
+  if (controller == null) return true;
+  final when = field.disabledWhen.isEmpty ? const {'true'} : field.disabledWhen;
+  return !when.contains((values[controller] ?? '').trim());
 }
 
 /// 保存前的校验。返回错误信息的字段 id 列表（空列表 = 可保存）。

@@ -466,7 +466,7 @@ void main() {
     });
   });
 
-  group('P1 字段级 1:1 · hysteria（v1，_hysteriaSpec L430-453）', () {
+  group('P1 字段级 1:1 · hysteria（v1，_hysteriaSpec:562）', () {
     testWidgets('新建渲染：14 字段 + 单分节 + authType 下拉以双文本框替代（代码事实）+ 无 choice', (tester) async {
       final f = _Fixture();
       await _pump(tester, open: (context) => showProtocolCreateSheet(groupId: 7, type: 'hysteria'), fixture: f);
@@ -688,7 +688,7 @@ void main() {
     });
   });
 
-  group('P1 字段级 1:1 · ssh（_sshSpec L547-558）', () {
+  group('P1 字段级 1:1 · ssh（_sshSpec:700）', () {
     testWidgets('新建渲染：7 字段 + 单分节 + 无开关无下拉 + 私钥/证书都是文本框', (tester) async {
       final f = _Fixture();
       await _pump(tester, open: (context) => showProtocolCreateSheet(groupId: 7, type: 'ssh'), fixture: f);

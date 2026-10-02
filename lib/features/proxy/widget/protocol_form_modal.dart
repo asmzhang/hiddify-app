@@ -323,9 +323,12 @@ class ProtocolFormModal extends HookConsumerWidget {
                         onChanged: (value) => values.value = {...values.value, field.id: value},
                         // 被容器规则"摘掉"的字段（如传输方式选了 tcp 时的 host/path）没有意义，
                         // 置灰但仍然可编辑 —— 与 NekoBox 一样不做动态隐藏（它的 Preference 也是静态的）。
-                        // disabledBy 联动（tuic：勾「禁用 SNI」⇒ SNI 输入框置灰）照
-                        // NekoBox `TuicSettingsActivity.kt:55-61` 的 isEnabled 语义。
-                        enabled: field.disabledBy == null || values.value[field.disabledBy!] != 'true',
+                        // disabledBy 联动：tuic 勾「禁用 SNI」⇒ SNI 置灰
+                        // （`TuicSettingsActivity.kt:55-61` isEnabled 语义）；
+                        // socks 协议选 4/4a ⇒ 密码置灰
+                        // （`SocksSettingsActivity.kt:53-55`，NekoBox 是整行 isVisible 隐藏，
+                        //   我方按既定惯例统一置灰 —— 值保留且照写，payload 与 NekoBox 一致）。
+                        enabled: protocolFieldEnabled(field, values: values.value),
                       ),
                   ],
                 ],

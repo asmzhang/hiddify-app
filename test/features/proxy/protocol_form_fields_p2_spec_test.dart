@@ -7,8 +7,8 @@
 //      死字段不落键 / 空值删键）。
 // 判定基准：zh-CN 词表（assets/translations/zh-CN.i18n.json 的 pages.proxies.form.*）；
 // 字段清单以代码 lib/features/proxy/data/protocol_form.dart 为准
-// （socks:599 / http:625 / shadowtls:726 / mieru:764 / wireguard:797 /
-//   naive:822 / kManualCreatableProtocols:894 / protocolDisplayName:917）。
+// （socks:624 / http:656 / shadowtls:758 / mieru:796 / wireguard:829 /
+//   naive:854 / kManualCreatableProtocols:926 / protocolDisplayName:949）。
 // 基建与六坑纪律照抄 P0/P1 样板（protocol_form_fields_p0/p1_spec_test.dart）：
 //   ① fake notifier build() 给现成 Stream、不挂 disposeDelay ⇒ 无 pending Timer；
 //   ② 不注入 proxyEntityRepository ⇒ 无 drift 真异步 ⇒ pumpAndSettle 全程可用；
@@ -213,7 +213,7 @@ const _naiveEditPayload =
     '"tls":{"enabled":true,"server_name":"ns.example.com","certificate":"NC-1"}}';
 
 void main() {
-  group('P2 字段级 1:1 · socks（_socksSpec L481-490）', () {
+  group('P2 字段级 1:1 · socks（_socksSpec:624；密码随协议 4/4a 置灰）', () {
     testWidgets('新建渲染：5 字段 + 协议下拉三档（4/4a/5）+ 无 TLS 组 + 星标仅服务器', (tester) async {
       final f = _Fixture();
       await _pump(tester, open: (context) => showProtocolCreateSheet(groupId: 7, type: 'socks'), fixture: f);
@@ -233,6 +233,20 @@ void main() {
       expect(find.text('未设置'), findsOneWidget);
       // 服务器端口是 integer（无 valueSuffix），密码/用户名是 text；无 boolean
       expect(find.byType(SwitchListTile), findsNothing);
+      // 协议未选 ⇒ 密码可交互（空值 = 不写 version 键 ⇒ 内核默认 Version5，
+      // 置灰规则 disabledWhen={'4','4a'} 只命中 4/4a）
+      expect(tester.widget<TextField>(find.widgetWithText(TextField, '密码')).enabled, isTrue);
+
+      // 选 4 ⇒ 密码置灰（`SocksSettingsActivity.kt:53-55` isVisible 语义；
+      // 内核侧 4/4a 只传 username 给 ClientHandshake4，password 不参与握手）
+      await _pickChoice(tester, label: '协议', option: '4');
+      expect(tester.widget<TextField>(find.widgetWithText(TextField, '密码')).enabled, isFalse);
+      expect(find.widgetWithText(TextField, '密码'), findsOneWidget); // 置灰 ≠ 隐藏（不做动态隐藏）
+      // 用户名不受联动影响（4 也需要 username 做 userid）
+      expect(tester.widget<TextField>(find.widgetWithText(TextField, '用户名')).enabled, isTrue);
+      // 改回 5 ⇒ 恢复可交互
+      await _pickChoice(tester, label: '协议', option: '5');
+      expect(tester.widget<TextField>(find.widgetWithText(TextField, '密码')).enabled, isTrue);
 
       // 必填星标：仅 serverAddress（required:true，其余字段 required 缺省）
       await _fill(tester, '配置名称', '星标检查');
@@ -290,9 +304,37 @@ void main() {
       expect(f.notifications.successes, ['节点已创建']);
       expect(find.text('新建节点'), findsNothing);
     });
+
+    testWidgets('新建保存：协议选 4 ⇒ 密码置灰但值保留照写（NekoBox isVisible 的载荷等价性）', (tester) async {
+      final f = _Fixture();
+      await _pump(tester, open: (context) => showProtocolCreateSheet(groupId: 7, type: 'socks'), fixture: f);
+      await _tapGo(tester);
+
+      await _fill(tester, '配置名称', 'socks节点乙');
+      await _fill(tester, '服务器', 'socks4.example.com');
+      await _fill(tester, '服务器端口', '1080');
+      await _fill(tester, '用户名', 'su4');
+      // 顺序陷阱（同 P1 tuic）：先填密码（此时可交互），再选 4 置灰
+      // —— 置灰后 enterText 打不进去
+      await _fill(tester, '密码', 'sp4');
+      await _pickChoice(tester, label: '协议', option: '4');
+      expect(tester.widget<TextField>(find.widgetWithText(TextField, '密码')).enabled, isFalse);
+      expect(find.text('sp4'), findsOneWidget); // 置灰不清值
+
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
+
+      final payload = jsonDecode(f.notifier.createCalls.single['payload']! as String) as Map<String, dynamic>;
+      expect(payload['version'], '4'); // 原串写（无 writeValues）
+      expect(payload['username'], 'su4');
+      // 关键：置灰 ≠ 不写。NekoBox 隐藏的 Preference 同样保留其值，
+      // `SOCKSFmt.kt:66-75` 也照写 password ⇒ 两边 payload 一致（差异仅在显示）。
+      expect(payload['password'], 'sp4');
+      expect(f.notifications.successes, ['节点已创建']);
+    });
   });
 
-  group('P2 字段级 1:1 · http（_httpSpec:625，含 ECH 两字段）', () {
+  group('P2 字段级 1:1 · http（_httpSpec:656，含 ECH 两字段）', () {
     testWidgets('新建渲染：7 字段 + TLS 组（security 开关 + 7 字段含 ECH）+ 双分节 + 3 开关', (tester) async {
       final f = _Fixture();
       await _pump(tester, open: (context) => showProtocolCreateSheet(groupId: 7, type: 'http'), fixture: f);
@@ -381,7 +423,7 @@ void main() {
     });
   });
 
-  group('P2 字段级 1:1 · shadowtls（_shadowtlsSpec L603-631）', () {
+  group('P2 字段级 1:1 · shadowtls（_shadowtlsSpec:758）', () {
     testWidgets('新建渲染：4 平铺 + version 下拉三档 + TLS 组 5 字段 + 星标仅服务器', (tester) async {
       final f = _Fixture();
       await _pump(tester, open: (context) => showProtocolCreateSheet(groupId: 7, type: 'shadowtls'), fixture: f);
@@ -458,7 +500,7 @@ void main() {
     });
   });
 
-  group('P2 字段级 1:1 · mieru（_mieruSpec L641-655）', () {
+  group('P2 字段级 1:1 · mieru（_mieruSpec:796）', () {
     testWidgets('新建渲染：5 字段 + required 全家 4 项星标 + TCP/UDP 下拉', (tester) async {
       final f = _Fixture();
       await _pump(tester, open: (context) => showProtocolCreateSheet(groupId: 7, type: 'mieru'), fixture: f);
@@ -532,7 +574,7 @@ void main() {
     });
   });
 
-  group('P2 字段级 1:1 · wireguard（_wireguardSpec L674-686）', () {
+  group('P2 字段级 1:1 · wireguard（_wireguardSpec:829）', () {
     testWidgets('新建渲染：8 字段 + required 3 项 + reserved 未设置 + 单分节', (tester) async {
       final f = _Fixture();
       await _pump(tester, open: (context) => showProtocolCreateSheet(groupId: 7, type: 'wireguard'), fixture: f);
@@ -629,7 +671,7 @@ void main() {
     });
   });
 
-  group('P2 字段级 1:1 · naive（_naiveSpec L699-717）', () {
+  group('P2 字段级 1:1 · naive（_naiveSpec:854）', () {
     testWidgets('新建渲染：8 字段 + TLS 组复用 server* 词条 + https/quic 下拉', (tester) async {
       final f = _Fixture();
       await _pump(tester, open: (context) => showProtocolCreateSheet(groupId: 7, type: 'naive'), fixture: f);
@@ -769,6 +811,14 @@ void main() {
 // 与规格矩阵（.workbuddy/spec-protocol-forms-tests.md §2）的 P2 相关差异 —— 全部以代码为准写测试：
 //  1. socks：version 下拉 choices ['4','4a','5'] **无 writeValues** ⇒ JSON 落原串 '5'
 //     （内核 SOCKSOutboundOptions.version 是 string）。矩阵未细写。
+//     密码随协议置灰（缺口 #5 收口）：`disabledBy:'serverProtocol'` +
+//     `disabledWhen:{'4','4a'}` ⇒ 4/4a 时 enabled=false（仍可见、值保留、照写）。
+//     NekoBox 侧是 `SocksSettingsActivity.kt:53-55` 的 `isVisible` 整行**隐藏**，
+//     我方按既定惯例统一置灰；差异仅在显示，payload 等价（`SOCKSFmt.kt:66-75` 也照写）。
+//     内核依据：`sing protocol/socks/client.go:128-135` `case Version4, Version4A:
+//     ClientHandshake4(tcpConn, command, address, c.username)` —— password 不进 4/4a 握手
+//     （惰性字段，故置灰）；空值不写 version 键 ⇒ 内核默认 Version5（`outbound.go:38-48`）
+//     故未选协议时不禁用。
 //  2. http：security 字段 id 与「传输层加密」词条复用 vless/trojan 的 security（:633）；
 //     host/path 死字段未移植（V2RayFmt.kt:628-637 构建期不读）⇒ 表单无、payload 无（固化）；
 //     ECH 两字段（:647-648，缺口已修）与 vless/trojan 同构 —— enableECH boolean→`tls.ech.enabled`、
