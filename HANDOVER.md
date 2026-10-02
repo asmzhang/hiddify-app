@@ -109,7 +109,7 @@
 > 本节只留索引。找回历史提交用 `git log --oneline`，找回被删文档用 `git log --diff-filter=D -- docs/`。
 
 - **环境/修复（换机恢复 09-14）**：`8c931843` Makefile PATH 截断 · `62da695b` doctor Go 版本检查 · `a961021a` 钉死代码生成器版本
-- **规范**：`5bb8e28a` LF 唯一化 · `b3373c53` CI 门禁 · `64ed0e5e` mirror 版 pubspec.lock（**勿回退**）
+- **规范**：`5bb8e28a` LF 唯一化 · `b3373c53` CI 门禁 · `64ed0e5e` mirror 版 pubspec.lock（**勿回退**）· AGP 8.6.0 敏感插件精确钉版（`pubspec.yaml` + `dependency_overrides`，见 §4 大坑 #3）
 - **NekoBox UI 一期**：`117f5397` → `560b65b5`（色板 / 主壳 / 卡片分组 / 设置 / 拖拽排序 / 导航命名）
 - **实体线 + 复刻批次（09-16 → 09-20）**：B1 `d9fc1aa8` 实体层（211 文件）· B2 `69c33934` 协议表单 4→10 · 2.5 `d387adfe` 每规则分应用 · B3 `e5d05926` 节点分享链接 · B4 `1ea4c8d6` 连接测试对话框 · B5 `56b8699b` 清空流量 · `15e27935` Windows 构建通过 · `3c2708e7` Windows 集成冒烟 · B6 `db8ee6f0` trojan+hysteria1 · B7 `39f6075a` 设置页对照审计 · B8 `b86d57f7` 全局 custom_config · B9 `c0cc2171` wireguard endpoint
 - **实体层续**：8.5 `1fc06b58` 节点级自定义配置覆写（drift v8）· `7b10a467` v7→v8 迁移测试 · B10 `b13d7a16` chain 任意节点串联 + `142cfa29` 方向修正 · `98060f8d` raw 通道实机闭环 + createService 假失败
@@ -224,7 +224,10 @@
 
 1. **make 的 sh 里 PATH 被截断**：agent/IDE 注入 `\\?\` 设备路径条目 + Makefile 的 POSIX 前缀（`/usr/bin:/bin:`）→ MSYS 按冒号解析、在盘符冒号处整串切碎 → recipe 里 curl/git 全失踪，但 make 直启的命令正常（极具迷惑性）。已修（Makefile 15-38 行：Windows 格式前缀 + subst 剥离 `\\?\`）。
 2. **Go 版本**：**用 1.27.x**（1.26 编核心 → 运行时 panic，psiphon-tls 布局断言；1.27 已修，2026-09-22 实测）。doctor 会查。CI 依赖解析失败时以 CI 报错为准重锁 lock，不手工猜版本。
-3. **pubspec.lock 与镜像**：`PUB_HOSTED_URL=pub.flutter-io.cn` 与 lock 里 `pub.dev` 来源不匹配 → pub 每次 pub get 重解析（版本在约束内漂移）。已提交镜像版 lock 为基线；pub.dev 机器（CI）自行解析不回写。**不要试图"恢复干净 lock"——那是死循环**。
+3. **pubspec.lock 与镜像 + AGP 8.6.0 硬约束**：本机 `pub.dev` 不可达，走 `PUB_HOSTED_URL=pub.flutter-io.cn`，已提交的**镜像版 lock 是基线**（`64ed0e5e`，**勿回退**）。**不要试图"恢复干净 lock"——那是死循环**：pub.dev 来源的 lock（例如 `main` 的）在本机每次 `pub get` 都会按镜像重解析、在约束内漂版本，自己退化成现状。
+    同一处还压着一条硬约束：`android/` 与上游 `main` 逐字一致 ⇒ AGP 固定 **8.6.0**；镜像解析到的新版插件（`camera-core 1.6.1` / `browser 1.9.0` / `androidx.core 1.17.0`）在各自 AAR 的 `META-INF/.../aar-metadata.properties` 里要求 **AGP ≥ 8.9.1** → `:app:checkReleaseAarMetadata` 报 7 项、安卓构建失败。**根因是依赖漂移，不是 AGP 欠债。**
+    处置 = 7 个 AGP 敏感包精确钉版：4 个直接依赖在 `pubspec.yaml` 去掉 `^`（`shared_preferences 2.5.2` / `mobile_scanner 7.2.0` / `url_launcher 6.3.1` / `dynamic_color 1.7.0`），3 个传递依赖用 `dependency_overrides`（`flutter_plugin_android_lifecycle 2.0.27` / `shared_preferences_android 2.4.8` / `url_launcher_android 6.3.15`）。升 AGP 属于「有一天该做」：会打破 `android/` 逐字一致，且 Gradle wrapper 下载需绕行。
+    仍会被 `pub upgrade` 推动的 4 个包（`googleapis_auth 2.3.4` / `pointer_interceptor 0.10.1+3` / `jni 1.1.0` / `jni_flutter 1.0.4`）已逐个核查**与 AGP 无关**：前两个纯 Dart、无 `android/`；后两个 `android/build.gradle` 新旧逐行只差 Groovy 赋值语法（`group '…'` → `group = '…'`），都无 `dependencies` 块、不引 androidx。⇒ 不需再钉。
 4. **单实例**：旧实例还在跑时启动新构建 → 新进程握手后 exit 0（像闪退）。烟测前先杀干净 Hiddify 进程。
 5. **生成代码不入库**：新机器必须 `dart run build_runner build --delete-conflicting-outputs`（freezed/slang/drift/riverpod 全靠它），否则 analyze 报一堆 undefined。**必须全量跑**：`--build-filter` 会漏掉 slang 真正输出（lib/gen/translations_*.g.dart）。
 6. **git submodule update 不带 `--remote` 会锁死在父仓库记录的 SHA**（游离 HEAD）——本项目约定全层跟 `my` 分支，见 docs/BUILD.md「取源码」节。
