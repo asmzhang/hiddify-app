@@ -6,9 +6,11 @@
 >
 > 状态图例：✅ 已对齐 ｜ 🟡 部分（注明差异）｜ ❌ 缺失 ｜ 🟠 硬充 ｜ ⚪ 非功能面（框架基类）｜ ⛔ 既有约定不移植
 >
-> **另见 `docs/audit/2026-09-15-nekobox-function-matrix.md`** —— 把本文件的每一项重判为
-> 「1:1 完成 / 硬充 / 没有完成 / 完全漏」四类（含 7 条口径纠正：磁贴是硬充而非缺失、
-> 备份 tab 存在但缺分类勾选、6 个"页面"其实是框架基类等）。**要做功能盘点看那份，要查规格看这份。**
+> **功能盘点看 `docs/design/parity-sequence-log.md`**（1:1 序列逐项结果 + 三处定性不移植），
+> **要查规格看这份**。2026-09-15 的四类重判（1:1 完成 / 硬充 / 没有完成 / 完全漏，含 7 条口径
+> 纠正：磁贴是硬充而非缺失、备份 tab 存在但缺分类勾选、6 个"页面"其实是框架基类等）原在
+> `docs/audit/2026-09-15-nekobox-function-matrix.md`，2026-10-03 精简时删除，可用
+> `git log --diff-filter=D -- docs/audit/` 找回。
 >
 > 规格源文件：`res/xml/*.xml`（设置与协议表单）、`res/menu/*.xml`（菜单动作）、
 > `AndroidManifest.xml`（平台组件）、`database/`（实体）、`ui/*.kt`（页面）。
@@ -24,7 +26,7 @@
 | 3 | Route | `nav_route` | ✅ `rule_page.dart`（含 domain/ip/port 细粒度字段） |
 | 4 | Settings | `nav_settings` | ✅ `settings_page.dart`（五类内联） |
 | 5 | Logs | `nav_logcat` | ✅ `logs_page.dart` |
-| 6 | sing-box Dashboard | `nav_traffic` | 🟠 **硬充**：hiddify 自研统计页（3 张卡），NekoBox 是内嵌 yacd 面板（连接列表/按连接操作/建规则/面板 URL）—— 同名不同物，见 `docs/audit/2026-09-15-nekobox-function-matrix.md` §3 |
+| 6 | sing-box Dashboard | `nav_traffic` | 🟠 **硬充**：hiddify 自研统计页（3 张卡），NekoBox 是内嵌 yacd 面板（连接列表/按连接操作/建规则/面板 URL）—— 同名不同物，见 `docs/design/parity-sequence-log.md`（⑥ 仪表板定性）|
 | 7 | Tools | `nav_tools` | ✅ `tools_page.dart` |
 | 8 | Ads | `nav_tuiguang` | ⛔ 推广位，不移植 |
 | 9 | Document | `nav_faq` | ⛔ 文档页，不移植 |
@@ -230,7 +232,7 @@
 > **依赖已就绪**（2026-09-15）：节点实体表（含凭据 payload）、组装成 `<id>.entities.json`、
 > 列表以实体为准、删除+撤销 —— 全部已实施并**真机自测通过**。所以"表单改完写回实体 →
 > 重组装 → 重载内核"这条链路**不需要再新建任何东西**，只差表单本身。
-> 分批见 `nekobox-priority.md` 批次 1（4 个主力协议，**已完成**）/ 批次 2（其余 8 个 + 自定义配置）。
+> 分批执行顺序原在 `docs/design/nekobox-priority.md`（2026-10-03 精简删除，`git log --diff-filter=D -- docs/design/` 可找回）；批次 1–14 的落地结果见 `docs/design/parity-sequence-log.md`。
 
 **已实施的 4 份**（规格驱动的可执行版本 = `lib/features/proxy/data/protocol_form.dart`；
 字段 → sing-box JSON 的映射在文件内逐条注明，判据是 `fmt/*/*Fmt.kt` 的
@@ -245,7 +247,7 @@
 
 **跨全部协议的未纳入项**：
 - **改名**（`name_preferences.xml`）：`tag` 是节点身份（内核配置 / 选中偏好 / 删除基线三处都用它）
-  ⇒ 要跨三处迁移，与"手动新建节点"是同一套机制，应一起做（见 `nekobox-priority.md` §8.3）。
+  ⇒ 要跨三处迁移，与"手动新建节点"是同一套机制，应一起做。
 - **网络可见性**：本批只做"编辑已有节点"，不做"新建"（新建要各协议的 `tls.enabled` 等**种子键**，
   因为现在这些键是靠"原样保留"活下来的）。
 
@@ -303,7 +305,7 @@
 | NekoBox 实体/表 | 作用 | hiddify 现状 |
 |---|---|---|
 | `ProxyEntity` + `ProxyEntity.groupId` | 节点（含全部凭据） | ✅ `ProxyEntities`（drift v7；`payload` 存完整出站 JSON 含凭据，真机已落库 84 行） |
-| `ProxyGroup` | 分组（type/ungrouped/isSelector/order/userOrder） | ✅ `ProxyGroups`（drift v7；另含 front/landing 两列）。**但"手动建组"未做** —— 当前组只由订阅派生，见 `nekobox-priority.md` 批次 3 |
+| `ProxyGroup` | 分组（type/ungrouped/isSelector/order/userOrder） | ✅ `ProxyGroups`（drift v7；另含 front/landing 两列）。**但"手动建组"未做** —— 当前组只由订阅派生 |
 | `RuleEntity` | 路由规则 | ✅ hiddify 自己的规则模型 |
 | `SubscriptionBean` | 订阅元数据 | ✅ `ProfileEntries` |
 | `DataStore`（PublicDatabase） | 全局偏好 | ✅ shared_preferences |
@@ -899,7 +901,7 @@ selector 成员 = `[自动选择] + 36 个节点` ⇒ 实体 36 个。
 
 ### 8.6.16 批次 1 第一刀：4 份协议表单 + 节点行 ✎（已实施 + 已自测）
 
-**做了什么**（详见 `nekobox-priority.md` §2 批次 1、字段映射见本文件 §5）：
+**做了什么**（字段映射见本文件 §5）：
 1. `lib/features/proxy/data/protocol_form.dart`（纯 Dart）—— 4 份规格 + 双向变换
    （`readProtocolFormValues` / `applyProtocolForm`），**未知键一律原样保留**；
    NekoBox 的两条语义照抄：空值删键（`blankAsNull()`）、布尔 false 不写键。
@@ -959,7 +961,7 @@ NekoBox 的构建函数有**三段"整体消失"**的语义 —— `transport` �
 
 **完成度（2026-09-15）**：实体层（节点实体 + 订阅分组 + 导入管线 + 回填 + 组装 + 列表 + 删除）
 **已完工并真机自测通过** ⇒ §5 的 **150 个协议字段表单**现在可以直接做（不再被模型层卡住）；
-剩下的三块（手动分组 / 路由编辑 / Assets）见 `nekobox-priority.md` 批次 3–4。
+剩下的三块（手动分组 / 路由编辑 / Assets）尚未做。
 
 ---
 
@@ -972,7 +974,7 @@ NekoBox 的构建函数有**三段"整体消失"**的语义 —— `transport` �
 
 ## 10. 使用方式
 
-1. 动手前先看 **`docs/design/nekobox-priority.md`**（执行顺序表：大功能批次 1–5 → 小功能批次 6），
+1. 动手前先看 **`docs/design/parity-sequence-log.md`**（1:1 序列与批次落地结果），
    本文件只提供"规格与现状"，不提供顺序
 2. 每条实现完，把状态改为 ✅ 并在本文件记录实现位置（commit 号）
 3. 涉及 UI 的，规格以 NekoBox 的 layout/menu/xml 文件为准（不自行发明）

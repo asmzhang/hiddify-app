@@ -1,6 +1,7 @@
 # 代理/分组模型的根源性修复（设计）
 
-> 2026-09-15。配套审计：`docs/audit/2026-09-15-logic-layer-audit.md`（问题定位）、`docs/design/core-architecture-comparison.md`（与 NekoBox 的底层差异）。
+> 2026-09-15。配套：`docs/design/core-architecture-comparison.md`（与 NekoBox 的底层差异）。
+> 原配套审计 `docs/audit/2026-09-15-logic-layer-audit.md`（问题定位，2026-10-03 精简删除，`git log --diff-filter=D -- docs/audit/` 可找回）。
 > 本文只讲**怎么改才叫根源修复**，以及分阶段与验收。
 
 ---

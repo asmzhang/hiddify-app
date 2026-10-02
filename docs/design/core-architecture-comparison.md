@@ -115,7 +115,7 @@ Room DB（proxy_groups / ProxyEntity.groupId / RuleEntity / SubscriptionBean）
 ## 6. 对项目的实际启示
 
 1. **不要按 NekoBox 的模型去补 UI。** 它的"功能自然"来自 DB 是准绳、凭据在应用手里；照搬 UI 只会得到同一套别扭。
-2. **hiddify 侧的 UI 数据源应统一到内核 gRPC**（`outboundsInfo` 已提供全部组 + 全部成员 + 实时数据，见 `2026-09-15-logic-layer-audit.md`），而不是"解析配置 JSON"重建。
+2. **hiddify 侧的 UI 数据源应统一到内核 gRPC**（`outboundsInfo` 已提供全部组 + 全部成员 + 实时数据，详见 `docs/design/proxy-model-root-fix.md`），而不是"解析配置 JSON"重建。
 3. **NekoBox 值得抄的是交互与视觉**（抽屉三组、Tab 隐藏规则、点节点热切换、排序随分组），这些与数据模型无关；**不该抄的是它的数据模型**（分组实体、手动节点）——那要先改 hiddify 的模型层。
 4. 真正要把"节点可编辑 / 手动分组"做出来，等于把 hiddify 的数据模型往 NekoBox 的方向搬（DB 变成配置的真源）——**这是一个立项级的决定，不属于 UI 复刻**。
 
@@ -155,7 +155,7 @@ NekoBox 的 14 份表单：anytls 10 / hysteria 16 / mieru 7 / naive 12 / shadow
 ### 7.3 差距的性质
 
 - NekoBox 强的那一栏，**全部落在同一个前提上**：应用侧持有完整实体并能自己组装配置。这不是"功能实现得更努力"，而是**架构把它托起来了**。
-- hiddify 弱的那一栏（协议表单、手动节点、分组管理），**内核其实不缺能力**：`Parse` 回的配置文本里就有完整凭据，`Start` 的 `enable_raw_config` 也允许应用提供配置（见 `2026-09-15-logic-layer-audit.md` §7）。缺的是"应用侧实体化 + 接管组装"这一层。
+- hiddify 弱的那一栏（协议表单、手动节点、分组管理），**内核其实不缺能力**：`Parse` 回的配置文本里就有完整凭据，`Start` 的 `enable_raw_config` 也允许应用提供配置（见 `docs/design/proxy-model-root-fix.md`）。缺的是"应用侧实体化 + 接管组装"这一层。
 - hiddify 强的那一栏（跨平台、TLS 调优、增强出站、订阅体验）**NekoBox 短期不可能追**——它只有 Android，也没有那套内核扩展。
 
 **所以"要不要更像 NekoBox"这个问题的实质是**：你愿不愿意为了那一栏功能，把 hiddify 的应用层改造成 NekoBox 的架构（DB 为真源 + 自建配置组装）。愿意 → 第 3 档；只想要够用的代理客户端 → hiddify 现有的功能面并不缺，缺的只是"暴露层"（比如协议字段只能用 JSON 编辑器改）。
