@@ -573,14 +573,8 @@
           "bypassLanInCore": "تجاوز الشبكة المحلية في النواة"
         },
         "predefinedRules": {
-          "title": "القواعد المحددة مسبقًا",
           "ads": {
-            "name": "حظر الإعلانات",
-            "description": ""
-          },
-          "bypassLan": {
-            "name": "تجاوز الشبكة المحلية",
-            "description": ""
+            "name": "حظر الإعلانات"
           }
         }
       },

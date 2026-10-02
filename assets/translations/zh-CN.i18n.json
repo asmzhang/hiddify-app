@@ -597,14 +597,20 @@
           }
         },
         "predefinedRules": {
-          "title": "预设规则",
-          "ads": {
-            "name": "拦截广告",
-            "description": ""
+          "blockQuic": {
+            "name": "屏蔽 QUIC"
           },
-          "bypassLan": {
-            "name": "绕过局域网",
-            "description": ""
+          "ads": {
+            "name": "屏蔽广告"
+          },
+          "playStore": {
+            "name": "${country} Play 商店规则"
+          },
+          "domain": {
+            "name": "${country} 域名规则"
+          },
+          "ip": {
+            "name": "${country} IP 规则"
           }
         }
       },

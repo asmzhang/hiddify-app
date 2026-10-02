@@ -567,14 +567,8 @@
           "bypassLanInCore": "Contornar LAN no núcleo"
         },
         "predefinedRules": {
-          "title": "Regras predefinidas",
           "ads": {
-            "name": "Bloquear anúncios",
-            "description": ""
-          },
-          "bypassLan": {
-            "name": "Ignorar LAN",
-            "description": ""
+            "name": "Bloquear anúncios"
           }
         }
       },

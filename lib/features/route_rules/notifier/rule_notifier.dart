@@ -87,7 +87,12 @@ class RuleNotifier extends _$RuleNotifier {
   Rule build(int? listOrder) {
     if (listOrder == null) {
       final t = ref.read(translationsProvider).requireValue;
-      return Rule(name: t.pages.settings.routing.routeRule.rule.title, outbound: Outbound.direct, network: Network.all);
+      return Rule(
+        name: t.pages.settings.routing.routeRule.rule.title,
+        outbound: Outbound.direct,
+        network: Network.all,
+        enabled: true,
+      );
     } else {
       isEditMode = true;
       return ref.read(rulesNotifierProvider).where((rule) => rule.listOrder == listOrder).first;

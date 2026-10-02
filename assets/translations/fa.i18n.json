@@ -567,14 +567,8 @@
           "bypassLanInCore": "دور زدن LAN در هسته"
         },
         "predefinedRules": {
-          "title": "قوانین پیش‌فرض",
           "ads": {
-            "name": "مسدودسازی تبلیغات",
-            "description": ""
-          },
-          "bypassLan": {
-            "name": "دور زدن LAN",
-            "description": ""
+            "name": "مسدودسازی تبلیغات"
           }
         }
       },

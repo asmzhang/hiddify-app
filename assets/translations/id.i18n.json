@@ -567,14 +567,8 @@
           "bypassLanInCore": "Lewati LAN di inti"
         },
         "predefinedRules": {
-          "title": "Aturan yang telah ditentukan",
           "ads": {
-            "name": "Blokir iklan",
-            "description": ""
-          },
-          "bypassLan": {
-            "name": "Lewati LAN",
-            "description": ""
+            "name": "Blokir iklan"
           }
         }
       },

@@ -32,10 +32,21 @@ class RulesNotifier extends _$RulesNotifier with AppLogger {
   Future<void> addRule(Rule rule) async {
     final current = state;
     assert(rule.hasName() && rule.hasOutbound());
-    rule
-      ..listOrder = current.length
-      ..enabled = true;
+    rule.listOrder = current.length;
     state = [...current, rule];
+    await _updateFile();
+  }
+
+  /// Seeds [presets] the first time the routing page is opened on a fresh
+  /// installation, mirroring NekoBox's `ProfileManager.getRules()`.
+  ///
+  /// The existence of the rules file stands in for NekoBox's
+  /// `DataStore.rulesFirstCreate` flag: the file is written (even when empty)
+  /// after every mutation, so a user who deletes every rule never gets the
+  /// presets back, while a reset — which deletes the file — does.
+  Future<void> ensureSeeded(List<Rule> presets) async {
+    if (state.isNotEmpty || file.existsSync()) return;
+    state = _updateListOrder(presets);
     await _updateFile();
   }
 
@@ -189,8 +200,8 @@ class RulesNotifier extends _$RulesNotifier with AppLogger {
   Future<void> resetRules() async {
     if (await file.exists()) {
       await file.delete(recursive: true);
-      state = <Rule>[];
     }
+    state = <Rule>[];
   }
 
   Future<void> _updateFile() async {

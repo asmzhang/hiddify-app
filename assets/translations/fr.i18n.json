@@ -567,14 +567,8 @@
           "bypassLanInCore": "Contourner le LAN dans le cœur"
         },
         "predefinedRules": {
-          "title": "Règles prédéfinies",
           "ads": {
-            "name": "Bloquer les publicités",
-            "description": ""
-          },
-          "bypassLan": {
-            "name": "Contourner le LAN",
-            "description": ""
+            "name": "Bloquer les publicités"
           }
         }
       },

@@ -594,14 +594,20 @@
           }
         },
         "predefinedRules": {
-          "title": "預設規則",
-          "ads": {
-            "name": "攔截廣告",
-            "description": ""
+          "blockQuic": {
+            "name": "封鎖 QUIC"
           },
-          "bypassLan": {
-            "name": "繞過區域網路",
-            "description": ""
+          "ads": {
+            "name": "封鎖廣告"
+          },
+          "playStore": {
+            "name": "${country} Google Play商店規則"
+          },
+          "domain": {
+            "name": "${country} 網域規則"
+          },
+          "ip": {
+            "name": "${country} IP 規則"
           }
         }
       },

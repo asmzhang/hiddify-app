@@ -571,14 +571,8 @@
           "bypassLanInCore": "Обход LAN в ядре"
         },
         "predefinedRules": {
-          "title": "Предопределенные правила",
           "ads": {
-            "name": "Блокировать рекламу",
-            "description": ""
-          },
-          "bypassLan": {
-            "name": "Обход LAN",
-            "description": ""
+            "name": "Блокировать рекламу"
           }
         }
       },

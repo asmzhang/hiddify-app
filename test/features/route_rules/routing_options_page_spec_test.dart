@@ -8,8 +8,10 @@
 // - _ExpandableFab：mini 项标签常驻树内仅 Opacity 隐藏 → 展开判定用 hitTestable，
 //   收起判定用 Opacity 值（见 ④ 的疑似产品 bug 记录）；
 // - GeneralOptions：SizeTransition 折叠后子树仍在树内（find 仍命中）→ 可见性断言用 hitTestable。
-// 刻意不测：onReorder 手势、_ExpandableFab 动画曲线、predefined modal 内部、
-// deep link 链路（rule_page_test 已覆盖 JSON 往返）、剪贴板/FilePicker 真实 IO。
+// 刻意不测：onReorder 手势、_ExpandableFab 动画曲线、deep link 链路（rule_page_test 已覆盖
+// JSON 往返）、剪贴板/FilePicker 真实 IO。
+// fork A（m08253「全nekobox」）后不再有「预设规则」弹窗/入口：预置规则由进入本页时自动种下
+// （NekoBox RouteFragment.kt:131-144 RuleAdapter.reload()）。自动种子的行为在 ⑨ 用例覆盖。
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -29,7 +31,7 @@ import 'test_helpers.dart';
 /// InMemoryRulesNotifier 未覆写 updateEnabled/reorder（真实实现会碰 `late File file`
 /// → LateInitializationError）。本测试需要 updateEnabled，补内存版并记账。
 class _FullMemoryRulesNotifier extends InMemoryRulesNotifier {
-  _FullMemoryRulesNotifier(super.initialRules);
+  _FullMemoryRulesNotifier(super.initialRules, {super.rulesFileExists});
 
   final List<(bool, int)> enabledLog = [];
 
@@ -46,11 +48,14 @@ class _FullMemoryRulesNotifier extends InMemoryRulesNotifier {
 /// ConfigOptions（region/balancerStrategy/resolveDestination/ipv6Mode/directDnsAddress）
 /// 与 Preferences.showRouteGeneralOptions 全是 PreferencesNotifier.create → mock prefs 覆盖。
 /// [prefs] 默认显式给 show-route-general-options=true，保证 GeneralOptions 展开为确定性状态。
+/// [rulesFileExists] 默认 true = 已有历史存储 ⇒ 进入页面不自动种预置规则（既有用例都靠这个
+/// 保持空态/自备规则）；要测自动种子传 false，并用 [seedLog] 记账。
 Future<ProviderContainer> _pump(
   WidgetTester tester, {
   List<Rule> rules = const [],
   Map<String, Object> prefs = const {'show-route-general-options': true},
   bool withRootNavKey = false,
+  bool rulesFileExists = true,
 }) async {
   SharedPreferences.setMockInitialValues(prefs);
   final sp = await SharedPreferences.getInstance();
@@ -59,7 +64,7 @@ Future<ProviderContainer> _pump(
     overrides: [
       translationsProvider.overrideWith((ref) => Future.value(t)),
       sharedPreferencesProvider.overrideWith((ref) => Future.value(sp)),
-      rulesNotifierProvider.overrideWith(() => _FullMemoryRulesNotifier([...rules])),
+      rulesNotifierProvider.overrideWith(() => _FullMemoryRulesNotifier([...rules], rulesFileExists: rulesFileExists)),
     ],
   );
   addTearDown(container.dispose);
@@ -142,7 +147,8 @@ void main() {
       await _pump(tester);
 
       final labelCreate = find.text('创建新规则');
-      final labelPredefined = find.text('预设规则');
+      // fork A 后 _ExpandableFab 只剩「创建新规则」一项（预设规则入口已随弹窗一并删除）。
+      expect(find.text('预设规则'), findsNothing, reason: 'fork A：预设规则入口已删');
       // mini 项标签常驻树内，收起态 Opacity(0)。
       expect(labelCreate, findsOneWidget);
       expect(_labelOpacity(tester, labelCreate), 0.0);
@@ -150,14 +156,11 @@ void main() {
       await tester.tap(find.byType(FloatingActionButton));
       await tester.pumpAndSettle();
       expect(_labelOpacity(tester, labelCreate), 1.0);
-      expect(_labelOpacity(tester, labelPredefined), 1.0);
       expect(labelCreate.hitTestable(), findsOneWidget, reason: '展开后标签可命中');
-      expect(labelPredefined.hitTestable(), findsOneWidget, reason: '展开后标签可命中');
 
       await tester.tap(find.byType(FloatingActionButton));
       await tester.pumpAndSettle();
       expect(_labelOpacity(tester, labelCreate), 0.0, reason: '收起后视觉隐藏');
-      expect(_labelOpacity(tester, labelPredefined), 0.0);
       // 疑似产品 bug（记录不修）：_ExpandableFab mini 项无 IgnorePointer，收起后
       // Opacity(0) 标签仍可命中点击 —— 真机上收起后在 mini 项区域误触会直接导航。
       // NekoBox 原版为 ItemTouchHelper+FloatingActionButton 菜单，无此形态。
@@ -309,6 +312,83 @@ void main() {
 
       expect(find.byType(RulePage), findsOneWidget, reason: 'goNamed(rule, orderId=0) → RulePage 编辑模式');
       expect(find.byType(RuleTile), findsNothing, reason: '已离开列表页');
+    });
+
+    testWidgets('⑨a首次进入自动种预置规则（新装：无历史存储）→ 非中国地区 9 条，全部默认关', (tester) async {
+      // 放大视口让 9 张卡都 build 出来。
+      tester.view.physicalSize = const Size(1080, 3600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final container = await _pump(tester, rulesFileExists: false);
+
+      // 触发者是 build 里的 post-frame 回调（对齐 NekoBox RouteFragment.kt:131-144
+      // RuleAdapter.reload()），无弹窗、无用户操作。
+      final notifier = container.read(rulesNotifierProvider.notifier) as _FullMemoryRulesNotifier;
+      expect(notifier.seedLog, hasLength(1), reason: '进入页面即调用一次 ensureSeeded');
+      expect(notifier.seedLog.single, isNotNull, reason: '无历史存储 ⇒ 真种下，而非跳过');
+
+      final seeded = container.read(rulesNotifierProvider);
+      expect(seeded, hasLength(9), reason: 'Region.other ⇒ cn + ir + ru 三组；cn 多一条 Play 商店');
+      expect(find.byType(RuleTile), findsNWidgets(9));
+      expect(find.text('屏蔽 QUIC'), findsOneWidget, reason: 'RouteFragment 列表首行');
+      expect(find.text('屏蔽广告'), findsOneWidget);
+      expect(find.text('中国 Play 商店规则'), findsOneWidget, reason: '仅 cn 有 Play 商店规则');
+      expect(find.text('Iran Play 商店规则'), findsNothing);
+      expect(find.text('Russia IP 规则'), findsOneWidget);
+      // 预置规则与用户新建的规则不同：落库即关闭（RouteSettingsActivity.kt:97-99 只管新建）。
+      expect(
+        tester.widgetList<Switch>(find.descendant(of: find.byType(RuleTile), matching: find.byType(Switch))).every((s) => s.value == false),
+        isTrue,
+        reason: '全部默认关 —— 与真机 nb_16_route.png 一致',
+      );
+      for (var i = 0; i < seeded.length; i++) {
+        expect(seeded[i].listOrder, i, reason: 'listOrder 按 NekoBox createRule 的 nextOrder 递增');
+      }
+    });
+
+    testWidgets('⑨b地区=中国 → 只种 5 条（无 Iran/Russia 两组）', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final container = await _pump(tester, prefs: const {'show-route-general-options': true, 'region': 'cn'}, rulesFileExists: false);
+
+      final seeded = container.read(rulesNotifierProvider);
+      expect(seeded, hasLength(5), reason: 'Region.cn ⇒ 仅 cn 一组');
+      expect(find.text('中国 域名规则'), findsOneWidget);
+      expect(find.text('中国 IP 规则'), findsOneWidget);
+      expect(find.text('Iran 域名规则'), findsNothing);
+    });
+
+    testWidgets('⑨c已有历史存储 → 不覆盖用户数据（ensureSeeded 提前返回）', (tester) async {
+      final container = await _pump(tester, rules: [makeRule(listOrder: 0, name: '规则甲')]);
+
+      final notifier = container.read(rulesNotifierProvider.notifier) as _FullMemoryRulesNotifier;
+      expect(notifier.seedLog, [null], reason: '调用过但被守卫拦下（非「没调用」）');
+      expect(container.read(rulesNotifierProvider).map((r) => r.name), ['规则甲'], reason: '用户数据原样保留');
+    });
+
+    testWidgets('⑨d重置 → 清空后立刻重种（对齐 RouteFragment.kt:113-115 reset + reload）', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final container = await _pump(tester, rules: [makeRule(listOrder: 0, name: '规则甲')]);
+      final notifier = container.read(rulesNotifierProvider.notifier) as _FullMemoryRulesNotifier;
+      expect(container.read(rulesNotifierProvider), hasLength(1));
+
+      await tester.tap(find.byType(PopupMenuButton<dynamic>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('重置规则'));
+      await tester.pumpAndSettle();
+
+      // 重置删掉存储 → 紧接着 reload 重新种下预置规则（不是留空列表）。
+      expect(notifier.seedLog, hasLength(2), reason: '进页面一次 + 重置后一次');
+      final afterReset = container.read(rulesNotifierProvider);
+      expect(afterReset, hasLength(9), reason: '重置后回到预置 9 条');
+      expect(afterReset.any((r) => r.name == '规则甲'), isFalse, reason: '用户规则已被重置清掉');
+      expect(find.byType(RuleTile), findsNWidgets(9));
     });
   });
 }

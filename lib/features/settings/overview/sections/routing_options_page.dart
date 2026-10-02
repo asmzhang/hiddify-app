@@ -10,8 +10,8 @@ import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/features/per_app_proxy/model/per_app_proxy_mode.dart';
 import 'package:hiddify/features/per_app_proxy/overview/per_app_proxy_notifier.dart';
+import 'package:hiddify/features/route_rules/data/predefined_rules.dart';
 import 'package:hiddify/features/route_rules/notifier/rules_notifier.dart';
-import 'package:hiddify/features/route_rules/overview/predefined_rules_modal.dart';
 import 'package:hiddify/features/route_rules/widget/rule_tile.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/features/settings/widget/preference_tile.dart';
@@ -47,6 +47,13 @@ class RoutingOptionsPage extends HookConsumerWidget {
       return null;
     }, [showGeneralOptions]);
 
+    // NekoBox 首次进入路由页时由 RuleAdapter 自动种下预置规则（RouteFragment.kt:131-144），
+    // 没有弹窗、也没有「是否要预置」的询问 —— 这里对齐。
+    Future<void> seedPresets() async {
+      final notifier = ref.read(rulesNotifierProvider.notifier);
+      await notifier.ensureSeeded(buildNekoBoxPresetRules(t, ref.read(ConfigOptions.region)));
+    }
+
     final menuItems = <PopupMenuEntry>[
       PopupMenuItem(
         onTap: ref.read(rulesNotifierProvider.notifier).importRulesFromClipboard,
@@ -67,13 +74,19 @@ class RoutingOptionsPage extends HookConsumerWidget {
       ),
       const PopupMenuDivider(),
       PopupMenuItem(
-        onTap: ref.read(rulesNotifierProvider.notifier).resetRules,
+        // NekoBox RouteFragment.kt:113-115：先清库，再立刻重新种一遍预置规则。
+        onTap: () async {
+          await ref.read(rulesNotifierProvider.notifier).resetRules();
+          await seedPresets();
+        },
         child: Text(t.pages.settings.routing.routeRule.options.reset),
       ),
     ];
 
     useMemoized(() {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!context.mounted) return;
+        await seedPresets();
         if (routeRule != null && context.mounted) {
           await ref.read(rulesNotifierProvider.notifier).importRulesFromDeepLink(routeRule!);
         }
@@ -131,11 +144,6 @@ class RoutingOptionsPage extends HookConsumerWidget {
                       icon: Icons.rule_rounded,
                       label: t.pages.settings.routing.routeRule.create,
                       onTap: () => context.goNamed('rule', pathParameters: {'orderId': 'new'}),
-                    ),
-                    _FabMenuItem(
-                      icon: Icons.view_list_rounded,
-                      label: t.pages.settings.routing.predefinedRules.title,
-                      onTap: showPredefinedRulesSheet,
                     ),
                   ],
                 ),

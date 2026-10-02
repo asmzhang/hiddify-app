@@ -567,14 +567,8 @@
           "bypassLanInCore": "Omitir LAN en el núcleo"
         },
         "predefinedRules": {
-          "title": "Reglas predefinidas",
           "ads": {
-            "name": "Bloquear anuncios",
-            "description": ""
-          },
-          "bypassLan": {
-            "name": "Omitir LAN",
-            "description": ""
+            "name": "Bloquear anuncios"
           }
         }
       },

@@ -597,14 +597,20 @@
           }
         },
         "predefinedRules": {
-          "title": "Predefined rules",
-          "ads": {
-            "name": "Block ads",
-            "description": ""
+          "blockQuic": {
+            "name": "Block QUIC"
           },
-          "bypassLan": {
-            "name": "Bypass LAN",
-            "description": ""
+          "ads": {
+            "name": "Block ADs"
+          },
+          "playStore": {
+            "name": "Play store rule for ${country}"
+          },
+          "domain": {
+            "name": "Domain rule for ${country}"
+          },
+          "ip": {
+            "name": "IP rule for ${country}"
           }
         }
       },

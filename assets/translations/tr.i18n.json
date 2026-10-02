@@ -567,14 +567,8 @@
           "bypassLanInCore": "Çekirdekte LAN'ı atla"
         },
         "predefinedRules": {
-          "title": "Önceden tanımlanmış kurallar",
           "ads": {
-            "name": "Reklamları engelle",
-            "description": ""
-          },
-          "bypassLan": {
-            "name": "LAN'ı atla",
-            "description": ""
+            "name": "Reklamları engelle"
           }
         }
       },
