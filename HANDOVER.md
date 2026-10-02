@@ -26,7 +26,7 @@
 
 ## 0. 一句话现状
 
-**工程完整可构建可测（Windows debug 版），NekoBox 复刻的可做项已全部落地（批次 1-14 + 审计 B/C/D + Go 1.27 升级）；主仓库与 core 子模块均全量推送**（截至 `1a750b50`（本地已提交，远端推至 `ba21921d`，`4c0c1da0` 起因代理中断待推）：⑤协议表单字段级 P0 = `ba21921d`、P1 = `4c0c1da0`、P2 = `1a750b50`；①手动新建节点链 L1 测试收口 = `9231100c`/`429bf873`；⑧9 语言翻译补全 = `17f32a0b`；⑥日志页 = `006b50b3`；④设置页 = `e0339608`），core 远端 my = `1075e82`。注：2026-09-30 洗订阅 token 历史（git filter-repo 重写全史）后 force push 重锚，全仓库旧 SHA 引用已按 commit-map 批量更新）；
+**工程完整可构建可测（Windows debug 版），NekoBox 复刻的可做项已全部落地（批次 1-14 + 审计 B/C/D + Go 1.27 升级）；主仓库与 core 子模块均全量推送**（截至 `1a750b50`（本地已提交，远端推至 `ba21921d`，`4c0c1da0` 起因代理中断待推）：⑤协议表单字段级 P0 = `ba21921d`、P1 = `4c0c1da0`、P2 = `1a750b50`；①手动新建节点链 L1 测试收口 = `9231100c`/`429bf873`；⑨小屏形态（协议/chain/config 弹层+主壳抽屉，360/320dp）= `4f77caee`（本地未推）；⑧9 语言翻译补全 = `17f32a0b`；⑥日志页 = `006b50b3`；④设置页 = `e0339608`），core 远端 my = `1075e82`。注：2026-09-30 洗订阅 token 历史（git filter-repo 重写全史）后 force push 重锚，全仓库旧 SHA 引用已按 commit-map 批量更新）；
 2026-09-22 起 UI 复刻进入**「1:1 逐功能对比」新阶段（用户定案，见 §3.0#11）：功能①节点页 ⋮ 菜单已完成（`82a39b20`）——8 项权威顺序 + radio 排序子菜单 + 文案对齐 + 删「路由」项，L1 结构测试 5 用例 + 全量 111/111 绿；
 **翻译策略定案（§3.0#12）：测试与验收一律以 zh-CN 为基准，en 仅作 slang base_locale 保键同步，其余 8 语言键已脱节（runtime 回退 en 不炸），翻译批次放最后。**
 剩：8 语言翻译批次、~~日志页第二层（watchLogs gRPC 流建立）~~ **已完成（2026-09-30，`05c4e7a4`，见 §2）**、~~集成测试 smoke 重跑~~（已完成，见 §7）、wireguard 真实握手（用户定案暂缓，无凭据）、上游 PR（前置=洗 token 历史，已完成）、后续功能②③…。
@@ -276,7 +276,7 @@ flutter build windows --release
 - **CI 全绿未背书**：审计 B 的 sha256-OK 校验路径、flutter-version-file、core-libs 缓存都只在本地静态验证过（pyyaml 解析/失败路径实证），**push 后首次 CI 才是最终背书**。
 - **Android/iOS/Linux/macOS 构建链**：新机器全未实测（流程在 BUILD.md/CI 里）。批次 9-14 的新 UI（表单/chain/config）从未在真机/安卓上跑过。
 - **wireguard 真实握手**：结构验证通关（假凭据真启动），但真隧道未通过——需真实凭据（private_key/peer pubkey/endpoint/local address CIDR）或本地起 wg server 端点。**用户定案暂缓（2026-09-30：当前无 wg 节点，等有凭据再做）**。
-- **小屏（<600dp）形态**：**部分已补**（2026-09-22）。路由规则页现带小屏回归测试（`rule_page_test.dart` 的「小屏手机形态」组：360×640dp + 320×568dp，溢出会以 FlutterError 让用例失败），并借此抓出并修掉两个**真实溢出 bug**——`SettingDivider` 的本地化长标题行（360dp 溢 25px / 320dp 溢 65px）、`SettingGenericList` 的平台警告行（`Flexible` 缺失：360dp 溢 75px / 320dp 溢 115px，安卓正是走这条路）。**仍未见小屏**：协议表单 / chain 设置弹窗 / config 弹窗 / 主壳 NavigationDrawer。
+- **小屏（<600dp）形态**：**部分已补**（2026-09-22）。路由规则页现带小屏回归测试（`rule_page_test.dart` 的「小屏手机形态」组：360×640dp + 320×568dp，溢出会以 FlutterError 让用例失败），并借此抓出并修掉两个**真实溢出 bug**——`SettingDivider` 的本地化长标题行（360dp 溢 25px / 320dp 溢 65px）、`SettingGenericList` 的平台警告行（`Flexible` 缺失：360dp 溢 75px / 320dp 溢 115px，安卓正是走这条路）。**仍未见小屏**：~~协议表单 / chain 设置弹窗 / config 弹窗 / 主壳 NavigationDrawer~~ **已补齐（2026-09-30，`4f77caee`）**：`test/features/proxy/small_screen_sheets_spec_test.dart`（7 用例：协议新建 vless/shadowsocks 360/320dp——**ListView 懒构建，屏外分节 find 落空，滚动可达断言**；chain/config 新建+编辑；弹窗 build 挂 drift useFuture ⇒ 有界泵）+ `test/app/shell/drawer_small_screen_spec_test.dart`（3 用例：真 MyAdaptiveLayout mobile 断点 8 可见+1 隐藏分支壳——**分支表必须 = navMetas 全序，少搭隐藏分支 subscriptions 会令 goBranch 错位**，汉堡键开抽屉+goBranch 导航+320dp 开合）。全量 +273 绿。
 
 **推断性结论（本文与记忆里的因果解释，采信前建议复现）**：
 - 复刻口径百分比（≈99%）是盘点印象，非逐项 diff 结论。
