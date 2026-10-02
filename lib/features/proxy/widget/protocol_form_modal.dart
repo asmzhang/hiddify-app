@@ -323,6 +323,9 @@ class ProtocolFormModal extends HookConsumerWidget {
                         onChanged: (value) => values.value = {...values.value, field.id: value},
                         // 被容器规则"摘掉"的字段（如传输方式选了 tcp 时的 host/path）没有意义，
                         // 置灰但仍然可编辑 —— 与 NekoBox 一样不做动态隐藏（它的 Preference 也是静态的）。
+                        // disabledBy 联动（tuic：勾「禁用 SNI」⇒ SNI 输入框置灰）照
+                        // NekoBox `TuicSettingsActivity.kt:55-61` 的 isEnabled 语义。
+                        enabled: field.disabledBy == null || values.value[field.disabledBy!] != 'true',
                       ),
                   ],
                 ],
@@ -364,6 +367,7 @@ class _FieldRow extends StatelessWidget {
     required this.label,
     required this.notSetLabel,
     required this.onChanged,
+    this.enabled = true,
   });
 
   final ProtocolField field;
@@ -372,6 +376,9 @@ class _FieldRow extends StatelessWidget {
   final String label;
   final String notSetLabel;
   final ValueChanged<String> onChanged;
+
+  /// false ⇒ 输入框/开关置灰不可交互（NekoBox `Preference.isEnabled = false`）。
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -385,13 +392,14 @@ class _FieldRow extends StatelessWidget {
           title: Text(label, style: theme.textTheme.bodyMedium),
           value: value == 'true',
           // 关 = 清空（NekoBox：`if (bean.allowInsecure) insecure = true`，false 不写键）
-          onChanged: (v) => onChanged(v ? 'true' : 'false'),
+          onChanged: enabled ? (v) => onChanged(v ? 'true' : 'false') : null,
         );
 
       case ProtocolFieldKind.choice:
         return ListTile(
           dense: true,
           contentPadding: EdgeInsets.zero,
+          enabled: enabled,
           title: Text(label, style: theme.textTheme.bodyMedium),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
@@ -403,16 +411,18 @@ class _FieldRow extends StatelessWidget {
               Icon(Icons.chevron_right_rounded, size: 18, color: theme.colorScheme.onSurfaceVariant),
             ],
           ),
-          onTap: () async {
-            final picked = await _pickChoice(
-              context,
-              title: label,
-              choices: field.choices,
-              selected: value,
-              notSetLabel: notSetLabel,
-            );
-            if (picked != null) onChanged(picked);
-          },
+          onTap: enabled
+              ? () async {
+                  final picked = await _pickChoice(
+                    context,
+                    title: label,
+                    choices: field.choices,
+                    selected: value,
+                    notSetLabel: notSetLabel,
+                  );
+                  if (picked != null) onChanged(picked);
+                }
+              : null,
         );
 
       case ProtocolFieldKind.integer:
@@ -424,6 +434,7 @@ class _FieldRow extends StatelessWidget {
           child: TextFormField(
             initialValue: value,
             onChanged: onChanged,
+            enabled: enabled,
             keyboardType: field.kind == ProtocolFieldKind.integer ? TextInputType.number : null,
             inputFormatters: field.kind == ProtocolFieldKind.integer
                 ? [FilteringTextInputFormatter.digitsOnly]
@@ -597,6 +608,15 @@ String _fieldLabel(TranslationsEn t, String id) {
     'peerPublicKey' => f.peerPublicKey,
     'peerPreSharedKey' => f.peerPreSharedKey,
     'reserved' => f.reserved,
+    // 缺口收口（照 NekoBox strings）：vmess 两件 + ECH 两件 + tuic 四件
+    'alterId' => f.alterId,
+    'encryption' => f.encryption,
+    'enableECH' => f.enableECH,
+    'echConfig' => f.echConfig,
+    'serverDisableSNI' => f.serverDisableSNI,
+    'serverReduceRTT' => f.serverReduceRTT,
+    'serverUDPRelayMode' => f.serverUDPRelayMode,
+    'serverCongestionController' => f.serverCongestionController,
     _ => id,
   };
 }

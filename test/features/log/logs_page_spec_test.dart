@@ -22,10 +22,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:fpdart/fpdart.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fpdart/fpdart.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hiddify/core/app_info/app_info_provider.dart';
 import 'package:hiddify/core/localization/translations.dart';
@@ -97,7 +97,7 @@ Future<ProviderContainer> _pump(
   // 复刻启动时序：预热 repo（notifier build 里 logRepositoryProvider.requireValue）。
   await container.read(logRepositoryProvider.future);
   // 提前实例化 notifier（build 内建立对流监听），否则 pump 前发出的数据丢失。
-  await container.read(logsOverviewNotifierProvider.notifier);
+  container.read(logsOverviewNotifierProvider.notifier);
 
   final router = GoRouter(
     initialLocation: '/',

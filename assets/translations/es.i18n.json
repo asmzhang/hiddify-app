@@ -235,7 +235,15 @@
         "utlsFingerprint": "Huella uTLS",
         "uuid": "ID de usuario",
         "version": "Versión del protocolo",
-        "wsMaxEarlyData": "Datos tempranos máximos"
+        "wsMaxEarlyData": "Datos tempranos máximos",
+        "alterId": "Alter ID",
+        "encryption": "Encryption",
+        "enableECH": "Enable ECH",
+        "echConfig": "ECH Config",
+        "serverDisableSNI": "Disable SNI",
+        "serverReduceRTT": "Enable 0-RTT QUIC handshake",
+        "serverCongestionController": "Congestion Controller",
+        "serverUDPRelayMode": "UDP Relay Mode"
       },
       "groupNotSubscription": "El tipo de grupo no es suscripción",
       "msg": {

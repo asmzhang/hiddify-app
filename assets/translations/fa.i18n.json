@@ -235,7 +235,15 @@
         "utlsFingerprint": "اثر انگشت uTLS",
         "uuid": "شناسه کاربری",
         "version": "نسخه پروتکل",
-        "wsMaxEarlyData": "حداکثر داده اولیه"
+        "wsMaxEarlyData": "حداکثر داده اولیه",
+        "alterId": "Alter ID",
+        "encryption": "Encryption",
+        "enableECH": "Enable ECH",
+        "echConfig": "ECH Config",
+        "serverDisableSNI": "Disable SNI",
+        "serverReduceRTT": "Enable 0-RTT QUIC handshake",
+        "serverCongestionController": "Congestion Controller",
+        "serverUDPRelayMode": "UDP Relay Mode"
       },
       "groupNotSubscription": "نوع گروه اشتراک نیست",
       "msg": {

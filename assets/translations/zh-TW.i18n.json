@@ -244,7 +244,15 @@
         "peerPreSharedKey": "預先共用金鑰",
         "peerPublicKey": "對端公鑰",
         "privateKey": "私鑰",
-        "reserved": "Reserved"
+        "reserved": "Reserved",
+        "alterId": "Alter ID",
+        "encryption": "Encryption",
+        "enableECH": "Enable ECH",
+        "echConfig": "ECH Config",
+        "serverDisableSNI": "Disable SNI",
+        "serverReduceRTT": "Enable 0-RTT QUIC handshake",
+        "serverCongestionController": "Congestion Controller",
+        "serverUDPRelayMode": "UDP Relay Mode"
       },
       "activeProxy": "當前代理",
       "unknownIp": "未知 IP",

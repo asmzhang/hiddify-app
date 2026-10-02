@@ -244,7 +244,15 @@
         "privateKey": "Private Key",
         "peerPublicKey": "Peer Public Key",
         "peerPreSharedKey": "Pre-Shared Key",
-        "reserved": "Reserved"
+        "reserved": "Reserved",
+        "alterId": "Alter ID",
+        "encryption": "Encryption",
+        "enableECH": "Enable ECH",
+        "echConfig": "ECH Config",
+        "serverDisableSNI": "Disable SNI",
+        "serverReduceRTT": "Enable 0-RTT QUIC handshake",
+        "serverCongestionController": "Congestion Controller",
+        "serverUDPRelayMode": "UDP Relay Mode"
       },
       "activeProxy": "Active proxy",
       "unknownIp": "Unknown IP",

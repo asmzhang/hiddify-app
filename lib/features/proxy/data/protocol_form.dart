@@ -33,6 +33,7 @@ class ProtocolField {
     this.writeValues = const {},
     this.pathControllerId,
     this.siblings = const {},
+    this.disabledBy,
     this.required = false,
     this.section,
     this.valueSuffix,
@@ -71,6 +72,11 @@ class ProtocolField {
   /// 非空时一并写入的固定键 —— 用法同 NekoBox：`obfs` 非空则 `{type:"salamander", password}`；
   /// `reality.public_key` 非空则 `{enabled:true, ...}`。写在 [path] 的**父级**。
   final Map<String, String> siblings;
+
+  /// 联动置灰：值取该 id 字段的表单值，`'true'` ⇒ 本行禁用（enabled:false 置灰）。
+  /// 照 NekoBox tuic 的 `sni.isEnabled = !disableSNI.isChecked`
+  /// （`TuicSettingsActivity.kt:55-61`：勾「禁用 SNI」时 SNI 输入框置灰不可编辑）。
+  final String? disabledBy;
 
   /// 写入前追加的后缀（仅对**纯数字**值生效）。动机：内核 `hop_interval` 是
   /// `badoption.Duration`，**必须带单位**（sing `my_time.ParseDuration`：裸数字报
@@ -276,6 +282,113 @@ const _vlessSpec = ProtocolFormSpec(
       siblings: {'enabled': 'true'},
     ),
     ProtocolField(id: 'realityShortId', kind: ProtocolFieldKind.text, path: ['tls', 'reality', 'short_id']),
+    // ECH：`standard_v2ray_preferences.xml:173-185` ECH 类别（enableECH 开关 + echConfig
+    // 多行文本）→ `V2RayFmt.kt:615-622` `ech = {enabled: true, config: echConfig.lines()}`。
+    // config 是行数组（内核 `Listable[string]`），用 stringList 落数组形状。
+    ProtocolField(id: 'enableECH', kind: ProtocolFieldKind.boolean, path: ['tls', 'ech', 'enabled'], section: 'security'),
+    ProtocolField(id: 'echConfig', kind: ProtocolFieldKind.stringList, path: ['tls', 'ech', 'config'], section: 'security'),
+  ],
+  containers: [
+    // tcp ⇒ 没有 transport
+    ProtocolContainerRule(path: ['transport'], controllerId: 'transport', dropWhen: {'', 'tcp'}),
+    // security 关 ⇒ 没有 tls（NekoBox `buildSingBoxOutboundTLS` 返回 null）
+    ProtocolContainerRule(path: ['tls'], controllerId: 'security', dropWhen: {'false'}),
+    // 公钥清空 ⇒ 没有 reality（与 tls 无关，reality 在 tls 之内，顺序由 _startsWith 保证）
+    ProtocolContainerRule(path: ['tls', 'reality'], controllerId: 'realityPubKey', dropWhen: {''}),
+    ProtocolContainerRule(path: ['tls', 'utls']),
+  ],
+);
+
+/// vmess —— `res/xml/standard_v2ray_preferences.xml` 的 VMessBean 分支
+/// （`StandardV2RaySettingsActivity.kt:88/106-107`：isVmess ⇒ alterId/encryption 可见）。
+///
+/// 与 vless 的差异（内核 `VMessOutboundOptions`，`option/vmess.go:17-30`）：
+/// - `alterId`：`int json:"alter_id,omitempty"`（`VMessBean.java:18-23` 默认 0；
+///   链接侧叫 `aid`，`ray2sing/vmess.go:76`）—— integer 字段，留空不写键（内核 0）；
+/// - `encryption`：NekoBox 下拉五档 chacha20-poly1305 / aes-128-gcm / auto / none / zero
+///   （`arrays.xml:295-301`，`VMessBean.java:18-23` 默认 "auto"），出站键是**根级
+///   `security`**（内核 vmess 的加密字段名）。表单首位留空档（=「未设置」不写键），
+///   空 ⇒ 内核默认 auto（`V2RayFmt.kt:662` security 空白取 "auto"），行为对齐 NekoBox；
+/// - `flow` 是 VLESS 专属、不渲染（NekoBox 复用同一 encryption 偏好项装 flow 是
+///   vless 分支的历史行为，`StandardV2RaySettingsActivity.kt:115-124`）；`packetEncoding`
+///   内核 vmess 同样支持（`packet_encoding`），照 vless 保留；
+/// - TLS / transport / reality / utls / ECH 与 vless 完全同构。
+const _vmessSpec = ProtocolFormSpec(
+  type: 'vmess',
+  fields: [
+    ProtocolField(id: 'serverAddress', kind: ProtocolFieldKind.text, path: ['server'], required: true, section: 'proxy'),
+    ProtocolField(id: 'serverPort', kind: ProtocolFieldKind.integer, path: ['server_port']),
+    ProtocolField(id: 'uuid', kind: ProtocolFieldKind.text, path: ['uuid'], required: true),
+    // alterId / encryption：`standard_v2ray_preferences.xml:36-47` 紧随 uuid 的两行
+    ProtocolField(id: 'alterId', kind: ProtocolFieldKind.integer, path: ['alter_id']),
+    ProtocolField(
+      id: 'encryption',
+      kind: ProtocolFieldKind.choice,
+      path: ['security'],
+      choices: ['', 'chacha20-poly1305', 'aes-128-gcm', 'auto', 'none', 'zero'],
+    ),
+    ProtocolField(
+      id: 'packetEncoding',
+      kind: ProtocolFieldKind.choice,
+      path: ['packet_encoding'],
+      choices: kPacketEncodings,
+    ),
+    ProtocolField(
+      id: 'transport',
+      kind: ProtocolFieldKind.choice,
+      path: ['transport', 'type'],
+      choices: kNetworks,
+      pathControllerId: 'transport',
+    ),
+    ProtocolField(
+      id: 'host',
+      kind: ProtocolFieldKind.text,
+      path: ['transport', 'headers', 'Host'],
+      pathControllerId: 'transport',
+      pathByChoice: {
+        'ws': ['transport', 'headers', 'Host'],
+        'http': ['transport', 'host'],
+        'httpupgrade': ['transport', 'host'],
+      },
+    ),
+    ProtocolField(
+      id: 'path',
+      kind: ProtocolFieldKind.text,
+      path: ['transport', 'path'],
+      pathControllerId: 'transport',
+      pathByChoice: {
+        'ws': ['transport', 'path'],
+        'http': ['transport', 'path'],
+        'httpupgrade': ['transport', 'path'],
+        'grpc': ['transport', 'service_name'],
+      },
+    ),
+    ProtocolField(id: 'wsMaxEarlyData', kind: ProtocolFieldKind.integer, path: ['transport', 'max_early_data'], pathControllerId: 'transport', section: 'ws'),
+    ProtocolField(id: 'earlyDataHeaderName', kind: ProtocolFieldKind.text, path: ['transport', 'early_data_header_name'], pathControllerId: 'transport'),
+    // TLS：表单的 `security`（none/tls）在这里落成 `tls.enabled`
+    ProtocolField(id: 'security', kind: ProtocolFieldKind.boolean, path: ['tls', 'enabled'], section: 'security'),
+    ProtocolField(id: 'sni', kind: ProtocolFieldKind.text, path: ['tls', 'server_name']),
+    ProtocolField(id: 'allowInsecure', kind: ProtocolFieldKind.boolean, path: ['tls', 'insecure']),
+    ProtocolField(id: 'alpn', kind: ProtocolFieldKind.stringList, path: ['tls', 'alpn']),
+    ProtocolField(id: 'certificates', kind: ProtocolFieldKind.text, path: ['tls', 'certificate']),
+    ProtocolField(
+      id: 'utlsFingerprint',
+      kind: ProtocolFieldKind.choice,
+      path: ['tls', 'utls', 'fingerprint'],
+      choices: kUtlsFingerprints,
+      siblings: {'enabled': 'true'},
+    ),
+    ProtocolField(
+      id: 'realityPubKey',
+      kind: ProtocolFieldKind.text,
+      path: ['tls', 'reality', 'public_key'],
+      siblings: {'enabled': 'true'},
+    ),
+    ProtocolField(id: 'realityShortId', kind: ProtocolFieldKind.text, path: ['tls', 'reality', 'short_id']),
+    // ECH：同 vless（`standard_v2ray_preferences.xml:173-185` ECH 类别对全体
+    // StandardV2RayBean 子类可见；`V2RayFmt.kt:615-622`）
+    ProtocolField(id: 'enableECH', kind: ProtocolFieldKind.boolean, path: ['tls', 'ech', 'enabled'], section: 'security'),
+    ProtocolField(id: 'echConfig', kind: ProtocolFieldKind.stringList, path: ['tls', 'ech', 'config'], section: 'security'),
   ],
   containers: [
     // tcp ⇒ 没有 transport
@@ -332,9 +445,10 @@ const _hysteria2Spec = ProtocolFormSpec(
 /// 结构上就是 vless 减去 flow / packetEncoding（trojan 无此二者，内核
 /// `TrojanOutboundOptions` 也没有对应键）。
 ///
-/// trojan **恒用 TLS 吗？不是**：内核选项的 tls 是容器（可缺省），
-/// NekoBox `buildSingBoxOutboundTLS` 由 `bean.security` 决定 —— 与 vless 同一套，
-/// 所以 security 开关照 vless 保留（表单 boolean 落 `tls.enabled`）。
+/// trojan 的 TLS 默认：`StandardV2RayBean.java:83-89` —— `security` 空白时
+/// `instanceof TrojanBean` ⇒ 写死 "tls"（vless/http 是 "none"）。即 NekoBox 新建
+/// trojan **默认开 TLS**，security 开关照 vless 保留（表单 boolean 落 `tls.enabled`），
+/// 种子按 NekoBox 默认给 `tls.enabled = true`（[protocolSeedPayload]）。
 const _trojanSpec = ProtocolFormSpec(
   type: 'trojan',
   fields: [
@@ -397,6 +511,10 @@ const _trojanSpec = ProtocolFormSpec(
       siblings: {'enabled': 'true'},
     ),
     ProtocolField(id: 'realityShortId', kind: ProtocolFieldKind.text, path: ['tls', 'reality', 'short_id']),
+    // ECH：同 vless（`standard_v2ray_preferences.xml:173-185` ECH 类别对全体
+    // StandardV2RayBean 子类可见；`V2RayFmt.kt:615-622`）
+    ProtocolField(id: 'enableECH', kind: ProtocolFieldKind.boolean, path: ['tls', 'ech', 'enabled'], section: 'security'),
+    ProtocolField(id: 'echConfig', kind: ProtocolFieldKind.stringList, path: ['tls', 'ech', 'config'], section: 'security'),
   ],
   containers: [
     // tcp ⇒ 没有 transport
@@ -524,6 +642,10 @@ const _httpSpec = ProtocolFormSpec(
       choices: kUtlsFingerprints,
       siblings: {'enabled': 'true'},
     ),
+    // ECH：同 vless/trojan（HttpBean 同属 StandardV2RayBean 家族，
+    // `standard_v2ray_preferences.xml:173-185` ECH 类别可见）
+    ProtocolField(id: 'enableECH', kind: ProtocolFieldKind.boolean, path: ['tls', 'ech', 'enabled'], section: 'security'),
+    ProtocolField(id: 'echConfig', kind: ProtocolFieldKind.stringList, path: ['tls', 'ech', 'config'], section: 'security'),
   ],
   containers: [
     // security 关 ⇒ 没有 tls（NekoBox `buildSingBoxOutboundTLS` 返回 null）
@@ -586,7 +708,8 @@ const _tuicSpec = ProtocolFormSpec(
       choices: ['', 'cubic', 'new_reno', 'bbr'],
     ),
     ProtocolField(id: 'serverDisableSNI', kind: ProtocolFieldKind.boolean, path: ['tls', 'disable_sni']),
-    ProtocolField(id: 'serverSNI', kind: ProtocolFieldKind.text, path: ['tls', 'server_name']),
+    // 置灰联动照 NekoBox：勾「禁用 SNI」⇒ SNI 输入框 enabled=false（仍可见）
+    ProtocolField(id: 'serverSNI', kind: ProtocolFieldKind.text, path: ['tls', 'server_name'], disabledBy: 'serverDisableSNI'),
     ProtocolField(id: 'serverReduceRTT', kind: ProtocolFieldKind.boolean, path: ['zero_rtt_handshake']),
     ProtocolField(id: 'serverAllowInsecure', kind: ProtocolFieldKind.boolean, path: ['tls', 'insecure']),
   ],
@@ -719,7 +842,7 @@ const _naiveSpec = ProtocolFormSpec(
 const _specs = <String, ProtocolFormSpec>{
   'anytls': _anytlsSpec,
   'vless': _vlessSpec,
-  'vmess': _vlessSpec,
+  'vmess': _vmessSpec,
   'trojan': _trojanSpec,
   'hysteria': _hysteriaSpec,
   'hysteria2': _hysteria2Spec,
@@ -737,9 +860,7 @@ const _specs = <String, ProtocolFormSpec>{
 /// 这个出站类型有没有表单。返回 null ⇒ 调用方不要给 ✎ 入口（照 NekoBox：没写表单的协议就没有编辑页）。
 ProtocolFormSpec? protocolFormSpecFor(String type) {
   final key = type.trim().toLowerCase();
-  final spec = _specs[key];
-  if (spec == null || key != 'vmess') return spec;
-  return ProtocolFormSpec(type: 'vmess', fields: spec.fields, containers: spec.containers);
+  return _specs[key];
 }
 
 /// 「手动新建」菜单里**有表单可用**的协议。
@@ -820,10 +941,15 @@ List<String> protocolFormFieldIds(ProtocolFormSpec spec) => [for (final f in spe
 /// 把"只在节首标注"的 [ProtocolField.section] 铺成**分节布局**（UI 直接照这个画）。
 ///
 /// 节名只做分组用，标签由 UI 查翻译（`pages.proxies.form.section.<name>`）。
+///
+/// `section` 允许标在**节内任意字段**上：连续同名字段只开一个节（不会重复出标题）。
+/// 典型场景是 ECH 两字段（`enableECH` / `echConfig`）也自带 `section: 'security'`
+/// —— 它们落在 security 节内部，标题仍只出现一次。
 List<({String section, List<ProtocolField> fields})> protocolFormLayout(ProtocolFormSpec spec) {
   final out = <({String section, List<ProtocolField> fields})>[];
   for (final field in spec.fields) {
-    if (out.isEmpty || field.section != null) {
+    // 无标记 ⇒ 留在当前节；有标记且与当前节同名 ⇒ 也是留在当前节（不重复开标题）。
+    if (out.isEmpty || (field.section != null && field.section != out.last.section)) {
       out.add((section: field.section ?? '', fields: <ProtocolField>[]));
     }
     out.last.fields.add(field);
@@ -1071,13 +1197,19 @@ List<String> validateProtocolForm({required ProtocolFormSpec spec, required Map<
 ///   对象，种子先把数组占位，避免"端口填了、协议下拉没动"时写不出对象形状
 /// - `vless`：`V2RayFmt.kt:593` —— 只有 `security == "tls"` 才有 tls 对象，
 ///   而 `StandardV2RayBean` 的 `security` 默认是空 ⇒ 种子里**不带** tls
-/// - `trojan`：同 vless（security 由表单开关决定，默认关）
+/// - `trojan`：`StandardV2RayBean.java:83-89` security 空白写死 "tls" ⇒
+///   种子**带** `tls.enabled = true`（对齐 NekoBox 默认，开关仍可关）
 /// - `shadowsocks` / `socks` / `ssh`：没有 tls
 /// - `wireguard`：`mtu: 1420`（NekoBox `wireguard_preferences.xml` 的 defaultValue）
 ///   + `peers: [{}]` 占位 —— `peers[0]` 是表单五个字段的落点，数组元素必须是对象
 ///   才写得出 `peers[0].address` 等（同 mieru `portBindings[0]` 的占位逻辑）
 Map<String, dynamic> protocolSeedPayload(ProtocolFormSpec spec) => switch (spec.type) {
   'anytls' || 'hysteria' || 'hysteria2' || 'tuic' || 'shadowtls' || 'naive' => {
+    'tls': {'enabled': true},
+  },
+  // trojan：`StandardV2RayBean.java:83-89` security 空白 ⇒ instanceof TrojanBean
+  // 写死 "tls" —— NekoBox 新建 trojan 默认开 TLS，种子对齐（开关仍可关掉）
+  'trojan' => {
     'tls': {'enabled': true},
   },
   'mieru' => {

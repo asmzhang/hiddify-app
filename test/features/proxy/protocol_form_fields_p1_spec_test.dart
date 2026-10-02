@@ -9,15 +9,17 @@
 //      choice writeValues 原串写入）。
 // 判定基准：zh-CN 词表（assets/translations/zh-CN.i18n.json 的 pages.proxies.form.*）；
 // 字段清单以代码 lib/features/proxy/data/protocol_form.dart 为准
-// （vmess L212-289 共用 _vlessSpec + L741-743 特判换 type / trojan L338-410 /
-//   hysteria L430-453 / tuic L567-593 / ssh L547-558）。
+// （vmess 独立 _vmessSpec:316（21 字段 = vless 减 flow 加 alterId/encryption）/
+//   trojan _trojanSpec:452（18 字段含 ECH，种子 tls.enabled=true）/
+//   hysteria _hysteriaSpec:548 / tuic _tuicSpec:689（四字段 zh 词条已补）/
+//   ssh _sshSpec:669）。
 // 与 .workbuddy/spec-protocol-forms-tests.md §2 矩阵的差异见文件尾「矩阵差异」注。
 // 基建与六坑纪律照抄 P0 样板 test/features/proxy/protocol_form_fields_p0_spec_test.dart：
 //   ① fake notifier build() 给现成 Stream、不挂 disposeDelay ⇒ 无 pending Timer；
 //   ② 不注入 proxyEntityRepository ⇒ 无 drift 真异步 ⇒ pumpAndSettle 全程可用；
 //   ③ 不设 debugDefaultTargetPlatformOverride（本链路不读 PlatformUtils）；
 //   ④ zh 词表 runAsync 预构建 + translationsProvider.overrideWith + pre-warm future；
-//   ⑤ 视口 1080x2400 / dpr 1.0（vmess 18 字段一次全建出）；
+//   ⑤ 视口 1080x2400 / dpr 1.0（vmess 21 字段一次全建出）；
 //   ⑥ TextFormField 无 decoration getter，断 errorText 用内层 TextField。
 // 「同文案分节+字段 findsNWidgets(2)」坑排查结论：P1 五协议的分节标题
 // （服务器设置/WebSocket 设置/TLS 安全设置）与任何字段 label 都不同文案，
@@ -118,7 +120,7 @@ class _HostPage extends StatelessWidget {
 
 Future<void> _pump(WidgetTester tester, {required void Function(BuildContext context) open, _Fixture? fixture}) async {
   final f = fixture ?? _Fixture();
-  // 弹层高 0.75 视口 + ListView 懒构建：放大视口保证 vmess 18 字段（配置名称 →
+  // 弹层高 0.75 视口 + ListView 懒构建：放大视口保证 vmess 21 字段（配置名称 →
   // Reality 短 ID）一次全部建出，find 不漏。
   tester.view.physicalSize = const Size(1080, 2400);
   tester.view.devicePixelRatio = 1.0;
@@ -220,8 +222,8 @@ const _sshEditPayload =
 const _sshKeyRaw = 'AAAAB3NzaC1yc2EAAAAKEY,SAMPLE-BODY';
 
 void main() {
-  group('P1 字段级 1:1 · vmess（共用 _vlessSpec，L741-743 特判复制换 type）', () {
-    testWidgets('新建渲染：18 字段 + 三分节 + flow 是文本框（矩阵写 choice，以代码为准）+ 无 alterId/encryption + 3 处「未设置」', (tester) async {
+  group('P1 字段级 1:1 · vmess（独立 _vmessSpec：vless 减 flow 加 alterId/encryption）', () {
+    testWidgets('新建渲染：21 字段 + 三分节 + 替代 ID/加密 补齐（原缺口已修）+ flow 不渲染 + 4 处「未设置」', (tester) async {
       final f = _Fixture();
       await _pump(tester, open: (context) => showProtocolCreateSheet(groupId: 7, type: 'vmess'), fixture: f);
       await _tapGo(tester);
@@ -231,39 +233,38 @@ void main() {
       expect(find.text('vmess'), findsOneWidget);
       expect(find.text('配置名称'), findsOneWidget);
       expect(find.byType(PopupMenuButton<String>), findsNothing);
-      // 分节：proxy / ws / security 三节标题（与 vless 完全同构）
+      // 分节：proxy / ws / security 三节标题
       expect(find.text('服务器设置'), findsOneWidget);
       expect(find.text('WebSocket 设置'), findsOneWidget);
       expect(find.text('TLS 安全设置'), findsOneWidget);
-      // 字段 label 全列（serverAddress → realityShortId，与共用 _vlessSpec 逐一对齐）
+      // 字段 label 全列（serverAddress → echConfig，与独立 _vmessSpec 逐一对齐）
       for (final label in const [
-        '服务器', '服务器端口', '用户ID', '流控', '包编码', '传输协议', 'HTTP 主机', 'HTTP 路径',
+        '服务器', '服务器端口', '用户ID', '替代 ID', '加密', '包编码', '传输协议', 'HTTP 主机', 'HTTP 路径',
         '最大早期数据', '早期数据头名称', '传输层加密', '服务器名称指示', '允许不安全的连接', '应用层协议协商',
-        '证书 (链)', 'uTLS 指纹', 'Reality 公钥', 'Reality 短 ID',
+        '证书 (链)', 'uTLS 指纹', 'Reality 公钥', 'Reality 短 ID', '启用 ECH', 'ECH 配置',
       ]) {
         expect(find.text(label), findsOneWidget, reason: 'vmess 缺字段 label：$label');
       }
-      // 代码事实：vmess 表单没有 alterId / encryption 字段（矩阵 §2.1 列入缺口表 —— 固化现状）
-      expect(find.text('alterId'), findsNothing, reason: 'vmess 无 alterId 字段（缺口）');
-      expect(find.text('encryption'), findsNothing, reason: 'vmess 无 encryption 字段（缺口）');
-      // 形态：布尔 ×2（security + allowInsecure）；choice ×3（包编码/传输协议/uTLS）空值 = 未设置
-      expect(find.byType(SwitchListTile), findsNWidgets(2));
-      expect(find.text('未设置'), findsNWidgets(3));
-      // 代码事实：flow 是 text 自由文本框，不是矩阵 §2.1 说的 choice 下拉
-      expect(find.widgetWithText(TextField, '流控'), findsOneWidget);
-      expect(find.widgetWithText(ListTile, '流控'), findsNothing);
+      // 内核 VMessOutboundOptions 无 flow 键 ⇒ vmess 不渲染流控（vless 专属）
+      expect(find.text('流控'), findsNothing);
+      // 形态：布尔 ×3（security + allowInsecure + enableECH）；
+      // choice ×4（加密/包编码/传输协议/uTLS）空值 = 未设置
+      expect(find.byType(SwitchListTile), findsNWidgets(3));
+      expect(find.text('未设置'), findsNWidgets(4));
+      // 加密是 NekoBox 同款下拉（arrays.xml:295-301 五档+空档）
+      expect(find.widgetWithText(ListTile, '加密'), findsOneWidget);
 
-      // 必填星标：serverAddress + uuid（vmess 种子无 tls，security 默认关）
+      // 必填星标：serverAddress + uuid
       await _fill(tester, '配置名称', '星标检查');
       await tester.tap(find.text('保存'));
       await tester.pump();
       expect(_errorTextOf(tester, '服务器'), '*');
       expect(_errorTextOf(tester, '用户ID'), '*');
-      expect(_errorTextOf(tester, '流控'), isNull); // flow 非必填
+      expect(_errorTextOf(tester, '替代 ID'), isNull); // alterId 非必填
       expect(f.notifier.createCalls, isEmpty);
     });
 
-    testWidgets('编辑回显：int→toString / List→逗号 join / ws→headers.Host / utls+reality 叶子值 / 双开关状态', (tester) async {
+    testWidgets('编辑回显：int→toString / List→逗号 join / ws→headers.Host / utls+reality 叶子值 / payload flow 键无字段读取', (tester) async {
       final f = _Fixture();
       await _pump(
         tester,
@@ -280,7 +281,8 @@ void main() {
       expect(find.text('vm.example.com'), findsOneWidget);
       expect(find.text('443'), findsOneWidget); // int → toString
       expect(find.text('u-vm'), findsOneWidget);
-      expect(find.text('xtls-rprx-vision'), findsOneWidget); // flow 文本框回显
+      // payload 里的 flow 键在独立 _vmessSpec 下无字段读取 ⇒ 不回显（xtls flow 是 vless 专属）
+      expect(find.text('xtls-rprx-vision'), findsNothing);
       expect(find.text('xudp'), findsOneWidget); // 包编码 trailing 当前取值
       expect(find.text('ws'), findsOneWidget); // 传输协议 trailing 当前取值
       // pathByChoice：transport=ws ⇒ host 从 transport.headers.Host 读
@@ -294,12 +296,15 @@ void main() {
       expect(find.text('edge'), findsOneWidget); // utls.fingerprint 叶子值
       expect(find.text('VM-PBK'), findsOneWidget); // reality.public_key 叶子值
       expect(find.text('ef01'), findsOneWidget); // reality.short_id 叶子值
+      // 素材无 alter_id/security 键 ⇒ 替代 ID 空框、加密下拉「未设置」
+      expect(find.text('未设置'), findsOneWidget); // 仅加密一处（其余 choice 均有值）
       expect(tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, '传输层加密')).value, isTrue);
       expect(tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, '允许不安全的连接')).value, isFalse);
+      expect(tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, '启用 ECH')).value, isFalse);
       expect(f.notifier.updatePayloadCalls, isEmpty); // 只回显，未保存不落库
     });
 
-    testWidgets('新建保存：type=vmess（特判换 type）+ security 开→tls.enabled + utls siblings + 不写 alter_id/encryption', (tester) async {
+    testWidgets('新建保存：独立 spec.type=vmess + alterId→alter_id + encryption→security + security 开→tls.enabled + utls siblings', (tester) async {
       final f = _Fixture();
       await _pump(tester, open: (context) => showProtocolCreateSheet(groupId: 7, type: 'vmess'), fixture: f);
       await _tapGo(tester);
@@ -308,7 +313,8 @@ void main() {
       await _fill(tester, '服务器', '5.6.7.8');
       await _fill(tester, '服务器端口', '443');
       await _fill(tester, '用户ID', 'u-vm');
-      await _fill(tester, '流控', 'xtls-rprx-vision');
+      await _fill(tester, '替代 ID', '2'); // alterId → 根级 alter_id
+      await _pickChoice(tester, label: '加密', option: 'aes-128-gcm'); // encryption → 根级 security
       await _pickChoice(tester, label: '包编码', option: 'xudp');
       await _pickChoice(tester, label: '传输协议', option: 'ws');
       await _fill(tester, 'HTTP 主机', 'hvm.example.com');
@@ -324,12 +330,14 @@ void main() {
       final call = f.notifier.createCalls.single;
       expect(call['groupId'], 7);
       expect(call['tag'], 'vm节点甲');
-      expect(call['type'], 'vmess'); // spec.type 特判复制（非 vless）
+      expect(call['type'], 'vmess');
       final payload = jsonDecode(call['payload']! as String) as Map<String, dynamic>;
-      expect(payload['type'], 'vmess'); // 种子 type 也是 vmess
+      expect(payload['type'], 'vmess'); // 种子 type 也是 vmess（独立 spec，无特判）
       expect(payload['uuid'], 'u-vm');
-      expect(payload['flow'], 'xtls-rprx-vision'); // flow 直写根级 flow 键
+      expect(payload['alter_id'], 2); // 补齐的缺口：alterId integer → alter_id（内核默认 0 缺省键）
+      expect(payload['security'], 'aes-128-gcm'); // 补齐的缺口：加密下拉 → 根级 security（内核默认 auto）
       expect(payload['packet_encoding'], 'xudp');
+      expect(payload.containsKey('flow'), isFalse); // vmess 无 flow 字段
       final transport = payload['transport']! as Map<String, dynamic>;
       expect(transport['type'], 'ws'); // 非 tcp ⇒ transport 容器保留
       expect((transport['headers']! as Map<String, dynamic>)['Host'], 'hvm.example.com'); // ws → headers.Host
@@ -337,24 +345,21 @@ void main() {
       expect(transport['max_early_data'], 2048);
       expect(transport['early_data_header_name'], 'Sec-WebSocket-Protocol');
       final tls = payload['tls']! as Map<String, dynamic>;
-      expect(tls['enabled'], true); // vless/vmess 种子无 tls —— 全靠 security 开关写出
+      expect(tls['enabled'], true); // vmess 种子无 tls —— 全靠 security 开关写出
       expect(tls['server_name'], 'svm.example.com');
       expect(tls['utls'], {'enabled': true, 'fingerprint': 'edge'}); // siblings 写父级 enabled:true
       expect(tls.containsKey('insecure'), isFalse); // 布尔 false → 不写键
       expect(tls.containsKey('alpn'), isFalse); // 空值删键
       expect(tls.containsKey('certificate'), isFalse);
       expect(tls.containsKey('reality'), isFalse); // realityPubKey 空 ⇒ 容器整摘
-      // 矩阵 §2.1 缺口固化：vmess 无 alterId/encryption 编辑入口 ⇒ payload 不写这两个键
-      expect(payload.containsKey('alter_id'), isFalse);
-      expect(payload.containsKey('encryption'), isFalse);
-      expect(payload.containsKey('security'), isFalse); // security 只是表单开关，落点是 tls.enabled
+      expect(tls.containsKey('ech'), isFalse); // ECH 未动 ⇒ 整摘
       expect(f.notifications.successes, ['节点已创建']);
       expect(find.text('新建节点'), findsNothing); // 保存后关弹层
     });
   });
 
-  group('P1 字段级 1:1 · trojan（_trojanSpec L338-410）', () {
-    testWidgets('新建渲染：16 字段 + 三分节 + 密码必填 + 2 处「未设置」', (tester) async {
+  group('P1 字段级 1:1 · trojan（_trojanSpec，18 字段含 ECH；种子 tls.enabled=true）', () {
+    testWidgets('新建渲染：18 字段 + 三分节 + 密码必填 + ECH 两字段 + 种子 TLS 默认开（对齐 NekoBox）+ 2 处「未设置」', (tester) async {
       final f = _Fixture();
       await _pump(tester, open: (context) => showProtocolCreateSheet(groupId: 7, type: 'trojan'), fixture: f);
       await _tapGo(tester);
@@ -368,16 +373,19 @@ void main() {
       for (final label in const [
         '服务器', '服务器端口', '密码', '传输协议', 'HTTP 主机', 'HTTP 路径', '最大早期数据', '早期数据头名称',
         '传输层加密', '服务器名称指示', '允许不安全的连接', '应用层协议协商', '证书 (链)', 'uTLS 指纹',
-        'Reality 公钥', 'Reality 短 ID',
+        'Reality 公钥', 'Reality 短 ID', '启用 ECH', 'ECH 配置',
       ]) {
         expect(find.text(label), findsOneWidget, reason: 'trojan 缺字段 label：$label');
       }
       // trojan 无 flow / 包编码 字段（内核 TrojanOutboundOptions 无对应键）
       expect(find.text('流控'), findsNothing);
       expect(find.text('包编码'), findsNothing);
-      // 形态：布尔 ×2（security + allowInsecure）；choice ×2（传输协议/uTLS）空值 = 未设置
-      expect(find.byType(SwitchListTile), findsNWidgets(2));
+      // 形态：布尔 ×3（security + allowInsecure + enableECH）；choice ×2（传输协议/uTLS）空值 = 未设置
+      expect(find.byType(SwitchListTile), findsNWidgets(3));
       expect(find.text('未设置'), findsNWidgets(2));
+      // 种子 tls.enabled=true（StandardV2RayBean.java:83-89 security 空白⇒TrojanBean 写死 "tls"）
+      // ⇒ security 开关默认**开**
+      expect(tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, '传输层加密')).value, isTrue);
 
       // 必填星标：serverAddress + password（NekoBox trojan 密码即 uuid 字段，必填）
       await _fill(tester, '配置名称', '星标检查');
@@ -388,7 +396,7 @@ void main() {
       expect(f.notifier.createCalls, isEmpty);
     });
 
-    testWidgets('编辑回显：grpc→service_name 路径切换 + reality/utls 叶子值 + 双开关状态', (tester) async {
+    testWidgets('编辑回显：grpc→service_name 路径切换 + reality/utls 叶子值 + 开关状态（ECH 关）', (tester) async {
       final f = _Fixture();
       await _pump(
         tester,
@@ -415,10 +423,11 @@ void main() {
       expect(find.text('a1b2'), findsOneWidget); // reality.short_id 叶子值
       expect(tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, '传输层加密')).value, isTrue);
       expect(tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, '允许不安全的连接')).value, isTrue);
+      expect(tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, '启用 ECH')).value, isFalse); // 素材无 ech 键
       expect(f.notifier.updatePayloadCalls, isEmpty);
     });
 
-    testWidgets('新建保存：种子无 TLS（不勾 security ⇒ payload 无 tls 键，矩阵 §2.2 缺口现状固化）+ ws transport 成形', (tester) async {
+    testWidgets('新建保存：种子 TLS 默认开（不动 security ⇒ payload 带 tls.enabled=true，对齐 NekoBox）+ ws transport 成形', (tester) async {
       final f = _Fixture();
       await _pump(tester, open: (context) => showProtocolCreateSheet(groupId: 7, type: 'trojan'), fixture: f);
       await _tapGo(tester);
@@ -431,8 +440,8 @@ void main() {
       await _fill(tester, 'HTTP 主机', 'htj.example.com');
       await _fill(tester, 'HTTP 路径', '/tjpath');
       await _fill(tester, '最大早期数据', '4096');
-      // 不勾「传输层加密」直接保存 —— NekoBox trojan 新建默认 security=tls，
-      // 我方种子不带 tls（protocolSeedPayload L1079-1091 无 trojan 分支）⇒ 无 TLS，现状固化
+      // 不碰「传输层加密」直接保存 —— 种子 tls.enabled=true（NekoBox TrojanBean 默认
+      // security="tls"，StandardV2RayBean.java:83-89）⇒ 默认 TLS 开，对齐修复原缺口
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
@@ -448,8 +457,8 @@ void main() {
       expect(transport['path'], '/tjpath');
       expect(transport['max_early_data'], 4096);
       expect(transport.containsKey('early_data_header_name'), isFalse); // 空值删键
-      // 缺口现状：security 不勾 ⇒ 整份 payload 没有 tls（NekoBox 默认有 —— 行为分化待裁定）
-      expect(payload.containsKey('tls'), isFalse);
+      // 缺口修复后的行为：种子 tls 保留 ⇒ 新建 trojan 默认带 TLS（NekoBox 同款）
+      expect(payload['tls'], {'enabled': true}); // 除种子键外无别的 TLS 值 ⇒ 不含 server_name 等
       expect(payload.containsKey('flow'), isFalse); // trojan 无此二字段
       expect(payload.containsKey('packet_encoding'), isFalse);
       expect(f.notifications.successes, ['节点已创建']);
@@ -566,8 +575,8 @@ void main() {
     });
   });
 
-  group('P1 字段级 1:1 · tuic（_tuicSpec L567-593）', () {
-    testWidgets('新建渲染：12 字段 + 单分节 + 4 字段无 zh 词条按 id 原文显示（代码事实）+ 3 开关 + 2 下拉', (tester) async {
+  group('P1 字段级 1:1 · tuic（_tuicSpec，四字段 zh 词条已补 + SNI 置灰联动）', () {
+    testWidgets('新建渲染：12 字段 + 单分节 + 四字段中文标签（缺口已修）+ 3 开关 + 2 下拉 + SNI 初始可用', (tester) async {
       final f = _Fixture();
       await _pump(tester, open: (context) => showProtocolCreateSheet(groupId: 7, type: 'tuic'), fixture: f);
       await _tapGo(tester);
@@ -579,16 +588,21 @@ void main() {
       expect(find.text('TLS 安全设置'), findsNothing);
       for (final label in const [
         '服务器', '服务器端口', '用户名', '密码', '应用层协议协商', '证书 (链)',
-        // 代码事实：这四个 id 在 _fieldLabel（protocol_form_modal.dart:547-601）无 case、
-        // zh 词表亦无词条 ⇒ 界面直接显示英文 id 原文（矩阵 §2.10 的中文标签与代码不符）
-        'serverUDPRelayMode', 'serverCongestionController', 'serverDisableSNI', 'serverReduceRTT',
+        // 缺口收口后：四字段走 _fieldLabel 新 case + zh 词条（原来直接显示英文 id）
+        'UDP 转发模式', '拥塞控制', '禁用 SNI', '启用 0-RTT QUIC 握手',
         '服务器名称指示', '允许不安全的连接',
       ]) {
         expect(find.text(label), findsOneWidget, reason: 'tuic 缺字段 label：$label');
       }
+      // 旧英文 id 原文不再出现（缺口已修，避免回退）
+      for (final id in const ['serverUDPRelayMode', 'serverCongestionController', 'serverDisableSNI', 'serverReduceRTT']) {
+        expect(find.text(id), findsNothing, reason: 'tuic 字段仍是英文 id 原文：$id');
+      }
       // 形态：布尔 ×3（disableSNI + reduceRTT + allowInsecure）；choice ×2 空值 = 未设置
       expect(find.byType(SwitchListTile), findsNWidgets(3));
       expect(find.text('未设置'), findsNWidgets(2));
+      // 禁用 SNI 未勾 ⇒ SNI 输入框可用（disabledBy 联动）
+      expect(tester.widget<TextField>(find.widgetWithText(TextField, '服务器名称指示')).enabled, isTrue);
 
       // 必填星标：仅 serverAddress
       await _fill(tester, '配置名称', '星标检查');
@@ -599,7 +613,7 @@ void main() {
       expect(f.notifier.createCalls, isEmpty);
     });
 
-    testWidgets('编辑回显：下拉当前值 + disableSNI/reduceRTT 开关状态 + alpn join', (tester) async {
+    testWidgets('编辑回显：下拉当前值 + 中文标签下 disableSNI/reduceRTT 开关状态 + SNI 因置灰不可交互 + alpn join', (tester) async {
       final f = _Fixture();
       await _pump(
         tester,
@@ -614,14 +628,16 @@ void main() {
       expect(find.text('443'), findsOneWidget); // int → toString
       expect(find.text('tu-1'), findsOneWidget); // serverUsername → uuid 键回显
       expect(find.text('tp-1'), findsOneWidget);
-      expect(find.text('native'), findsOneWidget); // UDP 中继下拉 trailing 当前取值
-      expect(find.text('cubic'), findsOneWidget); // 拥塞控制下拉 trailing 当前取值
+      expect(find.text('native'), findsOneWidget); // UDP 转发模式 下拉 trailing 当前取值
+      expect(find.text('cubic'), findsOneWidget); // 拥塞控制 下拉 trailing 当前取值
       expect(find.text('h2,h3'), findsOneWidget); // alpn 数组 join
       expect(find.text('TC-1'), findsOneWidget);
       expect(find.text('t.example.com'), findsOneWidget);
-      expect(tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, 'serverDisableSNI')).value, isTrue);
-      expect(tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, 'serverReduceRTT')).value, isTrue);
+      expect(tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, '禁用 SNI')).value, isTrue);
+      expect(tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, '启用 0-RTT QUIC 握手')).value, isTrue);
       expect(tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, '允许不安全的连接')).value, isFalse);
+      // 素材 tls.disable_sni=true ⇒ SNI 输入框置灰（照 TuicSettingsActivity.kt:55-61）
+      expect(tester.widget<TextField>(find.widgetWithText(TextField, '服务器名称指示')).enabled, isFalse);
       expect(find.text('未设置'), findsNothing);
       expect(f.notifier.updatePayloadCalls, isEmpty);
     });
@@ -637,11 +653,15 @@ void main() {
       await _fill(tester, '用户名', 'tu-uid');
       await _fill(tester, '密码', 'tu-pw');
       await _fill(tester, '应用层协议协商', 'h3');
-      await _pickChoice(tester, label: 'serverUDPRelayMode', option: 'quic');
+      await _pickChoice(tester, label: 'UDP 转发模式', option: 'quic');
       // serverCongestionController 不选 —— 断「空 = 不写键」
-      await _toggle(tester, 'serverDisableSNI');
+      // 顺序陷阱：先填 SNI（此时输入框仍可用），再勾「禁用 SNI」——置灰后 enterText 打不进去
       await _fill(tester, '服务器名称指示', 'stu.example.com');
-      await _toggle(tester, 'serverReduceRTT');
+      await _toggle(tester, '禁用 SNI');
+      await tester.pump();
+      expect(tester.widget<TextField>(find.widgetWithText(TextField, '服务器名称指示')).enabled, isFalse); // 联动生效
+      expect(find.text('stu.example.com'), findsOneWidget); // 置灰不清值
+      await _toggle(tester, '启用 0-RTT QUIC 握手');
       await _toggle(tester, '允许不安全的连接');
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
@@ -755,24 +775,33 @@ void main() {
 // ─────────────────────────────────────────────────────────────────────────────
 // 代码（lib/features/proxy/data/protocol_form.dart + widget/protocol_form_modal.dart）
 // 与规格矩阵（.workbuddy/spec-protocol-forms-tests.md §2）的 P1 相关差异 —— 全部以代码为准写测试：
-//  1. vmess 无独立 spec：protocolFormSpecFor('vmess')（L741-743）复制 _vlessSpec 只换 type。
-//     表单**没有 alterId、没有 encryption 字段**（矩阵 §2.1 把两者列入「NekoBox 有而我方无」
-//     缺口表 —— 测试固化现状：payload 不写 alter_id/encryption，内核默认 aid=0/security=auto）。
-//     矩阵表格把 flow 写成 choice('',xtls-rprx-vision)，代码是 text（同 P0 差异 #2，vmess 共用）。
-//  2. trojan 新建种子不带 tls（protocolSeedPayload L1079-1091 无 trojan 分支）：
-//     不勾「传输层加密」保存 ⇒ payload 无 tls 键（矩阵 §2.2 标注的行为缺口，按任务指示只固化现状）。
-//  3. tuic 四字段无 zh 词条且 _fieldLabel（protocol_form_modal.dart:547-601）无 case：
-//     serverUDPRelayMode / serverCongestionController / serverDisableSNI / serverReduceRTT
-//     界面显示英文 id 原文。矩阵 §2.10 写「UDP 中继模式/拥塞控制/禁用 SNI/减少 RTT」——差异，以代码为准。
-//  4. hysteria hopInterval：代码 text + valueSuffix 's'（L449），矩阵 §2.9 写 integer。
-//     serverCertificates 代码 text（L443，写 JSON 原串不做数组转换），矩阵「TLS 组 同 vless」
+//  1. vmess **已有独立 spec**（_vmessSpec:316，21 字段 = _vlessSpec 减 flow、加 alterId/encryption），
+//     原「共用 _vlessSpec 特判换 type」的写法与「vmess 无 alterId/encryption」缺口均已修复：
+//     alterId integer→`alter_id`（内核 VMessBean 默认 0），encryption choice→根级 `security`
+//     （choices 首位空档 = 未设置不写键 ⇒ 内核默认 auto，V2RayFmt.kt:662）。
+//     flow 仍是 vless/vmess 共用的差异点：矩阵 §2.1 写 choice('',xtls-rprx-vision)，代码是 text
+//     （同 P0 差异 #2）；但 vmess 不再渲染该字段（内核 VMessOutboundOptions 无 flow 键）。
+//  2. trojan 新建种子**带 tls**（protocolSeedPayload:1207-1209，对齐 NekoBox
+//     `StandardV2RayBean.java:83-89` security 空白 ⇒ TrojanBean 写死 "tls"）：不勾开关保存也
+//     ⇒ payload 有 `tls.enabled=true`（原「无 tls 键」缺口已修，开关仍可关掉）。
+//  3. tuic 四字段**已有中文标签**（_fieldLabel:616-619 + zh 词条 :252-255）：
+//     serverUDPRelayMode=UDP 转发模式 / serverCongestionController=拥塞控制 /
+//     serverDisableSNI=禁用 SNI / serverReduceRTT=启用 0-RTT QUIC 握手（原英文 id 原文缺口已修）。
+//     并断 disabledBy 联动：勾「禁用 SNI」⇒ SNI 输入框 enabled=false（仍可见、不清值；
+//     照 `TuicSettingsActivity.kt:55-61` 的 isEnabled 语义）—— 保存用例有顺序陷阱：先填后勾。
+//  4. ECH（vless/trojan/http）：enableECH boolean→`tls.ech.enabled` + echConfig stringList→
+//     `tls.ech.config`（`standard_v2ray_preferences.xml:173-185` 多行文本框 ⇒ 行数组）。
+//     P1 覆盖面 = trojan 新建渲染（18 字段含两 ECH label、SwitchListTile 3 个）+ 编辑回显
+//     ECH 开关为关；vless 两 ECH 字段的渲染/落值在 P0 文件（protocol_form_fields_p0_spec_test.dart）。
+//  5. hysteria hopInterval：代码 text + valueSuffix 's'（:567），矩阵 §2.9 写 integer。
+//     serverCertificates 代码 text（:561，写 JSON 原串不做数组转换），矩阵「TLS 组 同 vless」
 //     按 stringList 描述。serverPorts 出站键 ['server_port'] 单数。
-//  5. hysteria 双窗口键名（与矩阵一致的固化点，非差异）：serverStreamReceiveWindow →
+//  6. hysteria 双窗口键名（与矩阵一致的固化点，非差异）：serverStreamReceiveWindow →
 //     recv_window_conn、serverConnectionReceiveWindow → recv_window（有意修 NekoBox
 //     HysteriaFmt 298-300 抄写 bug）—— 测试双向断言防回归。
-//  6. ssh：无 privateKeyPath 字段（矩阵亦无；最接近的是 private_key_passphrase=serverPassword1）。
-//     private_key=text 单串不拆行不拆逗号（L554）、host_key=stringList（serverCertificates 复用
-//     「证书 (链)」词表实际写 host_key，L556）；authType 下拉不移植 —— 私钥/密码双文本框
+//  7. ssh：无 privateKeyPath 字段（矩阵亦无；最接近的是 private_key_passphrase=serverPassword1）。
+//     private_key=text 单串不拆行不拆逗号（:676）、host_key=stringList（serverCertificates 复用
+//     「证书 (链)」词表实际写 host_key，:678）；authType 下拉不移植 —— 私钥/密码双文本框
 //     填了都写（sing-box 先钥后密兜底）。测试额外发现（UI 行为，非数据层）：单行
 //     TextField（maxLines=1）会把 enterText 注入的换行剥掉 ⇒ 多行 PEM 经 UI 保存后变单行串。
 // ─────────────────────────────────────────────────────────────────────────────

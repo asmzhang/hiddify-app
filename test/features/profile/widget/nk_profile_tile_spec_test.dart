@@ -83,7 +83,9 @@ void main() {
     final card = tester.widget<Card>(find.byType(Card));
     expect(card.margin, const EdgeInsets.all(4));
     expect(card.elevation, 2);
-    expect((card.shape as RoundedRectangleBorder).borderRadius, BorderRadius.circular(4));
+    final shape = card.shape;
+    expect(shape, isA<RoundedRectangleBorder>());
+    expect((shape! as RoundedRectangleBorder).borderRadius, BorderRadius.circular(4));
 
     // 行1：名称粗体（profile_name textStyle bold）+ 三动作。
     final name = tester.widget<Text>(find.text('测试订阅'));
@@ -113,7 +115,8 @@ void main() {
   testWidgets('状态着色分支：已过期/流量已用尽 → 错误色 + w600', (tester) async {
     await pumpTile(
       tester,
-      _remote(subInfo: _sub(upload: 0, download: 0, total: _mb, expire: DateTime(2020, 1, 1))),
+      // DateTime(2020) == 2020-01-01（月/日默认 1），确保订阅已过期。
+      _remote(subInfo: _sub(upload: 0, download: 0, total: _mb, expire: DateTime(2020))),
     );
     final expired = tester.widget<Text>(find.text('已过期'));
     expect(expired.style?.color, _scheme.error);

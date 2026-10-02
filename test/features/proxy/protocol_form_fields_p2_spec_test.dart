@@ -7,8 +7,8 @@
 //      死字段不落键 / 空值删键）。
 // 判定基准：zh-CN 词表（assets/translations/zh-CN.i18n.json 的 pages.proxies.form.*）；
 // 字段清单以代码 lib/features/proxy/data/protocol_form.dart 为准
-// （socks L481-490 / http L507-533 / shadowtls L603-631 / mieru L641-655 / wireguard L674-686 /
-//   naive L699-717 / kManualCreatableProtocols L773-791 / protocolDisplayName L796-815）。
+// （socks:599 / http:625 / shadowtls:726 / mieru:764 / wireguard:797 /
+//   naive:822 / kManualCreatableProtocols:894 / protocolDisplayName:917）。
 // 基建与六坑纪律照抄 P0/P1 样板（protocol_form_fields_p0/p1_spec_test.dart）：
 //   ① fake notifier build() 给现成 Stream、不挂 disposeDelay ⇒ 无 pending Timer；
 //   ② 不注入 proxyEntityRepository ⇒ 无 drift 真异步 ⇒ pumpAndSettle 全程可用；
@@ -292,8 +292,8 @@ void main() {
     });
   });
 
-  group('P2 字段级 1:1 · http（_httpSpec L507-533）', () {
-    testWidgets('新建渲染：4 平铺字段 + TLS 组（security 开关 + 5 字段）+ 双分节', (tester) async {
+  group('P2 字段级 1:1 · http（_httpSpec:625，含 ECH 两字段）', () {
+    testWidgets('新建渲染：7 字段 + TLS 组（security 开关 + 7 字段含 ECH）+ 双分节 + 3 开关', (tester) async {
       final f = _Fixture();
       await _pump(tester, open: (context) => showProtocolCreateSheet(groupId: 7, type: 'http'), fixture: f);
       await _tapGo(tester);
@@ -303,18 +303,23 @@ void main() {
       // 分节：proxy + security 两节
       expect(find.text('服务器设置'), findsOneWidget);
       expect(find.text('TLS 安全设置'), findsOneWidget);
-      for (final label in const ['服务器', '服务器端口', '用户名', '密码', '传输层加密', '服务器名称指示', '允许不安全的连接', '应用层协议协商', '证书 (链)', 'uTLS 指纹']) {
+      for (final label in const [
+        '服务器', '服务器端口', '用户名', '密码', '传输层加密', '服务器名称指示', '允许不安全的连接',
+        '应用层协议协商', '证书 (链)', 'uTLS 指纹',
+        // 缺口收口：ECH 两字段（HttpBean 同属 StandardV2RayBean 家族 ⇒ security 节可见）
+        '启用 ECH', 'ECH 配置',
+      ]) {
         expect(find.text(label), findsOneWidget, reason: 'http 缺字段 label：$label');
       }
-      // security / allowInsecure 是 boolean；utlsFingerprint 是 choice 空值「未设置」
-      expect(find.byType(SwitchListTile), findsNWidgets(2));
+      // security / allowInsecure / enableECH 是 boolean；utlsFingerprint 是 choice 空值「未设置」
+      expect(find.byType(SwitchListTile), findsNWidgets(3));
       expect(find.text('未设置'), findsOneWidget);
       // **死字段 host/path 不在表单**（NekoBox HttpBean 分支 V2RayFmt.kt:628-637 不读它们）
       expect(find.text('HTTP 主机'), findsNothing);
       expect(find.text('HTTP 路径'), findsNothing);
     });
 
-    testWidgets('编辑回显：TLS 叶子逐项回显（含 utls fingerprint）', (tester) async {
+    testWidgets('编辑回显：TLS 叶子逐项回显（含 utls fingerprint）+ ECH 开关未开', (tester) async {
       final f = _Fixture();
       await _pump(
         tester,
@@ -338,6 +343,9 @@ void main() {
       expect(secSwitch.value, isTrue);
       final insSwitch = tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, '允许不安全的连接'));
       expect(insSwitch.value, isTrue);
+      // 素材无 ech 键 ⇒ ECH 开关关、ECH 配置空
+      expect(tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, '启用 ECH')).value, isFalse);
+      expect(find.text('未设置'), findsNothing);
     });
 
     testWidgets('新建保存：security 关 ⇒ 整个 tls 容器摘除（连 sni 一起）+ 无 host/path 死字段', (tester) async {
@@ -761,8 +769,10 @@ void main() {
 // 与规格矩阵（.workbuddy/spec-protocol-forms-tests.md §2）的 P2 相关差异 —— 全部以代码为准写测试：
 //  1. socks：version 下拉 choices ['4','4a','5'] **无 writeValues** ⇒ JSON 落原串 '5'
 //     （内核 SOCKSOutboundOptions.version 是 string）。矩阵未细写。
-//  2. http：security 字段 id 与「传输层加密」词条复用 vless/trojan 的 security（L515）；
-//     host/path 死字段未移植（V2RayFmt.kt:628-637 构建期不读）⇒ 表单无、payload 无（固化）。
+//  2. http：security 字段 id 与「传输层加密」词条复用 vless/trojan 的 security（:633）；
+//     host/path 死字段未移植（V2RayFmt.kt:628-637 构建期不读）⇒ 表单无、payload 无（固化）；
+//     ECH 两字段（:647-648，缺口已修）与 vless/trojan 同构 —— enableECH boolean→`tls.ech.enabled`、
+//     echConfig stringList→`tls.ech.config`，HttpBean 同属 StandardV2RayBean 家族故 security 节可见。
 //  3. shadowtls：version choices ['','2','3'] + writeValues {'2':2,'3':3} ⇒ 落 **int**；
 //     矩阵 §2.13 描述一致（此处显式断 int 类型防回归）。
 //  4. mieru：serverPort/serverProtocol 落 portBindings[0]（int 下标路径）；种子

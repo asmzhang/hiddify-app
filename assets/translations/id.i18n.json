@@ -235,7 +235,15 @@
         "utlsFingerprint": "Sidik jari uTLS",
         "uuid": "ID pengguna",
         "version": "Versi protokol",
-        "wsMaxEarlyData": "Data awal maksimum"
+        "wsMaxEarlyData": "Data awal maksimum",
+        "alterId": "Alter ID",
+        "encryption": "Encryption",
+        "enableECH": "Enable ECH",
+        "echConfig": "ECH Config",
+        "serverDisableSNI": "Disable SNI",
+        "serverReduceRTT": "Enable 0-RTT QUIC handshake",
+        "serverCongestionController": "Congestion Controller",
+        "serverUDPRelayMode": "UDP Relay Mode"
       },
       "groupNotSubscription": "Jenis grup bukan langganan",
       "msg": {

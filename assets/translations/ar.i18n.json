@@ -241,7 +241,15 @@
         "utlsFingerprint": "بصمة uTLS",
         "uuid": "معرف المستخدم",
         "version": "إصدار البروتوكول",
-        "wsMaxEarlyData": "أقصى بيانات مبكرة"
+        "wsMaxEarlyData": "أقصى بيانات مبكرة",
+        "alterId": "Alter ID",
+        "encryption": "Encryption",
+        "enableECH": "Enable ECH",
+        "echConfig": "ECH Config",
+        "serverDisableSNI": "Disable SNI",
+        "serverReduceRTT": "Enable 0-RTT QUIC handshake",
+        "serverCongestionController": "Congestion Controller",
+        "serverUDPRelayMode": "UDP Relay Mode"
       },
       "groupNotSubscription": "نوع المجموعة ليس اشتراكًا",
       "msg": {

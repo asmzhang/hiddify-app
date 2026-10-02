@@ -14,7 +14,7 @@
 //   ② 不注入 proxyEntityRepository ⇒ 无 drift 真异步 ⇒ pumpAndSettle 全程可用；
 //   ③ 不设 debugDefaultTargetPlatformOverride（本链路不读 PlatformUtils）；
 //   ④ zh 词表 runAsync 预构建 + translationsProvider.overrideWith + pre-warm future；
-//   ⑤ 视口 1080x2400 / dpr 1.0，保证 vless 18 字段一次全建出；
+//   ⑤ 视口 1080x2400 / dpr 1.0，保证 vless 20 字段一次全建出；
 //   ⑥ TextFormField 无 decoration getter，断 errorText 用内层 TextField。
 import 'dart:convert';
 
@@ -112,7 +112,7 @@ class _HostPage extends StatelessWidget {
 
 Future<void> _pump(WidgetTester tester, {required void Function(BuildContext context) open, _Fixture? fixture}) async {
   final f = fixture ?? _Fixture();
-  // 弹层高 0.75 视口 + ListView 懒构建：放大视口保证 vless 18 字段（配置名称 →
+  // 弹层高 0.75 视口 + ListView 懒构建：放大视口保证 vless 20 字段（配置名称 →
   // Reality 短 ID）一次全部建出，find 不漏。
   tester.view.physicalSize = const Size(1080, 2400);
   tester.view.devicePixelRatio = 1.0;
@@ -300,7 +300,7 @@ void main() {
   });
 
   group('P0 字段级 1:1 · vless', () {
-    testWidgets('新建渲染：18 字段 + 三分节 + flow 是文本框（矩阵写 choice，以代码为准）+ 3 处「未设置」', (tester) async {
+    testWidgets('新建渲染：20 字段 + 三分节 + flow 是文本框（矩阵写 choice，以代码为准）+ ECH 两字段 + 3 处「未设置」', (tester) async {
       final f = _Fixture();
       await _pump(tester, open: (context) => showProtocolCreateSheet(groupId: 7, type: 'vless'), fixture: f);
       await _tapGo(tester);
@@ -311,16 +311,17 @@ void main() {
       expect(find.text('服务器设置'), findsOneWidget);
       expect(find.text('WebSocket 设置'), findsOneWidget);
       expect(find.text('TLS 安全设置'), findsOneWidget);
-      // 字段 label 全列（serverAddress → realityShortId，与代码 _vlessSpec 逐一对齐）
+      // 字段 label 全列（serverAddress → echConfig，与代码 _vlessSpec 逐一对齐）
       for (final label in const [
         '服务器', '服务器端口', '用户ID', '流控', '包编码', '传输协议', 'HTTP 主机', 'HTTP 路径',
         '最大早期数据', '早期数据头名称', '传输层加密', '服务器名称指示', '允许不安全的连接', '应用层协议协商',
-        '证书 (链)', 'uTLS 指纹', 'Reality 公钥', 'Reality 短 ID',
+        '证书 (链)', 'uTLS 指纹', 'Reality 公钥', 'Reality 短 ID', '启用 ECH', 'ECH 配置',
       ]) {
         expect(find.text(label), findsOneWidget, reason: 'vless 缺字段 label：$label');
       }
-      // 形态：布尔 ×2（security + allowInsecure）；choice ×3（包编码/传输协议/uTLS）空值 = 未设置
-      expect(find.byType(SwitchListTile), findsNWidgets(2));
+      // 形态：布尔 ×3（security + allowInsecure + enableECH）；
+      // choice ×3（包编码/传输协议/uTLS）空值 = 未设置
+      expect(find.byType(SwitchListTile), findsNWidgets(3));
       expect(find.text('未设置'), findsNWidgets(3));
       // 代码事实：flow 是 text 自由文本框，不是矩阵 §2.1 说的 choice 下拉
       expect(find.widgetWithText(TextField, '流控'), findsOneWidget);

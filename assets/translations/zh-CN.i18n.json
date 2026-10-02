@@ -244,7 +244,15 @@
         "privateKey": "私钥",
         "peerPublicKey": "对端公钥",
         "peerPreSharedKey": "预共享密钥",
-        "reserved": "Reserved"
+        "reserved": "Reserved",
+        "alterId": "替代 ID",
+        "encryption": "加密",
+        "enableECH": "启用 ECH",
+        "echConfig": "ECH 配置",
+        "serverDisableSNI": "禁用 SNI",
+        "serverReduceRTT": "启用 0-RTT QUIC 握手",
+        "serverCongestionController": "拥塞控制",
+        "serverUDPRelayMode": "UDP 转发模式"
       },
       "activeProxy": "当前代理",
       "unknownIp": "未知 IP",

@@ -137,7 +137,7 @@ Future<void> _tapGoAndSettle(WidgetTester tester) async {
 
 void main() {
   group('⑨ 小屏 · 协议表单（<600dp）', () {
-    testWidgets('360×640dp：vless 新建渲染无溢出，18 字段一屏未裁剪', (tester) async {
+    testWidgets('360×640dp：vless 新建渲染无溢出，20 字段一屏未裁剪', (tester) async {
       await _pump(
         tester,
         dp: const Size(360, 640),
@@ -150,7 +150,7 @@ void main() {
       // 固定底栏（保存键恒在树，ListView 之外）。
       expect(find.text('保存'), findsOneWidget);
       expect(find.widgetWithText(TextFormField, '配置名称'), findsOneWidget);
-      // 小屏语义：字段最多协议（vless 18 字段）的 TLS 分节**滚动可达**——
+      // 小屏语义：字段最多协议（vless 20 字段）的 TLS 分节**滚动可达**——
       // ListView 懒构建，360dp 一屏只有前几个字段在树（首跑实证：屏外分节
       // find 落空），滚到底部必须能到达。
       await tester.scrollUntilVisible(find.text('TLS 安全设置'), 200, scrollable: find.byType(Scrollable).first);

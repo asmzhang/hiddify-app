@@ -239,7 +239,15 @@
         "utlsFingerprint": "Отпечаток uTLS",
         "uuid": "ID пользователя",
         "version": "Версия протокола",
-        "wsMaxEarlyData": "Максимум ранних данных"
+        "wsMaxEarlyData": "Максимум ранних данных",
+        "alterId": "Alter ID",
+        "encryption": "Encryption",
+        "enableECH": "Enable ECH",
+        "echConfig": "ECH Config",
+        "serverDisableSNI": "Disable SNI",
+        "serverReduceRTT": "Enable 0-RTT QUIC handshake",
+        "serverCongestionController": "Congestion Controller",
+        "serverUDPRelayMode": "UDP Relay Mode"
       },
       "groupNotSubscription": "Тип группы — не подписка",
       "msg": {

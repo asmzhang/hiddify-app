@@ -235,7 +235,15 @@
         "utlsFingerprint": "uTLS parmak izi",
         "uuid": "Kullanıcı kimliği",
         "version": "Protokol sürümü",
-        "wsMaxEarlyData": "En fazla erken veri"
+        "wsMaxEarlyData": "En fazla erken veri",
+        "alterId": "Alter ID",
+        "encryption": "Encryption",
+        "enableECH": "Enable ECH",
+        "echConfig": "ECH Config",
+        "serverDisableSNI": "Disable SNI",
+        "serverReduceRTT": "Enable 0-RTT QUIC handshake",
+        "serverCongestionController": "Congestion Controller",
+        "serverUDPRelayMode": "UDP Relay Mode"
       },
       "groupNotSubscription": "Grup türü abonelik değil",
       "msg": {
