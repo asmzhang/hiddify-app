@@ -18,6 +18,23 @@
 
 原始证据链：`.workbuddy/memory/YYYY-MM-DD.md` 每日日志比 MEMORY.md 更细（含验证输出、命令、失败尝试），存疑时回溯它。
 
+**四份记录各写什么（2026-10-02 定案，写之前先对表，别再重复）**：
+
+| 文件 | 只写 | 不写 | 入库 |
+|---|---|---|---|
+| **`HANDOVER.md`（本文）** | 现状快照 / 定案清单 / 大坑 / 未验证项 / **状态与锚点** | **任何过程推理与逐条明细** | ✅ |
+| `docs/design/*.md` | 分主题的设计与逐功能明细（如 `parity-sequence-log.md`） | 易变状态（状态放本文） | ✅ |
+| `.workbuddy/memory/MEMORY.md` | 长期稳定事实（环境 / 约定 / 规程） | 逐次收口细节 | ❌ gitignored |
+| `.workbuddy/memory/YYYY-MM-DD.md` | 当日发生了什么（可含完整推理） | 稳定事实（会与 MEMORY 重复） | ❌ gitignored |
+| `.workbuddy/spec-*.md` | 规格矩阵与缺口表 | 实现过程 | ❌ gitignored |
+
+**硬约束**：本文是**唯一入库**的记录（`.workbuddy/` 整个 gitignored，`.gitignore:54`），所以它必须保持
+**「一小时读完」**。明细一律外链 —— 本文出现「需要工具取样才能读」的超长行（历史峰值单行 9298 字符）
+即为结构失败的信号。
+
+**不再写记账提交**（2026-10-02 定案）：`docs: anchor X (SHA)` 这类提交零信息熵（`git log` 本身就记 SHA），
+历史里曾占 53%。改为：功能提交的 message 自带锚点，本文随下一次功能提交一起更新。
+
 **如果你是新会话的 AI 且用户只说「继续」**：先读完本文与 MEMORY.md，按上表分层采信，然后从 §3「剩余」清单顶部选活，**先给方案再动手**；方案分歧按「NekoBox 规格 → 复用已有机制 → 参考 Throne → 自己实现」自行推导定案，不要把可推导的问题退回给用户。
 
 快速验证工具（A 层结论的复现入口）：`make doctor`（环境）/ `flutter test test/`（Dart，**先 unset 代理变量**）/ `dart analyze lib test tool`（分目录）/ `go test ./...`（在 hiddify-core/）/ `HiddifyCli.exe run -c <cfg> -d <settings> --log info`（内核配置验证）。
@@ -26,10 +43,20 @@
 
 ## 0. 一句话现状
 
-**工程完整可构建可测（Windows debug 版），NekoBox 复刻的可做项已全部落地（批次 1-14 + 审计 B/C/D + Go 1.27 升级）；主仓库与 core 子模块均全量推送**（远端 `origin/my` = `03420bad`，2026-10-01 ls-remote 实证 = 本地 HEAD；⑤协议表单字段级 P0 = `ba21921d`、P1 = `4c0c1da0`、P2 = `1a750b50`、**六缺口修复 = `15b41d37`**（vmess alterId/encryption + ECH 三协议 + tuic 中文标签/禁 SNI 置灰 + trojan 种子 TLS）+ 记档 `03420bad`；①手动新建节点链 L1 测试收口 = `9231100c`/`429bf873`；⑨小屏形态（协议/chain/config 弹层+主壳抽屉，360/320dp）= `4f77caee`+记档 `1ee7ad7b`；⑧9 语言翻译补全 = `17f32a0b`；⑥日志页 = `006b50b3`；④设置页 = `e0339608`），core 远端 my = `1075e82`。注：2026-09-30 洗订阅 token 历史（git filter-repo 重写全史）后 force push 重锚，全仓库旧 SHA 引用已按 commit-map 批量更新）；
-2026-09-22 起 UI 复刻进入**「1:1 逐功能对比」新阶段（用户定案，见 §3.0#11）：功能①节点页 ⋮ 菜单已完成（`82a39b20`）——8 项权威顺序 + radio 排序子菜单 + 文案对齐 + 删「路由」项，L1 结构测试 5 用例 + 全量 111/111 绿；
-**翻译策略定案（§3.0#12）：测试与验收一律以 zh-CN 为基准，en 仅作 slang base_locale 保键同步，其余 8 语言键已脱节（runtime 回退 en 不炸），翻译批次放最后。**
-剩：8 语言翻译批次、~~日志页第二层（watchLogs gRPC 流建立）~~ **已完成（2026-09-30，`05c4e7a4`，见 §2）**、~~集成测试 smoke 重跑~~（已完成，见 §7）、wireguard 真实握手（用户定案暂缓，无凭据）、上游 PR（前置=洗 token 历史，已完成）、后续功能②③…。
+**工程完整可构建可测（Windows debug 版）；NekoBox 复刻的可做项已全部落地**——批次 1-14 + 审计 B/C/D + Go 1.27 升级 +
+**「1:1 逐功能对比」序列 20 项已完成 19 项**（**明细与逐项锚点见下方 §3.0#10 状态表**，本文不重复）。
+**八项真缺口全部收敛**（6 修 + 2 有意不行动）。主仓库与 core 子模块均已全量推送（core 远端 my = `1075e82`）。
+**推送态以实测为准**：`git ls-remote origin my` 比对本地 HEAD——本文随功能提交一起推送，所以**不要用本文件里写的 SHA 判断是否落后**，
+也不要信 `git status` 的 `ahead N` / `[gone]`（沙箱里 tracking ref 会静默失写，见 §4#12）。
+
+**唯一未做项**：⑨ 终验收的 **Windows 真机窗口**部分（需真机上肉眼观察，自动化到此为止）。
+（其余「未验证通道」性质不同 —— CI 首跑背书 / Android·iOS 构建链 / wireguard 真实握手 / 发布工程，
+见 §7 未验证清单，那些不是本序列的剩余项。）
+
+以下三条是长期定案，不随进度变化：
+- **「1:1 逐功能对比」阶段口径**（用户定案，§3.0#11）：按用户真实使用顺序逐功能对比，每项 = 抽规格 → L1 红灯 → 修正 → 全绿提交 → 记档。
+- **翻译策略**（§3.0#12）：测试与验收一律以 **zh-CN** 为基准，en 仅作 slang base_locale 保键同步；①功能①阶段其余 8 语言键曾脱节，**已于 `17f32a0b` 全量补齐清零**。
+- **暂缓/不做**：wireguard 真实握手（无凭据，用户定案暂缓）、上游 PR（anytls + Makefile PATH 提给 hiddify 官方；前置「洗 token 历史」已完成，本身未做）。
 
 > 接手前必读上方「接手须知」：本文内容分 A（实证事实）/ B（所有者定案，见 §3.0）/ C（推断待验证，见 §7）三层，采信方式各不同。
 
@@ -113,7 +140,7 @@
   - **修法（定案 = 合并后归一化，不动用户输入）**：新增 `lib/features/proxy/data/raw_config_normalize.dart` 的 `normalizeRawConfigSelector(Map<String, dynamic>)`——就地改、返回被改名旧 tag / 无需改返回 null。7 步：outbounds 非空 List → 已有 tag=='select' 即返回 null（契约已满足，绝不动用户配置）→ 候选 = type=='selector' 且 tag 非空非 §hide§ → 目标 = route.final 匹配候选否则首个 → 改名 kRuntimeSelectorTag('select') → 精确相等重写全部引用（route.final / route.rules[].outbound / outbounds[].outbounds[] / .default / .detour）。接入点 = `connection_repository.dart` `_startWithCustomConfig` 节点覆写块后 + `loggy.info("raw config selector normalized: …")`。
   - **测试**：`test/features/proxy/data/raw_config_normalize_test.dart` 6 用例（zh-CN）：事故形态改名+四类引用重写 / 已有 select 整体不动（含 route.final 指向用户 selector 的意图保护）/ 无 selector 不动 / route.final 指向 urltest 时改首个 selector / §hide§ 不作候选 / 非法形态三种返回 null。全量 165/165、analyze 5 info 基线。
   - **执行方式**：Qwen3.8 子代理（medium）按主线 spec 实现 3 文件，产出与 spec 零偏差；主线逐行审查 + 独立复验后提交。
-- **`15b41d37` 协议表单六缺口修复（2026-10-01，已推送）**：字段级 spec（⑤ P0/P1/P2）把「规格矩阵有、实现无」的六处全数暴露 → 一次性补齐实现 + 同步测试。详见 §3「剩余」10 条目内「六缺口修复已收口」。关键项：vmess 独立 `_vmessSpec`（此前**只有引用没有定义，编译即断**）、ECH 两字段进 vless/trojan/http、trojan 种子 TLS 默认开、tuic 四字段中文词条 + `disabledBy` 置灰机制、`protocolFormLayout` 分节重复标题缺陷（同一 section 渲染 3 次）。19 files/+411/−128；全量 273/273，analyze lib+test 双清零。
+- **`15b41d37` 协议表单六缺口修复（2026-10-01，已推送）**：字段级 spec（⑤ P0/P1/P2）把「规格矩阵有、实现无」的六处全数暴露 → 一次性补齐实现 + 同步测试。明细见 `docs/design/parity-sequence-log.md`。关键项：vmess 独立 `_vmessSpec`（此前**只有引用没有定义，编译即断**）、ECH 两字段进 vless/trojan/http、trojan 种子 TLS 默认开、tuic 四字段中文词条 + `disabledBy` 置灰机制、`protocolFormLayout` 分节重复标题缺陷（同一 section 渲染 3 次）。19 files/+411/−128；全量 273/273，analyze lib+test 双清零。
 
 ---
 
@@ -131,7 +158,7 @@
 8. **不移植清单（已定案，勿重新讨论）**：SN Link `sn://`（Kryo 专有二进制，分享用标准链接顶上）；geo 资产管理页（等价物 = 远程 .srs + 路由规则全语义）；http 表单 host/path（NekoBox 构建期死字段）；推广位。
 9. **路由**：保留 hiddify RuleEntity 模型 + 补字段编辑表单（复用 ProtocolFormSpec）；不做 geo Assets 管线。
 10. **工具纪律**：生成代码不入库（build_runner 全量跑）；小状态优先 shared_preferences 不轻易动 drift schema；不用裸下载/自造脚本（用 mise/pub/仓库已有命令）。
-11. **UI 复刻新阶段 = 「1:1 逐功能对比」**（2026-09-22 拍板）：逐功能抽 NekoBox 规格 → L1 结构测试红灯 → 修正 → 全绿提交。节奏 = 一个功能一个功能推进（功能①⋮ 菜单已完成）。
+11. **UI 复刻新阶段 = 「1:1 逐功能对比」**（2026-09-22 拍板）：逐功能抽 NekoBox 规格 → L1 结构测试红灯 → 修正 → 全绿提交。节奏 = 一个功能一个功能推进。**当前进度见 §3.0#10 状态表**（不在此处维护）。
 12. **翻译基准 = zh-CN**（2026-09-22 拍板）：**先只考虑 zh-CN，翻译放最后**。测试断言直接用 zh-CN 文案（对齐 NekoBox values-zh-rCN 词表）；en 仅作 slang base_locale 保持键同步；其余 8 语言（ar/es/fa/fr/id/pt-BR/ru/tr）本轮不碰，runtime 靠 `fallback_strategy: base_locale` 回退 en 不炸。
 13. **「1:1 序列按用户使用顺序推进」**（2026-09-22 拍板）：功能对照顺序 = 用户真实动线（首启 → 添加配置 → 配置页 → 连接 → 抽屉/分组/订阅 → 路由 → 设置 → 日志/仪表板/工具/关于），不按界面架构排。已完成的 ⋮ 菜单/抽屉/分组页/分组设置视为按此序"提前完成"的条目，后续从序列最前端未完成项续作。
 
@@ -160,7 +187,56 @@
    - **chain 三断言**：①内核起+三端口监听零 panic **PASS**；③clash API `/proxies/select` 的 `all` 只有 `chain:us-hk-us`、**零 §hide§** **PASS**；②出口 IP 本次 **INCONCLUSIVE**（09-21 那批节点/凭据已失效：3 个节点 TCP 全通但 anytls 会话 3.0s 后 `use of closed network connection`）——**A/B 对照证明非回归**：用 Go 1.25.6 编的旧 DLL（60.9MB，`build/windows/x64/runner/Debug/hiddify-core.dll`）跑同一配置，日志序列与失败点**逐字一致**。运行态链路由亦正确（日志可见 `chain:us-hk-us` → HK 成员 → 落地服务器 的拨号链）。
    - 落地：`.mise.toml` go → 1.27.1；`Makefile` doctor 改查 go1.27*；§1 Go 行、§4 大坑 #2、§6 命令、docs/BUILD.md 同步。
    - 待办（低优先）：换新订阅后补跑断言②（出口 IP 对照），以恢复 traffic-path 证据链。
-10. **「1:1 逐功能对比」序列（§3.0#13：按用户使用顺序排）**：已做 = 节点页 ⋮ 菜单（`82a39b20`）‖ 抽屉核验收口（功能②，`3931652e`）‖ 分组页（功能③，`32783b20`）‖ 分组设置（功能④，`82f19327`）‖ **配置页主体**（2026-09-30，`567a45f4`：NkProfileTile L1 spec 测试 4 用例全绿——卡规格 margin4/elevation2/圆角4+左缘 4dp 选中条、三行结构、状态着色分支、本地配置收起、流量闸门；两个观察点收口=宽屏留白按 NekoBox 原样不做约束、三行 vs 双行按形态分化收口，见 ui-real-device-observations-2026-09-22.md；部件本就 1:1，无修正项）‖ **连接链路**（2026-09-30，`c7d8bcbc`：FAB 四态已在 `897269a8`；状态条收口=NkCaptureStatusBar 提公共部件（纯参数注入，ConnectionFab 同型）+ captureStatsBarVisible 纯映射进 connection_status.dart + 页面删双写 nkState 归一，L1 spec 测试 3 用例（可见性矩阵/单行内容/点击触发测速）；通知面定性=平台差异非缺口（桌面壳对应物 system_tray_notifier 已按四态复刻，托盘缺「重置连接」动作=观察点不立测）；交互分化收口=点击测速走进度弹窗（Throne 形态）不对照内联文案）‖ **添加配置流**（2026-09-30，`5fc3cb35`：AddProfileModal L1 spec 测试 6 用例全绿——默认选项页/startInManual 直达/手动表单结构（名称·URL·禁用自动更新·自动更新间隔 Slider）/校验闸门 emptyName·invalidUrl 不触 repo/桌面四键+qr 仅移动端/AsyncLoading→ProfileLoading；部件本就 1:1 复刻 add_profile_menu.xml 五入口，无修正项。测试坑：AddProfileNotifier 的 ref.disposeDelay(1min)（riverpod_utils.dart:6）在 container.dispose 留 60s Timer，测试必须 override fake）。**下一步按用户动线序**：~~②订阅页~~（2026-09-30，`ec4dd8ec`：SubscriptionsPage L1 spec 测试 6 用例全绿——desktop/mobile 骨架（ShellDrawerButton 按 <600dp 断点）、空态 rss_feed+添加配置文件、groupOrderProvider 持久化排序与未上榜回退、Dismissible 删→SnackBar+撤销记账；可达性部分早闭环有测试（groups_page→group_settings_sheet onOpenSubscriptions 4 用例）；测试坑：`List<String>` 偏好持久化为 `;` 连接字符串（preferences_utils.dart:27-29），mock 预置须 'p2;p1' 非 StringList）‖ **③路由页**（2026-09-30，`4136b3c0`：RoutingOptionsPage+RuleTile L1 spec 测试 9 用例全绿——空态 rule_rounded+空菜单只显导入 2 项（getRange(0,2) 项目特有语义）/列表+出站词 直连·拦截·代理/菜单 5 项词值/FAB 展开 hitTestable+收起 Opacity(0)/GeneralOptions 展开收起（SizeTransition 折叠在树内不可命中，断言用 hitTestable）/长按删除流（ConfirmationDialog 真实确认框→deleteRule 落账）/updateEnabled Switch 翻转+记账/点行 goNamed('rule') 进编辑页；**对比收口**：NekoBox 滑删+undo 无对位（本项目长按/右键删，形态分化）、路由规则页=项目增强面非 1:1 缺口；测试坑：ConfirmationDialog 按钮用 context.pop——纯 MaterialApp 报 "No GoRouter found in context"，须 MaterialApp.router+navigatorKey:rootNavKey；goNamed 目标 GoRoute 必须带 name:'rule'；ReorderableListView 懒加载在默认 800×600 视口只 build 2 卡，3 卡断言须放大视口；_ExpandableFab mini 项标签 Opacity(0) 常驻树内无 IgnorePointer（收起后仍可命中=疑似产品 bug 记录不修））；~~④设置页~~（2026-10-01，`e0339608`：SettingsPage L1 spec 测试 7 用例全绿——desktop 骨架（五段头+五卡关键行+默认值+平台/视口分支行）/autoStart 开关翻转记账/导入确认流（两级菜单→确认框，取消不执行·确定 importFromClipboard）/Clash API 联动（端口行 enabled 随开关，关闭后 tap 无效）/链行门控 hasAnyProfile/customConfig JSON 徽标有无/mobile 400×1600 视口（抽屉键+desktop OS 行仍渲染）；**对比收口**：无 1:1 修正项（部件本就位，纯补测；补 2 条 android 行不出现断言「在通知中显示速度/触觉反馈」）；**测试坑**：PlatformUtils.isDesktop 按 defaultTargetPlatform 判（可测试版设计）→ _pump 钉 debugDefaultTargetPlatformOverride=windows，**重置必须 body 末尾显式调 _resetPlatformOverride**（addTearDown 晚于 flutter_test binding.dart:1078 _verifyInvariants，必炸 foundation invariant）/autoStartNotifierProvider 需 body 内预热（复刻 bootstrap.dart:80 启动时序，否则首帧 settings_page.dart:150 asData! 落 AsyncLoading）/direct-dns-address 实际默认 1.1.1.1（config_option_repository.dart:98 defaultValueFunction 按 region 覆盖静态默认 udp://1.1.1.1）/「入站」「其他」同词碰撞→findsNWidgets(2)/「Clash API 端口」行标题+对话框 title+输入框 hint 三处→findsNWidgets(3)；spec 落盘 .workbuddy/spec-settings-page-tests.md）；~~⑥日志页~~（2026-10-01，`006b50b3`：LogsPage L1 spec 测试 8 用例全绿——初始渲染（加载占位→标题/筛选/全部/等级徽标/extractMessage 去前缀/时间戳/暂停·清空键/分享菜单）/extractMessage 纯函数（多词去前缀·两词取尾·单词原样）/关键词筛选防抖 200ms 命中剔除清空恢复/等级筛选 warn 及以上回"全部"恢复/暂停恢复（新日志不上屏·恢复补上·图标切换）/清空 repo.clearLogs 记账/错误流→SliverErrorBodyPlaceholder+「意外错误」/mobile 400×1600 视口（抽屉键+desktop OS 行仍渲染）；**对比收口**：日志页原生组合移植（无 NekoBox 对位页），无 1:1 修正项，纯补测；**测试坑**：environmentProvider 必须 overrideWithValue(Environment.prod)——DebugModeNotifier._pref 里 ref.read(environmentProvider)，app_info_provider.dart:13 桩直接 throw（全仓库测试首创 override）/ref.disposeDelay(20s)（logs_overview_notifier.dart:19→riverpod_utils.dart:12 onCancel 挂 Timer）用例末尾必须 pumpWidget(SizedBox.shrink()) 卸树触发 onCancel 再 pump(21s) 推假时钟烧掉，否则 binding.dart:1617 报 pending timer/真 import fluentui_system_icons 用 FluentIcons.pause_20_regular 等常量（自造 IconData 包装类 == 不匹配 byIcon，教训：find.byIcon 只认真 IconData）/其余同④（钉 windows+显式重置/禁 pumpAndSettle 加载态/pump(300ms) 推节流假时钟）；spec 落盘 .workbuddy/spec-logs-page-tests.md）；~~⑥余下仪表板/工具/关于定性~~（2026-10-01 记档 `.workbuddy/qual-remaining-pages-2026-10-01.md`：Dashboard=traffic 页常驻差异（NekoBox enableClashAPI gate）、tools/about 原生组合无对位——均非缺口不立测）；~~⑦首启引导~~（已定性 NekoBox 无 onboarding 不移植，仅记档）；~~①手动新建节点链~~（2026-10-01，`9231100c`+`429bf873`：manual_node_flow_spec_test 6 用例（选协议对话框 17 项列全/取消回退/initialProtocol 直进/chain→ChainSettings 空成员/config→ConfigSettings/普通协议→ProtocolFormModal 新建）+ protocol_form_modal_spec_test 6 用例（新建 anytls 全字段渲染·分节·布尔 Switch·choice 未设置·⋮ 菜单仅编辑模式/空名拒存 errors.unexpected+name 标星不落库/填名保存断 createNode 参数·payload server_port 443 int·种子 tls.enabled 保留/trojan_go unsupported 占位/坏 JSON jsonInvalid 占位/编辑回显 int toString·List 逗号 join·保存只动改过的键未编辑键原样含嵌套 tls）全绿；**测试坑**：fake ProxiesOverviewNotifier 覆写 build() 为现成 Stream 不挂 disposeDelay(15s)⇒无 Timer 残留；不注入 proxyEntityRepository⇒无 drift 真异步⇒pumpAndSettle 全程可用；TextFormField 无 decoration getter，断 errorText 用内层 TextField；chain 弹层 drift 真异步 _tapGoAndSettle bounded=false 12×pump(50ms)）；⑤协议表单字段级 1:1（15 类，依附"手动添加"分支，规格已抽取 `.workbuddy/spec-protocol-forms-tests.md`（17 项菜单对齐+143 行字段矩阵+P0/P1/P2 三批计划+真缺口 6 项待裁定））。**P0 已收口**（2026-10-01，`ba21921d`：protocol_form_fields_p0_spec_test.dart 603 行 12 用例全绿——anytls/vless/hysteria2/shadowsocks × 新建渲染/编辑回显/新建保存；矩阵 7 差异以代码为准固化：anytls password 非必填、vless flow 是 text 非 choice、certificates 三协议 text 非 stringList、hysteria2 hopInterval text+'s' 后缀、shadowsocks pluginName text 拆 plugin/plugin_opts、method 无默认值、hysteria2 无 TLS 分节标题；新坑两条=同文案分节+字段 findsNWidgets(2)、choice 选项 find.text().last）。**P1 已收口**（2026-10-01，`4c0c1da0`：protocol_form_fields_p1_spec_test.dart 778 行 15 用例全绿——vmess/trojan/hysteria/tuic/ssh × 同三用例；差异固化（**其中前三条已于 2026-10-01 修复，见本行末「六缺口修复」**）：vmess 无 alterId/encryption 字段（spec 复制 _vlessSpec 换 type）、trojan 种子无 tls 默认不落键（待裁定）、tuic 四字段（UDP 中继/拥塞控制/禁 SNI/降 RTT）无 zh 词条界面显示英文 id、hysteria 双窗口 recv_window_conn/recv_window 双向断言防 NekoBox 抄写 bug 回归、ssh 无 privateKeyPath（private_key text 单串+host_key stringList+密码/私钥双写）；坑=enterText 向 maxLines=1 注入多行 PEM 被剥换行→private_key 改断单串）。**P2 已收口**（2026-10-01，`1a750b50`：protocol_form_fields_p2_spec_test.dart 783 行 20 用例全绿——socks/http/shadowtls/mieru/wireguard/naive × 新建渲染/编辑回显/新建保存 + 收尾 2（菜单 17 项顺序+display 名映射 hysteria 分列 1/2；chain/config/trojan_go 无 spec+15 协议 spec 非空）；差异固化：socks version 无 writeValues 落原串 '5'、http host/path 死字段表单与 payload 均无、shadowtls version 落 **int**（writeValues {'2':2,'3':3}）、mieru serverPort/protocol 落 portBindings[0]+种子 [{}] 占位、wireguard reserved integerList 0-255 数字数组+种子 mtu:1420/peers:[{}]+'256' 越界拒存 errorText '!'、naive serverProtocol writeValues {'https':null,'quic':true}——https 档删键/quic 档落 bool/**缺键反查默认 'https' 不显示「未设置」**（protocol_form.dart:866-877 反查 null 匹配 writeValues['https']）；**新坑两条**：①容器 dropWhen 只认显式 'false'——新建未碰开关时 values='' 不触发摘除（SwitchListTile onChanged 才写 'true'/'false'，protocol_form_modal.dart:388），测摘除须先开再关；②**同一 fake notifier 实例挂进第二个 ProviderContainer 炸 LateError（Field '_element' has already been initialized）**——一次 _pump 一个新 _Fixture，勿跨 container 复用）。**方法纪律**：每功能先抽规格（menu XML/preferences XML/Activity 源码 + strings 词表）→ L1 结构测试红灯 → 修正 → 全绿提交；测试断言一律 zh-CN（§3.0#12）。**六缺口修复已收口**（2026-10-01，`15b41d37`，19 files/+411/−128）：P0/P1/P2 三个字段级 spec 文件实测出「规格矩阵有、实现无」六处 → 全部按 NekoBox 规格补齐实现并同步测试：①**vmess 独立 `_vmessSpec`**（此前 `_specs:853` 引用 `_vmessSpec` 但**定义缺失=编译炸**）：vless 减 flow，加 alterId（integer→`alter_id`）与 encryption（choice→`security`，choices `['','chacha20-poly1305','aes-128-gcm','auto','none','zero']`，首位空档=未设置⇒不写键⇒内核回落 auto，V2RayFmt.kt:662）；②**ECH 两字段** `enableECH`/`echConfig`（boolean→`tls.ech.enabled`、stringList→`tls.ech.config`）覆盖 vless/trojan/http 三协议（standard_v2ray_preferences.xml:173-185、V2RayFmt.kt:615-622）；③**trojan 种子** `protocolSeedPayload` 加 `'trojan' => {'tls': {'enabled': true}}`（StandardV2RayBean.java:83-89，NekoBox 新建 trojan 默认开 TLS——此前测试断「不落键」属规格误读，已反转）；④**tuic 四字段 zh 词条**（此前界面裸奔英文 id）+ 新增 `disabledBy` 机制：`_tuicSpec` serverSNI 带 `disabledBy: 'serverDisableSNI'`，modal 侧 `enabled: field.disabledBy == null || values.value[field.disabledBy!] != 'true'`（TuicSettingsActivity.kt:55-61）；⑤新词条 8 个（alterId/encryption/enableECH/echConfig/serverDisableSNI/serverReduceRTT/serverCongestionController/serverUDPRelayMode）——en/zh-CN 出译文，其余 **9 语言按 ⑧ 批次惯例补 en 占位**（parity missing=0）；⑥**顺带修 `protocolFormLayout` 分节重复标题缺陷**：原判据 `if (out.isEmpty || field.section != null)` 对每个带 `section` 的字段都开新节，ECH 两字段自带 `section:'security'` ⇒「TLS 安全设置」渲染 3 次（vless/trojan/http 全中，trojan 新建用例先撞上：Found 3 widgets）；改为 `if (out.isEmpty || (field.section != null && field.section != out.last.section))`——连续同名字段只开一节、`section` 可标在节内任意字段上（**教训：新增字段顺手复制 `section:` 会静默重复分节标题；分节标题断言保持 findsOneWidget 勿放宽**）。**测试同步**：P0 vless 20 字段/`SwitchListTile` ×3/「未设置」×3；P1 vmess 21 字段（`流控` findsNothing、未设置 ×4）、trojan 18 字段（种子 TLS 默认 true）、tuic 中文标签 + 旧英文 id findsNothing 防回退 + **交互顺序陷阱**（置灰后的 TextFormField 打不进字：保存用例须**先 `_fill('服务器名称指示')` 再 `_toggle('禁用 SNI')`**，并断 `enabled isFalse` 且置灰不清值）；P2 http 7 字段 + ECH；小屏注释 18→20 字段。**顺带清零 test 目录 4 条 analyze info**（logs_page_spec_test :26 导入顺序 / :100 多余 await、nk_profile_tile_spec_test :86 cast、:116 `DateTime(2020)`）；`flutter analyze lib` 与 `test` 均 **No issues found!**（tool/ 17 info 为已知基线），全量 `flutter test` **273/273 passed**（基线 243，+30 字段级新用例）。
+10. **「1:1 逐功能对比」序列（§3.0#13：按用户使用顺序排）** —— **明细已移至
+    `docs/design/parity-sequence-log.md`**（每功能的规格抽取 / 测试用例 / 对比收口裁定 / 测试坑）。
+    本节只留状态与锚点：
+
+    | 功能 | 状态 | 锚点 |
+    |---|---|---|
+    | 节点页 ⋮ 菜单 ① | ✅ 8 项权威顺序 | `82a39b20` |
+    | 抽屉核验收口 ② | ✅ | `3931652e` |
+    | 分组页 ③ | ✅ | `32783b20` |
+    | 分组设置 ④ | ✅ | `82f19327` |
+    | 配置页主体（NkProfileTile） | ✅ 无修正项 | `567a45f4` |
+    | 连接链路（状态条/FAB 四态） | ✅ 通知面=平台差异 | `c7d8bcbc` |
+    | 添加配置流（AddProfileModal） | ✅ 无修正项 | `5fc3cb35` |
+    | 订阅页 | ✅ | `ec4dd8ec` |
+    | 路由页 | ✅ 增强面非缺口 | `4136b3c0` |
+    | 设置页 | ✅ 无修正项 | `e0339608` |
+    | 日志页 | ✅ 原生组合无对位 | `006b50b3` |
+    | 仪表板/工具/关于 | ⏸️ 定性不立测 | `.workbuddy/qual-remaining-pages-2026-10-01.md` |
+    | 首启引导 ⑦ | ⏸️ NekoBox 无 onboarding 不移植 | — |
+    | 手动新建节点链 ① | ✅ 12 用例 | `9231100c` + `429bf873` |
+    | ⑤协议表单字段级 P0 | ✅ 12 用例 | `ba21921d` |
+    | ⑤协议表单字段级 P1 | ✅ 15 用例 | `4c0c1da0` |
+    | ⑤协议表单字段级 P2 | ✅ 20 用例 | `1a750b50` |
+    | 协议表单六缺口修复 | ✅ 见 §2 | `15b41d37` |
+    | 真缺口 #5 socks 密码置灰 | ✅ 见 §2 | `6309e141` |
+    | ⑧ 9 语言翻译补全 | ✅ i18n 缺口清零 | `17f32a0b` |
+    | ⑨ 小屏形态（360/320dp） | ✅ 10 用例 | `4f77caee` |
+    | ⑨ Windows 真机窗口验收 | ❌ **未做**（工具已就位） | 见下方「真机自测工具链」 |
+
+    **方法纪律**（每功能的执行口径与「对比收口」三种结论、缺口定性顺序）见
+    `docs/design/parity-sequence-log.md` 末两节；widget 测试横切六坑亦在该文。
+- **`6309e141` socks 密码随协议置灰（2026-10-01，真缺口 #5 收口）**：八项真缺口的**最后一项**。定性 → 实现 → 测试全链见 `docs/design/parity-sequence-log.md` 与 `.workbuddy/spec-protocol-forms-tests.md` §5。**一句话结论**：内核 4/4a 只传 username（`sing protocol/socks/client.go:128-135` `ClientHandshake4(..., c.username)`）⇒ password 是惰性字段，这正是 NekoBox 隐藏它的理由 ⇒ 我方**不移植隐藏、统一置灰**（`disabledWhen` 机制），值保留且照写 ⇒ **两边 payload 等价，差异仅在显示**。全量 `flutter test` **274/274 passed**，analyze lib+test 零 info（tool/ 17 info 基线）。
+
+**真机自测工具链**（⑨ 用；10 个脚本全在 `.workbuddy/`，gitignored 不入库；四步链路 = 截图 → 像素定位 → 点击 → 数据库校验，见 `docs/design/nekobox-parity.md:890-895` §8.6.15）：
+
+| 脚本 | 调用 | 作用与关键点 |
+|---|---|---|
+| `win.py` | `python win.py list` / `show <hwnd>` / `shot <hwnd> <out.png>` | 枚举 Hiddify.exe **全部**顶层窗口（含托盘/不可见）。**按 pid 枚举，不要按 `IsWindowVisible`**——本应用可能静默启动到托盘 |
+| `shot.py` | `python shot.py list` / `shot <hwnd> <out.png>` | GDI `PrintWindow(hwnd, hdc, **2**)` 截窗口；**必须传 2**（PW_RENDERFULLCONTENT），否则 Flutter GPU 合成面全黑。自写 zlib PNG，无 PIL |
+| `px.py` | `python px.py <png> <y> [x0] [x1]` | 解自写 PNG（filter=0/RGB），在指定行找深色像素区间 → 量图标 x 坐标 |
+| `click.py` | `python click.py <hwnd> <x> <y> [--move-only]` | 先置前并核对 `GetForegroundWindow()`，**非前台绝不点**；坐标以窗口左上角为原点、与截图同尺度 |
+| `kbd.py` | `unicode <hwnd> <退格数> <文本>` / `replace <hwnd> <退格数> <数字>` | 文本注入。本机**中文输入法**会截获 `keybd_event` 的 ASCII 虚拟键（实测 `testnodeb3` → 『特色t'no'de'b』）⇒ 必须走 `KEYEVENTF_UNICODE`；`SendInput` 的 `INPUT` 在 x64 上是 **40 字节**，少声明则返回 0 + `GetLastError()==87` 且**静默不报错** |
+| `grab_screen.py` | `tour` / `click <ix> <iy> [out]` / `app\|window\|mockup\|shot` | 启动 Release 构建并自动巡游截图（`shot_1_config.png`…`shot_10_profile_details.png`）；`WAIT_S`(16/18)、`CLICK_WAIT`(1.5) 可控 |
+| `verify_tcp_ping.py` | `python verify_tcp_ping.py` | 代理页 ⋮ → TCP 测速 → 断 DB：部分 status=1 / 部分 2-3 且 error 非空；**hysteria2/tuic/wireguard 不被测**（`canTcpPing` 白名单，status 保持 0） |
+| `verify_delete_e2e.py` | `python verify_delete_e2e.py [profileId]` | 审计 F1「删除的节点被订阅基准复活」端到端回归（默认 profileId `e2d4f850-47c7-41e1-92b8-e1708a0cecd8`） |
+| `undo_test.py` | `python undo_test.py` | 删除→截图→撤销→截图，每步读 DB 计数（含硬编码坐标 `(1191,156)` 删除 / `(1166,639)` 撤销） |
+
+**另两条实测纪律**：①`Ctrl+A` 在 Flutter `TextField` 上不可靠（实测变成追加）⇒ **退格清空再输入**；②聊天窗显示的截图被缩放过（实测显示宽 1092 vs 实际 1230）⇒ **按显示坐标点会偏 ~11%**，一律用 `px.py` 从原始 PNG 量。
+**⚠️ 自测会改真实数据**（`%APPDATA%\Hiddify\hiddify\db.sqlite`）：收尾必须按订阅原文把数据补回并在日志/DB 复核（前例：48 → 46 → 补齐回 48）。
+**待办**：`grab_screen.py` 的 `tour()`/`launch` 分支用 `DETACHED_PROCESS|CREATE_NEW_PROCESS_GROUP` 启动，与其文件头注释「用 `DETACHED_PROCESS` 启动会静默失败」（`nekobox-parity.md:885` 同）**矛盾，首次实跑需核实**；其 5 处老仓硬编码路径已改 `__file__` 相对（冒烟 `shot` 通过 868x668/7848 bytes）。
 
 ---
 
@@ -291,7 +367,16 @@ flutter build windows --release
 
 ## 8. 下一个 AI 的第一分钟（操作序列）
 
-1. 读本文 §0 现状 + §3.0 定案清单（12 条）+ §4 大坑实录（尤其 #8 代理变量 / #13 slang deferred / #12 git ref 幻象）。
-2. `git -C S:\test\1\hiddify-app status --short` 确认干净；`git log --oneline -3` 应见文档整理提交（≥`c7d8bcbc`，2026-09-30 洗 token 历史重写后 force push 的新尖端，**全量已推送**）在顶；`git ls-remote origin my` 核对推送状态（tracking `[gone]` 是幻象，别信）。
-3. 用户说「继续」时：按 §3 剩余 #10 的候选序列选功能②（推荐抽屉核验收口，规格 `S:\test\NekoBoxForAndroid\app\src\main\res\menu\nav_drawer.xml`），**先给方案再动手**；测试写法照抄 `test/features/proxy/proxies_menu_test.dart`（含 §4.13 slang 泵法）。
-4. 跑测试前记得 unset 四个代理变量；跑完以输出尾部 `All tests passed` 为准。
+1. 读 §0 现状（3 段读完，**别跳过**）+ §3.0 定案清单（13 条；#8 不移植清单尤其别重开讨论）+ §4 大坑实录
+   （尤其 #8 代理变量 / #13 slang deferred / #12 git ref 幻象 / #5 生成代码不入库）。
+2. `git -C S:\test\1\hiddify-app status --short` 确认干净；`git log --oneline -5` 看顶端；
+   **推送状态一律用 `git ls-remote origin my` 核对**（tracking `[gone]` / `ahead N` 是 §4.12 沙箱幻象，别信）。
+3. **序列已到 19/20**：§3.0#10 状态表里只剩「⑨ Windows 真机窗口验收」一项 ❌。
+   真机验收需要跑起来的 Windows 构建 + 肉眼观察，**没有上下文的话先向用户要观察清单与截图**，不要自己编验收标准。
+   **工具链已就位**：§3 末尾「真机自测工具链」表（`.workbuddy/` 10 个脚本 + 四步链路 + 六条实测纪律），先读它再动手。
+   其余仍在桌面的活（性质不同，非序列剩余项）：上游 PR（§3 剩余 #8）、CI 首跑背书、Android/iOS 构建链、发布工程（§7）。
+4. 若要新增功能对照：先读 `docs/design/parity-sequence-log.md`（逐功能记录 + **方法纪律** + 横切六坑），
+   照该文的执行口径做，**不要另起一套记法**；测试样板照抄 `test/features/proxy/proxies_menu_test.dart`（含 §4.13 slang 泵法）。
+5. 跑测试前 unset 四个代理变量；跑完以输出尾部 `All tests passed` 为准（§4.14）。
+6. **写文档前先读「接手须知」的四份记录分工表**（本文只写状态与锚点；明细进 `docs/design/`；日记进 `.workbuddy/memory/`）。
+   **不要写 `docs: anchor ...` 这类记账提交**（2026-10-02 定案，见「接手须知」）。
