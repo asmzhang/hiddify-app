@@ -380,6 +380,246 @@ K-1 的判据来自 `ConfigurationFragment`；其余页**不靠类比外推**，
   Scaffold 替换外还把 `error.toString()` 原始异常渲到屏上；`per_app_proxy_page.dart:353`
   同样用 `error.toString()` 而非 `presentShortError`。
 
+### ⑨-d 验收期缺陷 K-2：开机自启的平台拒绝不再阻断启动链（2026-10-07）
+
+**来源**：⑨ 终验收在真机上启动 workspace 里的 Release 版，出现**空窗口**（进程活着、无 UI）。
+
+**根因链（实证）**：workspace 目录带 `Mandatory Label\Low Mandatory Level` → `Hiddify.exe`
+继承 LOW 完整性级别 → 写 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 被拒 →
+`launch_at_startup` 的 Windows 实现抛 `Win32Exception: Error 0x80070005` →
+`lib/bootstrap.dart:80` 走的是 `_init`（**catch 里 rethrow**，`:177-191`）→
+`lazyBootstrap` 中断 → `runApp` 永不执行 ⇒ 空窗口。
+即：**一个可选桌面能力的失败，把整个应用变成了白屏**。
+
+**规格源判据**：桌面规格源（nekoray `sys/AutoRun.cpp:26/36 SetEnabled`、`:42/:50 IsEnabled`）
+与后继 Throne（`src/sys/windows/AutoRun.cpp:117/125-140`，schtasks 路径）
+**在任何失败路径上都返回 false、从不抛**。三处偏差同源：①硬失败而非降级
+②挂在启动链上 ③两处入口（应为一处）。
+
+**改动（三层，缺一不可）**
+1. `lib/bootstrap.dart:80` `_init("auto start service", ...)` → `_safeInit(...)`（`:193-199` 吞异常返 null）。
+   与同文件其它可选初始化（active profile / hiddify-core / system tray）一致。
+2. `lib/features/auto_start/notifier/auto_start_notifier.dart` 加 `_guard(action, body)`：
+   try/catch → `loggy.warning("auto start [$action] failed, degrade to disabled")` + 返回 false。
+   `build()` / `enable()` / `disable()` / `updateStatus()` 四条路径全部经它；
+   **写入一律读回平台确认**（`state = AsyncValue.data(await _readEnabled())`），不乐观更新，
+   避免把「写入被拒」显示成「已开启」。
+   另：`build()` 里 `ref.watch(appInfoProvider).requireValue` → `.valueOrNull`，
+   null 时直接 `return false`（不碰平台）——`requireValue` 在 loading/error 下抛 `StateError`，
+   同样会逃出 provider 进启动链。
+3. 两处设置页入口（`settings_page.dart:147-154`、`sections/general_page.dart:49-56`）
+   的 `ref.watch(autoStartNotifierProvider).asData!.value`：provider 一旦进 `AsyncError`
+   这里会抛 `Null check operator used on a null value`（红屏）。**不是打补丁而是删行** ——
+   桌面规格源把「跟随系统启动」只放在托盘右键菜单（见下节 ⑨-e），入口归一后这两个读取点消失。
+
+**回归方法（注意测试宿主复现不了）**：`launch_at_startup` 是私有构造单例、失败条件取决于
+宿主机策略，普通测试机上 `isEnabled()` 直接返回 `false` 不抛（已用临时探针
+`test/_scratch_autorun_probe_test.dart` 证实，探针已删）⇒ **必须注入能抛的假实现**。
+为此抽出接缝：
+```dart
+abstract class AutoStartLauncher { void setup({...}); Future<bool> isEnabled/enable/disable(); }
+class LaunchAtStartupLauncher implements AutoStartLauncher { ... }   // 委托全局单例
+final autoStartLauncherProvider = Provider<AutoStartLauncher>((ref) => const LaunchAtStartupLauncher());
+```
+测试 `test/features/auto_start/auto_start_notifier_spec_test.dart`（5 例）注入
+`_ThrowingLauncher`（每方法抛 `Exception('Win32Exception: Error 0x80070005 (模拟注册表写入被拒)')`）。
+**红证**：把 `_guard` 临时退化成 `return await body();` + 恢复 `.requireValue` → **3 例失败**，
+栈为 `_deny` ← `setup` ← `auto_start_notifier.dart:67 build.<fn>` ← `:112 _guard` ← `:66 build`
+← riverpod `async_notifier/base.dart:146:43 runNotifierBuild` ⇒ 异常确实逃出 provider（同白屏形状）。
+恢复后 5/5 绿。
+
+**测试宿主的 riverpod 顺序陷阱（踩过）**：测试里直接 `await container.read(autoStartNotifierProvider.future)`
+会**永久挂起**（30s 后 `Bad state: ... was disposed during loading state`），
+因为 build 内 `ref.watch(appInfoProvider)` 而 appInfo 尚未产出首值。
+同文件其它 provider 先产出首值则正常。生产顺序本来就安全（`bootstrap.dart:49` appInfo
+在 `:83` auto start 之前）⇒ 非产品缺陷，但测试必须复刻该顺序
+（`await container.read(appInfoProvider.future)` 预热，已写进测试文件头注释）。
+
+### ⑨-d2 验收期缺陷 K-3：日志目录不可写不再阻断启动链（与 K-2 同批，独立成因）
+
+**来源**：修完 K-2 后在**同一台真机、同一个 LOW 完整性级别**下复跑，**仍然白屏** ——
+证明 K-2 只是其中一条成因，还有第二条。
+
+**根因链（实证）**：LOW IL → `%APPDATA%\Hiddify\hiddify\` 整体不可写 →
+`LogRepositoryImpl.init` 抛 `LogFailure.unexpected(error: PathAccessException: Cannot open file,
+path = 'C:\Users\Administrator\AppData\Roaming\Hiddify\hiddify\data\box.log'
+(OS Error: 拒绝访问。, errno = 5), ...)`（`lib/features/log/data/log_repository.dart:31`）→
+经 `log_data_providers.dart:16` → `bootstrap.dart:85` 的 `_init("logs repository")` **rethrow** ⇒ 空窗口。
+同批还有一条**非致命但同样逃逸**的 `PathAccessException ... 'app.log' ... errno = 5`，
+从 `[window controller]` 阶段逃出（`FileLogPrinter.onLog` 里 sink 已死但仍在写）。
+
+**判据（为什么日志必须降级而不是硬失败）**：与 K-2 同一条纪律 ——
+hiddify-core / active profile / system tray / auto start **全是 `_safeInit`**，
+日志**不是核心依赖**，它失败只该退化成「本次运行没有日志文件」，绝不该退化成「没有窗口」。
+
+**改动（三层）**
+1. `lib/features/log/data/log_repository.dart`：`init()` 里新增 `_prepareLogFiles()`，
+   目录创建与 `coreFile()`/`appFile()` 的截断/创建全部包在 try/catch 里，
+   失败只 `loggy.warning("log files are not writable, skipping pre-clear", e, stackTrace)`。
+   注意 `LogPathResolver.coreFile()` = `join(directory.path, "data", "box.log")` —— **`data/` 这一段**
+   是首轮测试写错路径的原因（见下）。
+2. `lib/bootstrap.dart:85` `_init("logs repository", ...)` → `_safeInit(...)`（与其余可选初始化一致）。
+   **`_safeInit` 单独不够**：它只让启动链继续，`logRepositoryProvider` 仍停在 `AsyncError`，
+   而 `logs_overview_notifier.dart:50-51`/`:101-102` 用的是 `.requireValue` ⇒ 日志页会从「白屏」
+   变成「日志页崩溃」。所以仓库本身也必须成功返回。
+3. `lib/core/logger/custom_logger.dart` 的 `FileLogPrinter` 加固：
+   `IOSink? _sink; bool _failed = false;` + `_ensureSink()` 里
+   **同步** `try { openWrite } catch` 与**异步** `unawaited(sink.done.catchError(...))` **两条**都要接，
+   `_markFailed()` 之后 `onLog` 直接 no-op。只接同步那条会漏掉 `app.log` 那种
+   延迟到写入时才报的失败。
+
+**真机复验（同一 LOW IL 环境）**：把整棵 Release 树 `icacls ... /setintegritylevel "(OI)(CI)Low" /T /C /Q`
+（`Successfully processed 384 files`）后启动，得到
+`[LogRepositoryImpl] log files are not writable, skipping pre-clear`、
+`[auto start service] initialized in 0ms`、`bootstrap took [2514ms]`，
+截图 `.workbuddy/k3/k3_lowil_fixed.png`（35660 B）= **完整界面**（配置页 + NavigationRail + 4 个订阅页签 + 7 个 AnyTLS 节点）。
+对照失败基线 `.workbuddy/k2/k2_workspace_01.png` = 6012 B 全白。
+**结论：LOW IL 下不再有第三个阻断点**（`profile repository` 及其后全部完成）。
+
+**测试（先红后绿）**
+- 新建 `test/features/log/log_repository_spec_test.dart`（3 例，用「把一个普通**文件**当目录」制造不可写）
+  与 `test/core/logger/file_log_printer_test.dart`（2 例，100ms 等异步错误落地后断言 `returnsNormally`）。
+- **红证**：把两个文件的加固临时还原成未加固版本 ⇒ **恰好 2 例失败**，
+  报错为 `LogFailure.unexpected(... PathAccessException ... box.log ... errno = 5)` 与
+  `PathNotFoundException: Cannot open file, path = '...\blocker\app.log' (OS Error: 系统找不到指定的路径。, errno = 3)`
+  逃出 `onLog`（`custom_logger.dart:69 → :79`）。恢复后 5/5 绿。
+- 首轮 3 过 2 挂：**是测试自己的错** —— 手抄路径漏了 `data/` 段；改用
+  `resolver.coreFile()` / `resolver.appFile()` 后过。
+
+### ⑨-e 桌面形态修正：「开机自启」归一到托盘右键菜单（nekoray 1:1）
+
+**背景**：⑨-d 修完白屏后，该能力在 hiddify 里有**两个**入口（设置页基础卡 + 设置→通用子页），
+而桌面规格源里它只有**一个**，且在托盘菜单里。
+
+**规格源（nekoray，`S:\test\nekoray`）**
+- `ui/mainwindow.ui:507` `<addaction name="actionStart_with_system"/>` 位于 `menu_program`（`:464-473` 定义，子项序 `:503-517`：actionShow_window / menu_add_from_clipboard2 / menu_scan_qr / separator / **actionStart_with_system** / actionRemember_last_proxy / actionAllow_LAN / menuActive_Server / menuActive_Routing / menu_spmode / menu_program_preference / separator / actionRestart_Proxy / actionRestart_Program / menu_exit）；
+  `:761` 是 action 定义（checkable）。
+- `ui/mainwindow.cpp:233` `tray->setContextMenu(ui->menu_program)` —— **托盘右键菜单就是整个 menu_program**；
+  `:99` 是工具栏按钮，`:255` 在菜单 `aboutToShow` 时 `setChecked(AutoRun_IsEnabled())`（懒读，不在启动链上），
+  `:315-316` triggered → `AutoRun_SetEnabled(checked)`。
+- `ui/dialog_basic_settings.ui` **没有** autorun 条目 ⇒ 设置页本就不该有。
+  后继 Throne 同形（`include/ui/mainwindow.ui:692`、`src/ui/mainWindow/mainwindow_setup.cpp:677/719/733-735`，
+  `src/ui/setting/` 亦无）。
+
+**改动**
+- 新建 `lib/features/system_tray/tray_menu_spec.dart`：把原先内联在 `SystemTrayNotifier._trayMenu`
+  里的菜单抽成**纯数据规格**（仓库 `*_spec.dart` 惯例）——理由有二：① 原实现只有真机看得到
+  （`trayManager` 是平台通道单例），无法单测回归；② 把「开机自启属于托盘」写成可断言规格，
+  才挡得住设置页再长第二入口。
+  - `enum NkTrayMenuAction { dashboard, connection, autoStart, serviceMode, quit }`
+  - `NkTrayMenuAction? nkTrayMenuAction(String? key)`：四个字面量 key + 任何 `ServiceMode.name` → `serviceMode`，
+    **其余返 null**。这条替换掉原来的兜底 `ServiceMode.values.byName(menuItem.key!)` —— 它对任何
+    非服务模式 key（如新加的 `'autoStart'`）都抛 `ArgumentError`，是埋着的同类崩溃。
+  - `Menu nkTrayMenu({connection, serviceMode, autoStart, t})`，顺序：Linux 才有 dashboard + separator
+    → connection（四态文案，`disabled: connection.isSwitching`）→ **autoStart checkbox** →
+    serviceMode 子菜单 → separator → quit。
+- `lib/features/system_tray/notifier/system_tray_notifier.dart`：`_initializeTray()` 增
+  `final autoStart = ref.watch(autoStartNotifierProvider).valueOrNull ?? false;`，菜单改调 `nkTrayMenu(...)`，
+  删私有 `_trayMenu`；`onTrayMenuItemClick` 改 `switch (nkTrayMenuAction(menuItem.key))`，
+  新增 `autoStart` 分支与 `case null`（log + return）。
+  autoStart 分支**读 provider 权威值而非 `menuItem.checked`**，因为 `tray_manager` 从不自己翻转
+  checked（`tray_manager.dart:56-70` 只在"点击前后 checked 不同"时才重推菜单），跟着它走会读到陈旧值。
+- 删两处设置页入口（即 ⑨-d 第 3 条），原地留注释指向 `tray_menu_spec.dart`。
+
+**刻意分歧（记录）**：勾选状态**不做 nekoray 的懒读**（它是菜单 `aboutToShow` 时查一次），
+改为随 provider 状态重建菜单；代价是**外部直接改注册表后最长 15 分钟才反映**
+（provider 内既有 15 分钟 `Timer.periodic` 轮询）。另：标签复用既有 zh 词条
+「开机自启」（`pages.settings.general.autoStart`）而非 nekoray 的「跟随系统启动」
+（`nekoray/translations/zh_CN.ts:1260`），避免动 11 个语言文件与 zh-CN 断言基线。
+
+**测试（先红后绿）**
+- 新建 `test/features/system_tray/tray_menu_spec_test.dart`（8 例）：Windows 项序/类型/文案、
+  Linux 首项 dashboard、连接四态与之 `disabled`、autoStart checkbox 勾选随参数、
+  服务模式子菜单 key/label/checked、`nkTrayMenuAction` 已知/未知（**未知 → null，不再抛**）/
+  `trayMenuServiceMode` 反解。
+- `test/features/settings/settings_page_spec_test.dart`：用例①与⑦改为断言设置页
+  **不再有**「开机自启」（`findsNothing`）；原「②autoStart 开关…enable 记账」整条重写为
+  「②开机自启在设置页无入口」，并删掉 `_FakeAutoStartNotifier` 及其 override/预热。
+  **⑦先红**（`Found 1 widget with text "开机自启"`）→ 改后绿。
+
+### ⑨-f 验收期缺陷 K-4：URL 协议关联把别人的命名空间也占了（根治）
+
+**发现方式**：用户问「hiddify 似乎注册了许多乱七八糟的」。查 `HKCU\Software\Classes\`
+发现 **7 个** URL 协议关联键，全部指向本 exe。
+
+**根因：把 Android 的声明式清单照搬成了 Windows 的独占接管**
+
+`lib/core/router/deep_linking/my_app_links.dart:11-15`（上游引入，`git log -S` 追到
+`e36d8f17` 合并自 `hiddify-next-ios`）在 Windows 上把 `LinkParser.protocols` 整表无条件写进注册表。
+那张表来自 `android/app/src/main/AndroidManifest.xml:77-83`：
+
+    hiddify / v2ray / v2rayn / v2rayng / clash / clashmeta / sing-box
+
+这张表在 Android 上无害，**因为 intent-filter 是声明式的** —— 多个应用可声明同一 scheme，
+系统给候选、用户选（`NekoBoxForAndroid/.../AndroidManifest.xml:118-138` 正是这么声明的）。
+Windows 的协议关联却是**独占的**：`HKCU\Software\Classes\<scheme>` 只有一个
+`shell\open\command`，**后写的赢**。同一份清单语义完全变了 —— 每次启动静默重写 6 个
+**别人的**命名空间（`clash://install-config` 是 Clash Verge/CFW 的入口，`sing-box://` 是
+sing-box 官方客户端，`v2ray*://` 是三个不同客户端）。
+
+次生问题两个：① 写死 `Platform.resolvedExecutable`（开发构建即
+`build\windows\x64\runner\Release\Hiddify.exe`），`flutter clean` 后变成指向不存在文件的孤儿；
+② `unregisterProtocolHandler` 全仓无调用点，卸载后键永久残留。
+
+**规格源**
+- `nekoray`（PC 规格源）：**一个 scheme 都不注册**。全仓 `HKEY_CURRENT_USER` 只有
+  `sys/AutoRun.cpp:33,43` 的开机自启；收链接走 `main/main.cpp:81`
+  `dataStore->argv = QApplication::arguments()`。
+- `NekoBoxForAndroid`：声明式 intent-filter，随卸载自动消失，且用自己的 `sn` 而非抢别人名字。
+
+**根治原则：只主张自己的命名空间**
+
+链接**解析**（读懂 `clash://...`）与协议**关联**（让系统把 `clash://` 路由给我们）是两件事。
+前者不写注册表 —— 剪贴板导入、手动导入、拖拽、argv
+（`routing_config_notifier.dart:68` 的 `LinkParser.protocols.contains`）照旧工作。
+只有"点系统里的 `clash://` 链接"这一个入口依赖关联键，而那恰恰是不该拿的。
+
+**改动**
+- 新建 `lib/core/router/deep_linking/url_protocol/protocol_registration_spec.dart`（纯 Dart，可断言）：
+  - `kOwnedProtocolSchemes = {'hiddify'}`（对应 NekoBox 的 `sn`）、
+    `kForeignProtocolSchemes = {v2ray, v2rayn, v2rayng, clash, clashmeta, sing-box}`、
+    `kAllProtocolSchemes`（const，两表拼接，`LinkParser.protocols` 直接引用它，保持编译期常量语义）。
+  - `enum ProtocolRegistrationAction { claim, keep, revoke, leave }`。
+  - `protocolRegistrationAction({scheme, registeredCommand, executable})`，判定顺序即优先级：
+    自有 → 空 `claim` / 已指向本 exe `keep` / 别的 exe `claim`；
+    外来 → 空 `leave` / **别人的 exe `leave`（绝不覆盖）** / 本产品 `revoke`（历史误占自愈）。
+  - `protocolCommandExecutable(command)`：从 `"...exe" "%1"` / 不带引号含空格 / 裸路径三种形态抽 exe。
+  - `isOurRegisteredExecutable(registered, executable)`：**比文件名而非全路径**。
+- `lib/core/router/deep_linking/url_protocol/protocol.dart`：接口加 `supportsAssociation` /
+  `executable` / `registeredCommand(scheme)` 三个成员（原来只有单向写入，无法"先读再决定"）。
+- `windows_protocol.dart`：实现 `registeredCommand` —— `RegGetValue(HKCU, ...\shell\open\command,
+  RRF_RT_REG_SZ)`，先探大小再取值；一切失败折叠成 null（读不到就保守不动）。
+- `web_url_protocol.dart`：`supportsAssociation => false`。
+- 新建 `protocol_registrar.dart`：`ProtocolRegistrar(handler).reconcile()` 逐 scheme 判定并执行，
+  **单个 scheme 抛异常只记 `failed` 不影响其余**（与 `auto_start_notifier` 的 `_guard` 同一套降级纪律）；
+  返回 `ProtocolReconcileReport(claimed/kept/revoked/left/failed)`。
+- `my_app_links.dart`：`for (final protocol in LinkParser.protocols) registerProtocolHandler(protocol)`
+  → `reconcileProtocolAssociations()`。
+- `api.dart`：暴露 `final protocolHandler` 与 `reconcileProtocolAssociations()`。
+- `windows/packaging/exe/inno_setup.sas`：`CurUninstallStepChanged` 里显式清键 ——
+  **不能用 `[Registry]` 段的 `uninsdeletekey`**（Inno 只删自己安装期创建并记录过的键，
+  而这些是运行期写的）。`hiddify` 直接删；6 个外来键**只在命令行里含 `hiddify.exe` 时才删**
+  （判据取文件名，与 Dart 侧一致）。
+
+**真机验证（关键）**
+首轮实测**暴露了自愈的漏洞**：最初只比全路径，从 `%TEMP%` 副本运行后 6 个外来键全指向旧开发构建
+路径 ⇒ 判为"别人的"⇒ **一个都没归还**。改为比文件名后重测：
+
+    验证前：hiddify / v2ray / v2rayn / v2rayng / clash / clashmeta / sing-box 全在（均指向旧路径）
+    启动新构建后：hiddify 在（指向当前 exe）；v2ray、v2rayn、v2rayng、clash、clashmeta、sing-box 全部已归还
+
+应用日志确证：`18:42:24.625642 [INFO] [ProtocolRegistrar] released foreign protocol schemes:
+[v2ray, v2rayn, v2rayng, clash, clashmeta, sing-box]`；
+**第二次启动 0 条**（幂等：稳态零写入）。
+
+**测试（先红后绿）**
+- 新建 `test/core/deep_linking/protocol_registration_spec_test.dart`（决策表 + 路径解析 + 归属表）与
+  `protocol_registrar_test.dart`（假 handler 记录调用序列）：干净机器只写 1 个键、别人的键绝不覆盖、
+  升级自老版本归还 6 个、幂等、单个失败隔离、全失败不抛、平台不支持零调用，
+  以及 `★真机实测场景`：老路径下的外来键从新路径运行也能归还。
+- **红证**：把 spec 末尾临时改回上游的「无条件 claim」⇒ **27 例失败**，全部是外来 scheme 断言。
+- 全量 `flutter test` = **407 passed**（原 394）。
+
 ### 六缺口修复 `15b41d37`（2026-10-01）
 见 HANDOVER §2 该条目；socks 置灰（第 8 项 / 真缺口 #5）见 `6309e141`。
 
@@ -388,7 +628,11 @@ K-1 的判据来自 `ConfigurationFragment`；其余页**不靠类比外推**，
 ## 方法纪律（序列执行口径）
 
 每功能先抽规格（menu XML / preferences XML / Activity 源码 + strings 词表）→ L1 结构测试红灯 →
-按「NekoBox 规格 → 复用已有机制 → 参考 Throne → 自己实现」修正 → 全绿提交 → 记档。
+按「NekoBox 规格 → 复用已有机制 → 参考 nekoray（桌面差异）→ 自己实现」修正 → 全绿提交 → 记档。
+
+**规格源分层**：安卓形态以 NekoBoxForAndroid 为准；**PC 端差异功能一律以 nekoray 为准**
+（`S:\test\nekoray`，用户定调）。Throne 是 nekoray 的后继重写（同源代码血缘），
+仅在 nekoray 未覆盖处作第二确认源，不单独进决策链。
 
 「对比收口」的三种结论必须显式写明其一：
 1. **1:1 无修正项**（部件本就位，纯补测）

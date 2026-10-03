@@ -1101,7 +1101,8 @@ NekoBox 的构建函数有**三段"整体消失"**的语义 —— `transport` �
 > `alwaysShowAddress`（`settings_page.dart:183-189`）、`allowInsecureOnRequest`（`:411-419`，`tool/check_insecure_request.dart` 10 项校验）、
 > 磁贴 `TileService`（原生 Kotlin 全实现，`android/app/src/main/kotlin/com/hiddify/hiddify/bg/TileService.kt` + manifest `:109-121`）、
 > 导出用 FileProvider（`UriUtils.tryShareOrLaunchFile`）、日志清空/分享（`logs_page.dart:31-51` / `:79-85`）。
-> `BootReceiver` 开机自启：**判为不移植**（hiddify 走 always-on + 启动时 `_safeInit("auto start service")`，形态不同且桌面端更完整）。
+> `BootReceiver` 开机自启：**判为不移植**（hiddify 安卓侧走 always-on + 启动链上的 auto start 初始化；形态不同且桌面端更完整）。
+> ⚠ 该初始化在 `b96e569a` 起一度写成 `_init`（会 rethrow）⇒ 桌面端平台拒绝时白屏，K-2；已修为 `_safeInit` 并给 notifier 加降级（见 `parity-sequence-log.md` ⑨-d/⑨-e）。
 
 ### 8.4 ⛔ 需模型层（B 组，体量最大）
 

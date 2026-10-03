@@ -35,7 +35,7 @@
 **不再写记账提交**（2026-10-02 定案）：`docs: anchor X (SHA)` 这类提交零信息熵（`git log` 本身就记 SHA），
 历史里曾占 53%。改为：功能提交的 message 自带锚点，本文随下一次功能提交一起更新。
 
-**如果你是新会话的 AI 且用户只说「继续」**：先读完本文与 MEMORY.md，按上表分层采信，然后从 §3「剩余」清单顶部选活，**先给方案再动手**；方案分歧按「NekoBox 规格 → 复用已有机制 → 参考 Throne → 自己实现」自行推导定案，不要把可推导的问题退回给用户。
+**如果你是新会话的 AI 且用户只说「继续」**：先读完本文与 MEMORY.md，按上表分层采信，然后从 §3「剩余」清单顶部选活，**先给方案再动手**；方案分歧按「NekoBox 规格 → 复用已有机制 → 参考 nekoray → 自己实现」（PC 端差异功能一律照 nekoray，见 §3.0#3）自行推导定案，不要把可推导的问题退回给用户。
 
 快速验证工具（A 层结论的复现入口）：`make doctor`（环境）/ `flutter test test/`（Dart，**先 unset 代理变量**）/ `dart analyze lib test tool`（分目录）/ `go test ./...`（在 hiddify-core/）/ `HiddifyCli.exe run -c <cfg> -d <settings> --log info`（内核配置验证）。
 
@@ -69,6 +69,10 @@
 也不要信 `git status` 的 `ahead N` / `[gone]`（沙箱里 tracking ref 会静默失写，见 §4#12）。
 
 **唯一未做项**：⑨ 终验收的 **Windows 真机窗口**部分（需真机上肉眼观察，自动化到此为止）。
+该轮验收已抓出缺陷 **K-2**（开机自启平台拒绝 → 白屏）、**K-3**（日志目录不可写 → 白屏）
+与 **K-4**（URL 协议关联抢占别人的命名空间），并顺带完成 **⑨-e**（「开机自启」归一到托盘右键菜单，nekoray 1:1）；
+各项代码与测试已落地（见 §3.0#10 状态表与 `parity-sequence-log.md` ⑨-d/⑨-e/⑨-f）；
+**K-2/K-3 修复后需在真机复跑一次窗口验收**（K-3 已在 LOW 完整性级别下复验通过，见「真机自测工具链」节）。
 （安卓真机侧的 1:1 对比已完成 —— 八项真缺口在真机 NekoBox 旁逐条复验通过，证据在 `.workbuddy/device/`。
 其余「未验证通道」性质不同 —— CI 首跑背书 / Android·iOS 构建链 / wireguard 真实握手 / 发布工程，
 见 §7 未验证清单，那些不是本序列的剩余项。）
@@ -120,7 +124,7 @@
 - **各次根因修复**：`e86dfaa6` URL 测速双层 guard · `82a39b20` 节点页 ⋮ 菜单 1:1 八项 · `05c4e7a4` 日志页 + 测速闪帧 · `ee6ca57f` raw 通道 selector 归一化 · `15b41d37` 协议表单六缺口 · `6309e141` socks 密码按协议版本置灰
 - **路由预置规则 1:1（fork A）** `bf78eb19`：新增 `lib/features/route_rules/data/predefined_rules.dart` 纯函数 `buildNekoBoxPresetRules(Translations, Region)`；删除 `predefined_rules_modal.dart` 及其 FAB 入口；`rules_notifier` 加 `ensureSeeded()`（以「规则文件是否存在」等价 NekoBox `rulesFirstCreate`）、`addRule` 去掉 `enabled = true` 硬编码、`resetRules()` 改无条件；`rule_notifier.dart:90` 新建分支补 `enabled: true`。顺带修掉旧弹窗把「拦截广告」写成 `Outbound.direct` 的语义 bug
 - **验收期两处缺陷收口**：`92402771` 差异清单 D-1（分组页 AppBar 补移动端抽屉键）+ `d1969a87` 缺陷 K-1（配置页数据层出错不再整页替换列表）。两者都由 ⑨ 终验收的窄屏 sweep 抓出，明细见 `docs/design/parity-sequence-log.md`（D-1 见 `.workbuddy/acceptance_checklist.md`，该文件 gitignored；K-1 见该文 ⑨-b 节）
-- **K-1 同形残差逐页收口**（分组页 + 路由规则-安卓应用清单页）：各页先取 NekoBox 对位页证据再定案，**不靠类比外推**；仍余 5 页另案（1 页错误分支不可达、1 页机制不同、3 页无对位页）。明细见 `docs/design/parity-sequence-log.md` ⑨-c 节
+- **K-1 同形残差逐页收口** `a0ac7216`（分组页 + 路由规则-安卓应用清单页）：各页先取 NekoBox 对位页证据再定案，**不靠类比外推**；仍余 5 页另案（1 页错误分支不可达、1 页机制不同、3 页无对位页）。明细见 `docs/design/parity-sequence-log.md` ⑨-c 节
 
 > 推送状态以 `git ls-remote origin my` 为准（本地 `git status` 的 ahead/behind 在沙箱里不可信）。
 
@@ -131,9 +135,10 @@
 ### 3.0 定案清单（B 层：所有者决策，照办不推翻；实现细节可优化，方向性推翻先问用户）
 
 1. **NekoBox 壳 + hiddify 芯**：UI/信息架构 1:1 对照 NekoBoxForAndroid，底层沿用 hiddify 的 sing-box 内核与 Dart 分层。
-2. **规格源唯一 = NekoBoxForAndroid**：menu/preferences XML 是唯一规格准绳；nekoray 不进决策链。**当 NekoBox 规格与 sing-box 1.13 内核契约冲突时，以内核契约为准并记录**（已发生 3 起：legacy geo 移除、wg legacy outbound stub、wg allowed_ips 硬校验——2026-09-22 显性化，免于每次重新纠结）。
-3. **桌面第二规格源 = Throne**（C++）：NekoBox 是安卓-only，凡规格明显不适配桌面形态（交互/布局类）之处参考 Throne；协议/数据结构仍以 NekoBox 为准。
-4. **方案分歧决策链**：NekoBox 规格 → 复用已有机制 → 参考 Throne → 自己实现。能推导的自行定案，不退回用户。
+2. **安卓规格源 = NekoBoxForAndroid**：menu/preferences XML 是安卓形态的唯一规格准绳。**当 NekoBox 规格与 sing-box 1.13 内核契约冲突时，以内核契约为准并记录**（已发生 3 起：legacy geo 移除、wg legacy outbound stub、wg allowed_ips 硬校验——2026-09-22 显性化，免于每次重新纠结）。
+3. **桌面规格源 = nekoray**（`S:\test\nekoray`，用户 2026 定调）：NekoBox 是安卓-only，凡规格明显不适配桌面形态（交互/布局类）之处**以 nekoray 为准**（PC 端差异功能一律照 nekoray）。Throne 是 nekoray 的后继重写（同源代码血缘，`src/sys/windows/AutoRun.cpp` 等与 nekoray `sys/AutoRun.cpp` 同构），只作**第二确认源**用于补齐 nekoray 未覆盖处，不单独进决策链；协议/数据结构仍以 NekoBox 为准。
+   > 本条修正前文（原「规格源唯一 = NekoBoxForAndroid；nekoray 不进决策链」+「桌面第二规格源 = Throne」）：nekoray 是 Throne 前身而非旁支，用户口径是 PC 端参考 nekoray；把 Throne 抬成第二源会绕开用户点名的参照物。首次按本条落地 = 开机自启归一到托盘右键菜单（nekoray `ui/mainwindow.ui` `menu_program` 的 `actionStart_with_system`）。
+4. **方案分歧决策链**：NekoBox 规格 → 复用已有机制 → **参考 nekoray**（PC 端差异）→ 自己实现。能推导的自行定案，不退回用户。
 5. **FAB = 唯一连接开关**（四态：stopped▶/connecting 转圈禁点/connected⏹/disconnecting 转圈）；系统代理模式放设置。
 6. **多平台形态**：手机 = NavigationDrawer；PC ≥600dp = NavigationRail 常驻；统一 Flutter 代码库。**「先 PC」= 先在 Windows 平台构建、跑起来、测试**。
 7. **归一原则**：每个能力只允许一个数据源/入口；退役 UI 不删码只降权；每步一提交。
@@ -144,7 +149,7 @@
 12. **翻译基准 = zh-CN**（2026-09-22 拍板）：**先只考虑 zh-CN，翻译放最后**。测试断言直接用 zh-CN 文案（对齐 NekoBox values-zh-rCN 词表）；en 仅作 slang base_locale 保持键同步；其余 8 语言（ar/es/fa/fr/id/pt-BR/ru/tr）本轮不碰，runtime 靠 `fallback_strategy: base_locale` 回退 en 不炸。
 13. **「1:1 序列按用户使用顺序推进」**（2026-09-22 拍板）：功能对照顺序 = 用户真实动线（首启 → 添加配置 → 配置页 → 连接 → 抽屉/分组/订阅 → 路由 → 设置 → 日志/仪表板/工具/关于），不按界面架构排。已完成的 ⋮ 菜单/抽屉/分组页/分组设置视为按此序"提前完成"的条目，后续从序列最前端未完成项续作。
 
-**设计原则（同 B 层，浓缩版）**：NekoBox 壳 + hiddify 芯 / FAB 四态唯一开关 / 手机 Drawer + PC(≥600dp) NavigationRail / 归一原则 / 每步一提交。规格源唯一 = NekoBoxForAndroid（nekoray 不进决策链）。
+**设计原则（同 B 层，浓缩版）**：NekoBox 壳 + hiddify 芯 / FAB 四态唯一开关 / 手机 Drawer + PC(≥600dp) NavigationRail / 归一原则 / 每步一提交。规格源：安卓形态 = NekoBoxForAndroid，桌面差异 = nekoray（`S:\test\nekoray`；Throne 为同源后继，仅作第二确认源）。
 
 **已完成**：主题色板/主壳/主页卡片/分组页（滑删+拖拽）/导航命名 ‖ 实体层（分组+节点+编辑+分享+删除+去重+组装）‖ ⋮ 菜单 8/8（功能①1:1 收口 `82a39b20`）、抽屉 10/11 ‖ 协议表单 14/15（socks/http/ss/vless/vmess/trojan/hy1/hy2/tuic/shadowtls/anytls/mieru/naive/ssh/wireguard）‖ 设置页审计归一 ‖ custom_config 全局（两阶段 raw）‖ 节点级覆写（切片 8.5）‖ wireguard endpoint 通路 ‖ **chain 任意串联**（批次 10）‖ **config 类型节点**（批次 11）‖ **http 表单**（批次 12，`b07830af`）‖ Windows 构建 + 冒烟测试 ‖ 审计 B/C/D + Go 1.27.1 升级。
 
@@ -197,6 +202,9 @@
     | ⑧ 9 语言翻译补全 | ✅ i18n 缺口清零 | `17f32a0b` |
     | 路由页预置规则 1:1（fork A：自动种 + 默认关 + 删弹窗） | ✅ 13+4 用例 | `bf78eb19` |
     | ⑨ 小屏形态（360/320dp） | ✅ 10 用例 | `4f77caee` |
+    | ⑨-d 缺陷 K-2：开机自启平台拒绝不再阻断启动链 | ✅ 5 用例（注入能抛的假实现） | `parity-sequence-log.md` ⑨-d |
+    | ⑨-e 桌面形态修正：「开机自启」归一到托盘右键菜单（nekoray 1:1） | ✅ 8 用例 | `parity-sequence-log.md` ⑨-e |
+    | ⑨-f 缺陷 K-4：URL 协议关联只主张自有命名空间 + 自愈归还误占 | ✅ 59 用例 + 真机复验 | `parity-sequence-log.md` ⑨-f |
     | ⑨ 安卓真机 1:1 对比（vs NekoBox） | ✅ 八项真缺口全部真机复验通过 | 证据 `.workbuddy/device/`（gitignored） |
     | ⑨ Windows 真机窗口验收 | ❌ **未做**（工具已就位） | 见下方「真机自测工具链」 |
 
@@ -359,8 +367,12 @@ flutter build windows --release
 2. `git -C S:\test\1\hiddify-app status --short` 确认干净；`git log --oneline -5` 看顶端；
    **推送状态一律用 `git ls-remote origin my` 核对**（tracking `[gone]` / `ahead N` 是 §4.12 沙箱幻象，别信）。
 3. **序列已到 19/20**：§3.0#10 状态表里只剩「⑨ Windows 真机窗口验收」一项 ❌。
+   该轮已抓出缺陷 **K-2**（白屏）并完成 **⑨-e**（开机自启归一），**修复后需在该真机上复跑一次窗口验收**才算收口。
    真机验收需要跑起来的 Windows 构建 + 肉眼观察，**没有上下文的话先向用户要观察清单与截图**，不要自己编验收标准。
    **工具链已就位**：§3 末尾「真机自测工具链」表（`.workbuddy/` 10 个脚本 + 四步链路 + 六条实测纪律），先读它再动手。
+   **K-2 相关环境坑**：workspace 目录带 `Mandatory Label\Low Mandatory Level` ⇒ 从 workspace 里启动的
+   `Hiddify.exe` 是 LOW 完整性级别（这正是 K-2 的触发条件）；要对照「正常」行为需把 Release 目录拷到
+   `%TEMP%` 再启动。另 `.workbuddy/grab_screen.py` 的 `tour()` **不要调**（它会重启 workspace 里的 exe）。
    其余仍在桌面的活（性质不同，非序列剩余项）：上游 PR（§3 剩余 #8）、CI 首跑背书、Android/iOS 构建链、发布工程（§7）。
 4. 若要新增功能对照：先读 `docs/design/parity-sequence-log.md`（逐功能记录 + **方法纪律** + 横切六坑），
    照该文的执行口径做，**不要另起一套记法**；测试样板照抄 `test/features/proxy/proxies_menu_test.dart`（含 §4.13 slang 泵法）。
