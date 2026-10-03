@@ -125,6 +125,9 @@
 - **路由预置规则 1:1（fork A）** `bf78eb19`：新增 `lib/features/route_rules/data/predefined_rules.dart` 纯函数 `buildNekoBoxPresetRules(Translations, Region)`；删除 `predefined_rules_modal.dart` 及其 FAB 入口；`rules_notifier` 加 `ensureSeeded()`（以「规则文件是否存在」等价 NekoBox `rulesFirstCreate`）、`addRule` 去掉 `enabled = true` 硬编码、`resetRules()` 改无条件；`rule_notifier.dart:90` 新建分支补 `enabled: true`。顺带修掉旧弹窗把「拦截广告」写成 `Outbound.direct` 的语义 bug
 - **验收期两处缺陷收口**：`92402771` 差异清单 D-1（分组页 AppBar 补移动端抽屉键）+ `d1969a87` 缺陷 K-1（配置页数据层出错不再整页替换列表）。两者都由 ⑨ 终验收的窄屏 sweep 抓出，明细见 `docs/design/parity-sequence-log.md`（D-1 见 `.workbuddy/acceptance_checklist.md`，该文件 gitignored；K-1 见该文 ⑨-b 节）
 - **K-1 同形残差逐页收口** `a0ac7216`（分组页 + 路由规则-安卓应用清单页）：各页先取 NekoBox 对位页证据再定案，**不靠类比外推**；仍余 5 页另案（1 页错误分支不可达、1 页机制不同、3 页无对位页）。明细见 `docs/design/parity-sequence-log.md` ⑨-c 节
+- **启动链加固（验收期缺陷 K-2 / K-3）** `8944a5cf`：LOW 完整性级别下**两条独立成因**都能让 `runApp` 永不执行 ⇒ 白屏。K-2 = `HKCU\...\Run` 写入被拒（`Win32Exception: Error 0x80070005`，`bootstrap.dart` 走 `_init` 硬失败）；K-3 = **整个 `%APPDATA%\Hiddify\hiddify\` 不可写**（`PathAccessException ... 'data\box.log' ... errno = 5`）。三层加固：`_safeInit` + notifier `_guard` 降级 + `FileLogPrinter` 同步/异步两条失败路径都接住。要点是 **`_safeInit` 单独不够** —— provider 会停在 `AsyncError`，而 `logs_overview_notifier.dart:50-51` 用 `.requireValue`，白屏会变成日志页崩溃
+- **⑨-e 桌面形态修正** `38dbd6e6`：「开机自启」归一到托盘右键菜单（nekoray `ui/mainwindow.ui:507` 在 `menu_program` 内、`ui/dialog_basic_settings.ui` 无该条目），删掉设置页两处重复入口
+- **K-4 URL 协议关联根治** `4486046b`：上游把 **Android 的声明式 intent-filter 清单**（`android/.../AndroidManifest.xml:77-83`）照搬成了 **Windows 的独占接管**（`HKCU\Software\Classes\<scheme>` 只有一个 `shell\open\command`，后写的赢）⇒ 每次启动静默抢占 `clash`/`sing-box`/`v2ray*` 共 6 个**别人的**命名空间。改为只主张自有 `hiddify`，并自愈归还历史误占（判据比**文件名**而非全路径 —— 只比全路径时真机实测 6 个键一个都没归还）。规格源 nekoray **零注册**（收链接走 `main/main.cpp:81` argv）
 
 > 推送状态以 `git ls-remote origin my` 为准（本地 `git status` 的 ahead/behind 在沙箱里不可信）。
 
@@ -202,9 +205,10 @@
     | ⑧ 9 语言翻译补全 | ✅ i18n 缺口清零 | `17f32a0b` |
     | 路由页预置规则 1:1（fork A：自动种 + 默认关 + 删弹窗） | ✅ 13+4 用例 | `bf78eb19` |
     | ⑨ 小屏形态（360/320dp） | ✅ 10 用例 | `4f77caee` |
-    | ⑨-d 缺陷 K-2：开机自启平台拒绝不再阻断启动链 | ✅ 5 用例（注入能抛的假实现） | `parity-sequence-log.md` ⑨-d |
-    | ⑨-e 桌面形态修正：「开机自启」归一到托盘右键菜单（nekoray 1:1） | ✅ 8 用例 | `parity-sequence-log.md` ⑨-e |
-    | ⑨-f 缺陷 K-4：URL 协议关联只主张自有命名空间 + 自愈归还误占 | ✅ 59 用例 + 真机复验 | `parity-sequence-log.md` ⑨-f |
+    | ⑨-d 缺陷 K-2：开机自启平台拒绝不再阻断启动链 | ✅ 5 用例（注入能抛的假实现） | `8944a5cf` |
+    | ⑨-d2 缺陷 K-3：日志目录不可写不再阻断启动链 | ✅ 5 用例 | `8944a5cf` |
+    | ⑨-e 桌面形态修正：「开机自启」归一到托盘右键菜单（nekoray 1:1） | ✅ 8 用例 | `38dbd6e6` |
+    | ⑨-f 缺陷 K-4：URL 协议关联只主张自有命名空间 + 自愈归还误占 | ✅ 59 用例 + 真机复验 | `4486046b` |
     | ⑨ 安卓真机 1:1 对比（vs NekoBox） | ✅ 八项真缺口全部真机复验通过 | 证据 `.workbuddy/device/`（gitignored） |
     | ⑨ Windows 真机窗口验收 | ❌ **未做**（工具已就位） | 见下方「真机自测工具链」 |
 

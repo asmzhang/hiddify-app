@@ -380,7 +380,7 @@ K-1 的判据来自 `ConfigurationFragment`；其余页**不靠类比外推**，
   Scaffold 替换外还把 `error.toString()` 原始异常渲到屏上；`per_app_proxy_page.dart:353`
   同样用 `error.toString()` 而非 `presentShortError`。
 
-### ⑨-d 验收期缺陷 K-2：开机自启的平台拒绝不再阻断启动链（2026-10-07）
+### ⑨-d 验收期缺陷 K-2：开机自启的平台拒绝不再阻断启动链 `8944a5cf`（2026-10-07）
 
 **来源**：⑨ 终验收在真机上启动 workspace 里的 Release 版，出现**空窗口**（进程活着、无 UI）。
 
@@ -435,7 +435,7 @@ final autoStartLauncherProvider = Provider<AutoStartLauncher>((ref) => const Lau
 在 `:83` auto start 之前）⇒ 非产品缺陷，但测试必须复刻该顺序
 （`await container.read(appInfoProvider.future)` 预热，已写进测试文件头注释）。
 
-### ⑨-d2 验收期缺陷 K-3：日志目录不可写不再阻断启动链（与 K-2 同批，独立成因）
+### ⑨-d2 验收期缺陷 K-3：日志目录不可写不再阻断启动链 `8944a5cf`（与 K-2 同批，独立成因）
 
 **来源**：修完 K-2 后在**同一台真机、同一个 LOW 完整性级别**下复跑，**仍然白屏** ——
 证明 K-2 只是其中一条成因，还有第二条。
@@ -486,7 +486,7 @@ hiddify-core / active profile / system tray / auto start **全是 `_safeInit`**�
 - 首轮 3 过 2 挂：**是测试自己的错** —— 手抄路径漏了 `data/` 段；改用
   `resolver.coreFile()` / `resolver.appFile()` 后过。
 
-### ⑨-e 桌面形态修正：「开机自启」归一到托盘右键菜单（nekoray 1:1）
+### ⑨-e 桌面形态修正：「开机自启」归一到托盘右键菜单（nekoray 1:1）`38dbd6e6`
 
 **背景**：⑨-d 修完白屏后，该能力在 hiddify 里有**两个**入口（设置页基础卡 + 设置→通用子页），
 而桌面规格源里它只有**一个**，且在托盘菜单里。
@@ -537,7 +537,7 @@ hiddify-core / active profile / system tray / auto start **全是 `_safeInit`**�
   「②开机自启在设置页无入口」，并删掉 `_FakeAutoStartNotifier` 及其 override/预热。
   **⑦先红**（`Found 1 widget with text "开机自启"`）→ 改后绿。
 
-### ⑨-f 验收期缺陷 K-4：URL 协议关联把别人的命名空间也占了（根治）
+### ⑨-f 验收期缺陷 K-4：URL 协议关联把别人的命名空间也占了（根治）`4486046b`
 
 **发现方式**：用户问「hiddify 似乎注册了许多乱七八糟的」。查 `HKCU\Software\Classes\`
 发现 **7 个** URL 协议关联键，全部指向本 exe。
