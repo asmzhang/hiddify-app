@@ -284,6 +284,50 @@ i18n 缺口清零。
   汉堡键开抽屉 + goBranch 导航 + 320dp 开合
 - 全量 +273 绿（当时基线）
 
+### ⑨-b 验收期缺陷 K-1：配置页数据层出错不再整页替换列表 `d1969a87`（2026-10-06）
+
+**来源**：⑨ 终验收的窄屏 sweep（见 `.workbuddy/acceptance_checklist.md` 4.4）。两次 560×900
+复现：`win_23_document.png`、`narrow2_01_config.png`（26071 B）——配置页 body 只剩一行
+`Unexpected error`，页面骨架（AppBar / 订阅 tab 条 / FAB）正常；同一构建 1.5 分钟后的
+`win_20c_config_recheck.png` 渲染正常 ⇒ **偶发**，与视口宽度无因果（正常窄屏页 36k–57k，
+错误页 ≈26k）。
+
+**NekoBox 判据（决定"不换页"这条结论）**：列表由 DB 流驱动（`ConfigBuilder.kt:131 proxyDao.getByGroup`），
+**本身没有失败态**；`ConfigurationFragment.kt` 全类错误一律 snackbar / alert
+（`:317` / `:324` / `:337` / `:451` / `:1588` / `:1678` / `:1704` / `:1729`），
+**没有任何"用整页错误替换列表"的分支**。
+
+**根因（riverpod 2.6.1 源码实证；不是猜的）**：
+1. `ProxiesOverviewNotifier.build()` 是 `async*` 生成器，流一报错生成器即终止
+   （`proxies_overview_notifier.dart:132-135` 的 `yield* Stream.error(const ServiceNotRunning())`；
+   实时流出错时 `:165` 附近把 `watchProxies()` 的 `Either` left 重抛）。
+2. riverpod 把状态留在 `AsyncError` 但**带着上一份数据**（`hasValue: true`）——
+   `riverpod-2.6.1/lib/src/common.dart:528-539` 的 `AsyncError.copyWithPrevious` 保留
+   `previous.valueOrNull` / `previous.hasValue`。
+3. `.when` 的 `skipError` 默认 `false`（同文件 `:738` `if (hasError && (!hasValue || !skipError))`）
+   —— **有旧数据也走 error 分支** ⇒ 已被顶掉的列表不会自己回来，错误页永久停留。
+
+**改动（呈现层，最小）**：`lib/features/proxy/overview/proxies_overview_page.dart`
+`skipError: true` + `error:` 分支回落空态 `t.pages.proxies.empty` + build 内
+`ref.listen(proxiesOverviewNotifierProvider, ...)` 经 `showErrorToast` 报错。
+**不做**：不动 loading 旗标；不在 notifier 层加重试/重订阅（`watchProxies` 是 gRPC 流，
+自造退避会引入 NekoBox 没有的语义）。
+
+**测试**：`test/features/proxy/proxies_overview_error_spec_test.dart`（3 例，泵**真**页 + 脚本化假
+notifier：①已有列表时出错；②首次加载即出错回落空态；③出错后流继续发数据恢复更新）。
+**先红 3/3**（`addError` 后 `Found 0 widgets with type "ProxyTile"`、屏上出现「服务未运行」整页文案）
+**后绿 3/3**。
+
+**残差（本次未做，另案）**：同形状的整页错误分支还有 5 处 ——
+`groups_page.dart:170`、`subscriptions_page.dart:129`、`profiles_page.dart:61`、
+`profile_details_page.dart:329`、`logs_page.dart:183`。它们的上游 provider 同样是
+`async*`/`Stream` 打底（`GroupsNotifier` / `ProfilesNotifier.build()` `:38` 的
+`.map((event) => event.getOrElse((l) => throw l))` 等），机制相同。
+未一并改的理由：K-1 的判据来自 `ConfigurationFragment`，其余页要各自取 NekoBox 对位页的
+错误处理证据（`GroupFragment` / 订阅页 / 详情页）才能定案，**不靠类比外推**。
+（`logs_page.dart:183` 的 `SliverErrorBodyPlaceholder` 尤需单独看：日志页是原生组合、
+无 NekoBox 对位页，属"形态分化"候选而非缺口。）
+
 ### 六缺口修复 `15b41d37`（2026-10-01）
 见 HANDOVER §2 该条目；socks 置灰（第 8 项 / 真缺口 #5）见 `6309e141`。
 
