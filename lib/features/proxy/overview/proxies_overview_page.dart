@@ -65,6 +65,18 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
     final activeKey = tabs.isEmpty ? "" : (tabs.any((t) => t.key == selectedKey) ? selectedKey : tabs.first.key);
     final proxies = ref.watch(proxiesOverviewNotifierProvider);
 
+    // 数据层出错走 toast —— 这是 NekoBox 的做法：`ConfigurationFragment` 全类错误一律
+    // snackbar/alert（`:317` / `:324` / `:337` / `:451` / `:1588` / `:1678` / `:1704` / `:1729`），
+    // 列表由 DB 流驱动、本身没有失败态，**从不被错误页替换**。
+    // 列表报错时旧数据仍在（`AsyncError.copyWithPrevious` 保留 `hasValue`），配合下面的
+    // `skipError: true` 就能继续显示上一份列表 —— 错误只剩 toast 这一个出口。
+    ref.listen(proxiesOverviewNotifierProvider, (previous, next) {
+      final error = next.error;
+      // 同一个错误只报一次（重建/重复通知不刷屏）。
+      if (error == null || error == previous?.error) return;
+      ref.read(inAppNotificationControllerProvider).showErrorToast(t.presentShortError(error));
+    });
+
     // 筛选条件是纯本地的：这个 provider 在连接后会每秒重发一次（核心要刷新每个
     // 出口的字节数），所以不能把输入框内容塞进 provider 里，否则输入焦点会被冲掉。
     final query = useState('');
@@ -259,6 +271,10 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
       // + ▲▼ 实时速率。未连接时整条隐藏（列表底部 padding 随之收窄）。
       bottomNavigationBar: showStatsBar ? const _CaptureStatusBar() : null,
       body: proxies.when(
+        // 出错**不清空列表**：有上一份数据就继续显示它（NekoBox 的列表来自 DB 流，
+        // 任何数据层故障都不会把列表换成错误页；错误已由上面的 `ref.listen` 报出）。
+        // 没有旧数据时 error 分支才会走到 —— 那时回落空态，同样不整页报错。
+        skipError: true,
         data: (group) {
           if (group == null) return Center(child: Text(t.pages.proxies.empty));
 
@@ -347,7 +363,9 @@ class ProxiesOverviewPage extends HookConsumerWidget with PresLogger {
             ],
           );
         },
-        error: (error, stackTrace) => Center(child: Text(t.presentShortError(error))),
+        // 只有"从未拿到过数据"才会走到这里（有旧数据时 `skipError: true` 会继续走 data）。
+        // 仍然**不渲染整页错误文案**：NekoBox 没有数据就是空列表，出错原因由 toast 承载。
+        error: (error, stackTrace) => Center(child: Text(t.pages.proxies.empty)),
         loading: () => const Center(child: CircularProgressIndicator()),
       ),
     );
