@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:gap/gap.dart';
 import 'package:hiddify/core/localization/translations.dart';
+import 'package:hiddify/core/model/failures.dart';
+import 'package:hiddify/core/notification/in_app_notification_controller.dart';
 import 'package:hiddify/features/route_rules/notifier/android_apps_notifier.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:installed_apps/app_info.dart';
@@ -22,6 +24,17 @@ class AndroidAppsPage extends HookConsumerWidget {
     final selectedNotifier = SelectedPackagesNotifierProvider(ruleListOrder);
     final selected = ref.watch(selectedNotifier);
     final combinedList = ref.watch(FilterBySearchProvider(ruleListOrder));
+
+    // K-1 同形收口：清单由数据层驱动，出错时**不整页替换**已渲染的清单 —— 与 NekoBox
+    // `ui/AppListActivity.kt:175-189` 一致（只有"空清单"才切占位视图，没有错误页分支；
+    // 错误一律 Snackbar，`:274`/`:290`/`:299`）。这里错误只从 toast 出口；旧数据由
+    // riverpod `AsyncError.copyWithPrevious` 保留（riverpod-2.6.1 `lib/src/common.dart:528-539`），
+    // 配合 `when(skipError: true)` 继续渲染上一份清单。
+    ref.listen(FilterBySearchProvider(ruleListOrder), (previous, next) {
+      final error = next.error;
+      if (error == null || error == previous?.error) return;
+      ref.read(inAppNotificationControllerProvider).showErrorToast(t.presentShortError(error));
+    });
 
     final menuItems = <PopupMenuItem>[
       if (ref.watch(hideSystemNotifierProvider))
@@ -72,6 +85,7 @@ class AndroidAppsPage extends HookConsumerWidget {
         ),
       ),
       body: combinedList.when(
+        skipError: true,
         data: (items) => ListView.builder(
           itemCount: items.length,
           itemBuilder: (context, index) {
@@ -130,7 +144,11 @@ class AndroidAppsPage extends HookConsumerWidget {
           },
         ),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(child: Text('Error: $error')),
+        // 仅在"从未取到过数据"时可达（有旧数据时 `skipError: true` 会继续走 data 分支）。
+        // NekoBox 的清单面板在空清单时就是空白内容区（占位视图是"权限被拒 + 去设置"，
+        // 本项目没有该 widget/文案），故此处与"空清单"保持同一渲染：空白。
+        // 错误文案不占页面，原因由上面的 toast 表达。
+        error: (error, stack) => const SizedBox.shrink(),
       ),
     );
   }

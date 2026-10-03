@@ -120,6 +120,7 @@
 - **各次根因修复**：`e86dfaa6` URL 测速双层 guard · `82a39b20` 节点页 ⋮ 菜单 1:1 八项 · `05c4e7a4` 日志页 + 测速闪帧 · `ee6ca57f` raw 通道 selector 归一化 · `15b41d37` 协议表单六缺口 · `6309e141` socks 密码按协议版本置灰
 - **路由预置规则 1:1（fork A）** `bf78eb19`：新增 `lib/features/route_rules/data/predefined_rules.dart` 纯函数 `buildNekoBoxPresetRules(Translations, Region)`；删除 `predefined_rules_modal.dart` 及其 FAB 入口；`rules_notifier` 加 `ensureSeeded()`（以「规则文件是否存在」等价 NekoBox `rulesFirstCreate`）、`addRule` 去掉 `enabled = true` 硬编码、`resetRules()` 改无条件；`rule_notifier.dart:90` 新建分支补 `enabled: true`。顺带修掉旧弹窗把「拦截广告」写成 `Outbound.direct` 的语义 bug
 - **验收期两处缺陷收口**：`92402771` 差异清单 D-1（分组页 AppBar 补移动端抽屉键）+ `d1969a87` 缺陷 K-1（配置页数据层出错不再整页替换列表）。两者都由 ⑨ 终验收的窄屏 sweep 抓出，明细见 `docs/design/parity-sequence-log.md`（D-1 见 `.workbuddy/acceptance_checklist.md`，该文件 gitignored；K-1 见该文 ⑨-b 节）
+- **K-1 同形残差逐页收口**（分组页 + 路由规则-安卓应用清单页）：各页先取 NekoBox 对位页证据再定案，**不靠类比外推**；仍余 5 页另案（1 页错误分支不可达、1 页机制不同、3 页无对位页）。明细见 `docs/design/parity-sequence-log.md` ⑨-c 节
 
 > 推送状态以 `git ls-remote origin my` 为准（本地 `git status` 的 ahead/behind 在沙箱里不可信）。
 

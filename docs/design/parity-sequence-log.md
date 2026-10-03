@@ -318,15 +318,67 @@ notifier：①已有列表时出错；②首次加载即出错回落空态；③
 **先红 3/3**（`addError` 后 `Found 0 widgets with type "ProxyTile"`、屏上出现「服务未运行」整页文案）
 **后绿 3/3**。
 
-**残差（本次未做，另案）**：同形状的整页错误分支还有 5 处 ——
-`groups_page.dart:170`、`subscriptions_page.dart:129`、`profiles_page.dart:61`、
-`profile_details_page.dart:329`、`logs_page.dart:183`。它们的上游 provider 同样是
-`async*`/`Stream` 打底（`GroupsNotifier` / `ProfilesNotifier.build()` `:38` 的
-`.map((event) => event.getOrElse((l) => throw l))` 等），机制相同。
-未一并改的理由：K-1 的判据来自 `ConfigurationFragment`，其余页要各自取 NekoBox 对位页的
-错误处理证据（`GroupFragment` / 订阅页 / 详情页）才能定案，**不靠类比外推**。
-（`logs_page.dart:183` 的 `SliverErrorBodyPlaceholder` 尤需单独看：日志页是原生组合、
-无 NekoBox 对位页，属"形态分化"候选而非缺口。）
+**残差**：同形状的整页错误分支还有 5 处 —— 见下节 ⑨-c 的处置进展。
+
+### ⑨-c 验收期缺陷 K-1 同形残差：逐页取对位证据后收口（2026-10-07）
+
+K-1 的判据来自 `ConfigurationFragment`；其余页**不靠类比外推**，逐页先取 NekoBox 对位页的
+错误处理证据再定案。本轮先收两页（同 `d1969a87` 的修法：`ref.listen` → toast、
+`when(skipError: true)`、error 分支回落本页既有空态）。
+
+**已收口：分组页** `lib/features/proxy/overview/groups_page.dart`
+- 对位页 `ui/GroupFragment.kt`：清单由 DAO 驱动（`:168 SagerDatabase.groupDao.allGroups()`），
+  布局 `res/layout/layout_group.xml:17-27` **只有 RecyclerView + appbar**（无空态 / 无错误态 /
+  无 ViewStub）；`reload()` 无 try/catch，唯一反应是 `:172-174 notifyDataSetChanged()`；
+  全类错误一律 snackbar / dialog（`group/GroupInterfaceAdapter.kt:86`、
+  `GroupFragment.kt:152-154`）⇒ **不存在"用错误页替换列表"的分支**。
+- 改动：`groups_page.dart:61-73` 新增 `ref.listen(proxyGroupListProvider, ...)`（同错误去重）→
+  `showErrorToast(t.presentShortError(error))`；`:101` `skipError: true`；
+  `:185` error 分支 → `Center(child: Text(t.pages.groups.empty))`（本页既有空态「空」，与 `:103` 同源）。
+
+**已收口：路由规则-安卓应用清单页** `lib/features/route_rules/overview/android_apps_page.dart`
+- 对位页 `ui/AppListActivity.kt`：`loadApps()` `:175-189` **只有"空清单"才切占位视图**
+  （`if (apps.isEmpty()) { binding.list.visibility = View.GONE; binding.appPlaceholder.root.crossFadeFrom(loading) }`），
+  **没有错误页分支**；`AppsAdapter.reload()` `:102-108` 无 try/catch；错误一律 Snackbar
+  （`:274` / `:290` / `:299`）。占位视图是「权限被拒 + 去设置」专用（`layout_app_placeholder.xml` +
+  `:197-203 Settings.ACTION_APPLICATION_DETAILS_SETTINGS`），**无错误变体**。
+- 改动：新增两个 import（`core/model/failures.dart`、`core/notification/in_app_notification_controller.dart`），
+  `:28-37` 新增 `ref.listen(FilterBySearchProvider(ruleListOrder), ...)` → toast；
+  `:88` `skipError: true`；`:147` error 分支 `Center(child: Text('Error: $error'))`
+  （硬编码英文 + 原始异常泄漏 + 整页替换，三重缺陷）→ `const SizedBox.shrink()`。
+- **形态分化（记录，不补）**：本项目没有 NekoBox 的「权限被拒 + 去设置」占位 widget 与文案
+  （`androidApps` 词条只有 pageTitle / showSystemApps / hideSystemApps / clearSelection / uninstalled），
+  凭空造一个属新增功能、需自己的规格锚点 ⇒ 该页"无旧数据"时与"空清单"保持同一渲染：内容区空白。
+  仅"从未取到过数据"时可达（有旧数据时 `skipError: true` 继续走 data 分支）。
+
+**测试（两页各 3 例，先红后绿）**
+- `test/features/proxy/groups_page_error_spec_test.dart`：先红 3/3
+  （`line 136` `Found 0 widgets with type "NkGroupTile"`、`line 153` 屏上出现「意外错误」、
+  `line 166` `Found 0 widgets with type "NkGroupTile"`）→ 后绿 3/3。
+- `test/features/route_rules/android_apps_page_error_spec_test.dart`：先红 3/3
+  （`line 139` 屏上出现 `Text("Error: list failure")`、`line 153` `CheckboxListTile` 计 0）→ 后绿 3/3。
+- **假替身必须"异步抛错"**：`(ref) { if (fail) return Future<T>.error(...); return Future.value(...); }`。
+  写成同步 `throw` 会让 provider 的初始态直接就是 `AsyncError`（没有 `AsyncLoading → AsyncError`
+  迁移），`ref.listen` 不触发 ⇒ 用例"首次加载即出错"假阴性。真实仓储读取是 Future，故异步形才等价。
+- 安卓应用页测试的两个必要 override（否则在测试宿主上必挂）：`appPackagesProvider`
+  （`flutter test` 下 Flutter 强制 `defaultTargetPlatform = android` ⇒ `PlatformUtils.isAndroid` 为真
+  ⇒ 会打 `installed_apps` 插件抛 `MissingPluginException`）、
+  `selectedPackagesNotifierProvider(null)` 的 `build` 会读 `ruleNotifierProvider`（触 DB）。
+
+**仍待另案裁定（未动）**
+- `per_app_proxy_page.dart:353` — **错误分支不可达**（`displayedApps` 只在 `AsyncLoading` 与
+  `AsyncData` 之间切换，永不产生 `AsyncError`）；真正缺陷是数据层出错时**永久转圈**，
+  形态与 K-1 不同，且 `getApps()` 读 `PlatformUtils.isAndroid` + `InstalledApps` 无注入口 ⇒
+  不重构无法测。
+- `logs_page.dart:183` — 机制不同：`LogsOverviewNotifier` **主动**设 `state = state.copyWith(logs: AsyncError(f, StackTrace.current))`
+  且同时 `_logs = []`，此时 `hasValue == false` ⇒ `skipError: true` **无效**；要保留日志得改 notifier 语义
+  （自造语义）⇒ 归"形态分化"候选，需单独论证。
+- `profiles_page.dart:61`、`subscriptions_page.dart:129`、`profile_details_page.dart:329` —
+  NekoBox 1.4.2 **已移除多配置管理器**（无 `ProfileManagerActivity` / `ProfilesFragment`），
+  **无对位页** ⇒ 无判据，单独裁定。
+- 附带发现（独立于"是否换页"的第二个问题，未裁定）：`profile_details_page.dart:329` 除整页
+  Scaffold 替换外还把 `error.toString()` 原始异常渲到屏上；`per_app_proxy_page.dart:353`
+  同样用 `error.toString()` 而非 `presentShortError`。
 
 ### 六缺口修复 `15b41d37`（2026-10-01）
 见 HANDOVER §2 该条目；socks 置灰（第 8 项 / 真缺口 #5）见 `6309e141`。

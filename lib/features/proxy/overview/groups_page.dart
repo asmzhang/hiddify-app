@@ -58,6 +58,19 @@ class GroupsPage extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translationsProvider).requireValue;
     final groups = ref.watch(proxyGroupListProvider);
+    // 数据层出错走 toast —— 这是 NekoBox 的做法：分组清单由 DAO 驱动
+    // （`GroupFragment.kt:168` `SagerDatabase.groupDao.allGroups()`），
+    // 布局 `layout_group.xml:17-27` 只有 RecyclerView + appbar，**没有错误态**，
+    // 全类错误一律 snackbar / dialog（`GroupInterfaceAdapter.kt:86`、
+    // `GroupFragment.kt:152-154`），列表**从不被错误页替换**。
+    // 报错时旧数据仍在（`AsyncError.copyWithPrevious` 保留 `hasValue`），配合下面的
+    // `skipError: true` 就能继续显示上一份列表 —— 错误只剩 toast 这一个出口。
+    ref.listen(proxyGroupListProvider, (previous, next) {
+      final error = next.error;
+      // 同一个错误只报一次（重建/重复通知不刷屏）。
+      if (error == null || error == previous?.error) return;
+      ref.read(inAppNotificationControllerProvider).showErrorToast(t.presentShortError(error));
+    });
     // 拖拽期间的本地顺序（ReorderableListView 要求 onReorder 真正改数据，
     // 而 provider 的列表不可变 ⇒ 用本地副本承载拖拽，落库后 invalidate 回流）。
     final localRows = useState<List<({ProxyGroupEntry group, int nodeCount})>?>(null);
@@ -85,6 +98,8 @@ class GroupsPage extends HookConsumerWidget {
         ],
       ),
       body: groups.when(
+        // 数据层出错时保留上一份列表（NekoBox 的列表任何时候都在）。
+        skipError: true,
         data: (_) {
           final rows = localRows.value ?? const <({ProxyGroupEntry group, int nodeCount})>[];
           if (rows.isEmpty) return Center(child: Text(t.pages.groups.empty));
@@ -167,7 +182,9 @@ class GroupsPage extends HookConsumerWidget {
             },
           );
         },
-        error: (error, stackTrace) => Center(child: Text(t.presentShortError(error))),
+        // 只有"从来没拿到过数据"才走这里（`skipError: true` 已经把有旧数据的情况
+        // 交给上面的 data 分支）—— 回落本页空态；原因由上面的 toast 表达。
+        error: (error, stackTrace) => Center(child: Text(t.pages.groups.empty)),
         loading: () => const Center(child: CircularProgressIndicator()),
       ),
     );
