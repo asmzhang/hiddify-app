@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:hiddify/core/router/deep_linking/url_protocol/protocol_registration_spec.dart';
 import 'package:hiddify/utils/validators.dart';
 
 typedef ProfileLink = ({String url, String name});
@@ -21,7 +22,11 @@ abstract class LinkParser {
   }
 
   // protocols schemas
-  static const protocols = ['hiddify', 'v2ray', 'v2rayn', 'v2rayng', 'clash', 'clashmeta', 'sing-box'];
+  //
+  // 单一真源在 protocol_registration_spec.dart：那里同时记着**哪些是我们的、
+  // 哪些是别人的**。这里保留解析能力（剪贴板/拖拽/argv 都要用），但桌面端
+  // 只会把 kOwnedProtocolSchemes 写进注册表 —— 见该文件开头的说明。
+  static const protocols = kAllProtocolSchemes;
 
   static ProfileLink? parse(String link) {
     return simple(link) ?? deep(link);

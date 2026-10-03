@@ -1,34 +1,25 @@
+import 'package:hiddify/core/router/deep_linking/url_protocol/protocol_registrar.dart';
+import 'package:hiddify/core/router/deep_linking/url_protocol/protocol_registration_spec.dart';
 import 'package:hiddify/core/router/deep_linking/url_protocol/windows_protocol.dart'
-    if (dart.library.js_interop) 'web_url_protocol.dart';
+    if (dart.library.js_interop) 'package:hiddify/core/router/deep_linking/url_protocol/web_url_protocol.dart';
 
-/// Registers a protocol by [scheme] to allow for links in the form `<scheme>://...`
-/// to be processed by this application. By default, opening a link will open
-/// the executable that was used to register the scheme with the URL as the first
-/// argument passed to the executable.
+/// 协议关联的平台实现。测试里替换成假实现即可覆盖整条注册流程。
+final protocolHandler = WindowsProtocolHandler();
+
+/// 按「只主张自己的命名空间」原则校准协议关联。
 ///
-/// If a protocol is already registered for the given scheme, this function will
-/// attempt to overwrite the previous handler with the current executable information.
-/// However, note that depending on process permissions, this operation may be
-/// disallowed by the underlying platform.
-///
-/// You may pass an [executable] to override the path to the executable to run
-/// when accessing the URL.
-///
-/// [arguments] is a list of arguments to be used when running the executable.
-/// If passed, the list must contain at least one element, and at least one of
-/// those elements must contain the literal value `%s` to denote the URL to open.
-/// Quoting arguments is not necessary, as this will be handled for you.
-/// Escaping the `%s` as an unprocessed literal is currently unsupported.
+/// 每次调用都是幂等的：已经注册对了就不写注册表。详见
+/// [ProtocolRegistrar.reconcile] 与 [protocolRegistrationAction]。
+ProtocolReconcileReport reconcileProtocolAssociations() =>
+    ProtocolRegistrar(protocolHandler).reconcile();
+
+/// 注册单个协议关联（仅供需要显式注册的场景使用；常规启动走
+/// [reconcileProtocolAssociations]，它会顺带归还外来 scheme）。
 void registerProtocolHandler(String scheme, {String? executable, List<String>? arguments}) {
-  WindowsProtocolHandler().register(scheme, executable: executable, arguments: arguments);
+  protocolHandler.register(scheme, executable: executable, arguments: arguments);
 }
 
-/// Unregisters the protocol handler with the underlying platform. The provided
-/// [scheme] will no longer be used in links.
-///
-/// Note that this will unregister a protocol by scheme regardless of which process
-/// had registered it. Unregistering a scheme that was not registered by this
-/// application is undefined and depends on platform-specific restrictions.
+/// 移除单个协议关联。
 void unregisterProtocolHandler(String scheme) {
-  WindowsProtocolHandler().unregister(scheme);
+  protocolHandler.unregister(scheme);
 }
