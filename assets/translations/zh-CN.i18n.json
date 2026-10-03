@@ -568,7 +568,8 @@
                 "file": "导出选择到文件"
               },
               "shareToAll": "分享给所有人",
-              "clearAllSelections": "清除所有选择"
+              "invertSelections": "反选",
+              "clearAllSelections": "清空"
             },
             "modes": {
               "all": "全部",

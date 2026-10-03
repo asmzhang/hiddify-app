@@ -29,3 +29,15 @@ enum PkgFlag {
     _ => null,
   };
 }
+
+/// NekoBox `action_invert_selections`：翻转某包的「可见勾选态」。
+///
+/// 判据必须是 [PkgFlag.checkboxValue]（`forceDeselection` 优先），而不是
+/// [PkgFlag.userSelection] 位：`userSelection | forceDeselection`（3）的可见态是
+/// 「未勾选」，按位判据会把它翻成 2 —— 可见态依旧是「未勾选」，等于没翻。
+/// 因此：已勾选 → 强制不选（[PkgFlag.forceDeselection]）；
+/// 未勾选（含三态不确定态）→ 选上（[PkgFlag.userSelection]）。
+/// [PkgFlag.add] 已保证两者互斥。
+int invertSelectionFlag(int value) => PkgFlag.checkboxValue(value) == true
+    ? PkgFlag.forceDeselection.add(value)
+    : PkgFlag.userSelection.add(value);

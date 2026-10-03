@@ -565,6 +565,7 @@
                 "file": "匯出選擇到檔案"
               },
               "shareToAll": "分享給所有人",
+              "invertSelections": "反向選取",
               "clearAllSelections": "清除所有選擇"
             },
             "modes": {

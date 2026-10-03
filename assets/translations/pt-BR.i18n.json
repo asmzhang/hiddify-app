@@ -537,6 +537,7 @@
                 "file": "Exportar seleção para um arquivo"
               },
               "shareToAll": "Compartilhar com todos",
+              "invertSelections": "Inverter seleções",
               "clearAllSelections": "Limpar todas as seleções"
             },
             "modes": {

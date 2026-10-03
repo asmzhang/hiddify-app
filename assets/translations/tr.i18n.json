@@ -537,6 +537,7 @@
                 "file": "Seçimi dosyaya aktar"
               },
               "shareToAll": "Herkesle paylaş",
+              "invertSelections": "Seçimleri ters çevir",
               "clearAllSelections": "Tüm seçimleri temizle"
             },
             "modes": {

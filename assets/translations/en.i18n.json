@@ -568,7 +568,8 @@
                 "file": "Export selection to file"
               },
               "shareToAll": "Share to all",
-              "clearAllSelections": "Clear all selections"
+              "invertSelections": "Invert selections",
+              "clearAllSelections": "Clear selections"
             },
             "modes": {
               "all": "All",

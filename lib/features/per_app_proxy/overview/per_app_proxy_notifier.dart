@@ -27,13 +27,22 @@ part 'per_app_proxy_notifier.g.dart';
 class PerAppProxy extends _$PerAppProxy with AppLogger {
   late final AppProxyMode? _mode;
 
+  /// 当前模式下的**全部手机包**（含系统应用）—— `build` 里算出。
+  ///
+  /// NekoBox 的 `action_invert_selections` 遍历 `apps`（`cachedApps` = 全部
+  /// 已安装应用），「隐藏系统应用」只过滤显示、不缩小这个集合，所以反选
+  /// 必须打全量，不能打当前可见子集。
+  Set<String> _installedPkgs = const {};
+
   @override
   Stream<Map<String, int>> build(AppProxyMode? mode) {
     _mode = mode;
+    _installedPkgs = const {};
     if (_mode == null) return Stream.value({});
     final appsInfo = InstalledApps.getInstalledApps(false);
     return Stream.fromFuture(appsInfo).asyncExpand((appsInfo) {
       final phonePkgs = appsInfo.map((e) => e.packageName).toSet();
+      _installedPkgs = phonePkgs;
       return ref.watch(appProxyDataSourceProvider).watchFilterForDisplay(phonePkgs: phonePkgs, mode: _mode).map((
         entryList,
       ) {
@@ -45,6 +54,20 @@ class PerAppProxy extends _$PerAppProxy with AppLogger {
   Future<void> updatePkg(String pkg) async {
     loggy.info('Updationg $pkg status');
     await ref.read(appProxyDataSourceProvider).updatePkg(pkg: pkg, mode: _mode!);
+  }
+
+  /// NekoBox `action_invert_selections`（`AppListActivity.kt:241-259`）：
+  /// 翻转**全部已安装应用**的勾选态，并让列表重排（NekoBox 反选后
+  /// `apps.sortedWith(compareBy({!isProxiedApp(it)}, {it.name}))`）。
+  Future<void> invertSelections() async {
+    loggy.info('Inverting selections');
+    final mode = _mode;
+    if (mode == null) return;
+    // 等首次发射，确保 _installedPkgs 已就绪（NekoBox 里 apps 为空时循环即空转）。
+    await future;
+    final phonePkgs = _installedPkgs;
+    if (phonePkgs.isEmpty) return;
+    await ref.read(appProxyDataSourceProvider).invertSelections(phonePkgs: phonePkgs, mode: mode);
   }
 
   Future<bool> applyAutoSelection() async {

@@ -537,6 +537,7 @@
                 "file": "Ekspor pilihan ke file"
               },
               "shareToAll": "Bagikan ke semua",
+              "invertSelections": "Balikkan pilihan",
               "clearAllSelections": "Hapus semua pilihan"
             },
             "modes": {

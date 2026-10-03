@@ -543,6 +543,7 @@
                 "file": "تصدير التحديد إلى ملف"
               },
               "shareToAll": "مشاركة مع الجميع",
+              "invertSelections": "عكس التحديدات",
               "clearAllSelections": "مسح جميع التحديدات"
             },
             "modes": {

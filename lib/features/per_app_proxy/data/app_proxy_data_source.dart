@@ -9,6 +9,7 @@ part 'app_proxy_data_source.g.dart';
 
 abstract interface class AppProxyDataSource {
   Future<void> updatePkg({required String pkg, required AppProxyMode mode});
+  Future<void> invertSelections({required Set<String> phonePkgs, required AppProxyMode mode});
   Stream<List<AppProxyEntry>> watchAll({required AppProxyMode mode});
   Stream<List<AppProxyEntry>> watchFilterForDisplay({required Set<String> phonePkgs, required AppProxyMode mode});
   Stream<List<String>> watchActivePackages({required Set<String> phonePkgs, required AppProxyMode mode});
@@ -58,6 +59,56 @@ class AppProxyDao extends DatabaseAccessor<Db> with _$AppProxyDaoMixin, InfraLog
       await (update(appProxyEntries)..where((tbl) => tbl.mode.equalsValue(mode) & tbl.pkgName.equals(pkg))).write(
         AppProxyEntriesCompanion(flags: Value(newFlag)),
       );
+    });
+  }
+
+  /// NekoBox `action_invert_selections`（`AppListActivity.kt:241-259`）：
+  /// 对**全部已安装应用**逐包翻转可见勾选态 ——
+  /// 已勾选（userSelection 且无 forceDeselection）→ 转 forceDeselection；
+  /// 其余（未勾选 / 三态 auto-only）→ userSelection。
+  ///
+  /// 与 NekoBox 的对应关系：
+  ///  · NekoBox 遍历 `apps`（= `cachedApps`，含系统应用），
+  ///    `sysApps` 只过滤**显示**，不缩小遍历集合 ⇒ 这里收 `phonePkgs` 全量；
+  ///  · NekoBox `proxiedUids[key] = true` 对**没有条目**的包也置选中
+  ///    ⇒ 无行的包反选后必须落成 userSelection（`existingFlags[pkg] ?? 0`
+  ///    走的就是 [invertSelectionFlag] 的 0 分支）。
+  ///
+  /// 写入分两路（`b.replaceAll` 是 UPDATE-by-pk，不存在的行不会被建出来）：
+  ///  · 已有行 → `b.replaceAll` 改写 flags（同 [applyAutoSelection] 的写法）；
+  ///  · 无行包 → `b.insertAll` 新建，flags 取 [invertSelectionFlag] 的 0 分支。
+  ///
+  /// 读快照在 `transaction` 内取，与批写同事务 ⇒ 无陈旧读风险
+  /// （drift 事务串行化，且这是单用户设置表）。
+  ///
+  /// 不改动 `phonePkgs` 之外的行（NekoBox 的 routePackages 重写会顺手丢弃
+  /// 已卸载包，本项目按 §3.0 既定差异保留其历史行 —— 它们本来就不参与显示）。
+  @override
+  Future<void> invertSelections({required Set<String> phonePkgs, required AppProxyMode mode}) {
+    return transaction(() async {
+      if (phonePkgs.isEmpty) return;
+
+      final existing = await (select(appProxyEntries)..where((tbl) => tbl.mode.equalsValue(mode))).get();
+      final existingFlags = {for (final entry in existing) entry.pkgName: entry.flags};
+
+      AppProxyEntriesCompanion companion(String pkg, int flags) =>
+          AppProxyEntriesCompanion.insert(mode: mode, pkgName: pkg, flags: Value(flags));
+
+      final toUpdate = <AppProxyEntriesCompanion>[];
+      final toInsert = <AppProxyEntriesCompanion>[];
+      for (final pkg in phonePkgs) {
+        final currentFlags = existingFlags[pkg];
+        if (currentFlags == null) {
+          toInsert.add(companion(pkg, invertSelectionFlag(0)));
+        } else {
+          toUpdate.add(companion(pkg, invertSelectionFlag(currentFlags)));
+        }
+      }
+
+      await db.batch((b) {
+        if (toUpdate.isNotEmpty) b.replaceAll(db.appProxyEntries, toUpdate);
+        if (toInsert.isNotEmpty) b.insertAll(db.appProxyEntries, toInsert);
+      });
     });
   }
 

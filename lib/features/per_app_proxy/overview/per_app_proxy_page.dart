@@ -54,7 +54,11 @@ class PerAppProxyPage extends HookConsumerWidget with PresLogger {
     final hideSystemApps = useState(false);
     final isSearching = useState(false);
     final searchQuery = useState("");
-    final sortListener = useState(false);
+    // 递增计数（不是布尔翻转）：反选会一次改动成千上万行而**行数不变**
+    // （值变、集合大小不变），`ref.listen` 的「长度差 > 1」判据抓不到；
+    // 页面在 await 完反选后再自增一次，保证 memo 依赖必变、必然重排
+    // （NekoBox 反选后同样 `apps.sortedWith(compareBy({!isProxiedApp(it)}, {name}))`）。
+    final sortTicker = useState(0);
 
     final asyncApps = useFuture(useMemoized(() => getApps(false)));
     final asyncAppsHideSys = useFuture(useMemoized(() => getApps(true)));
@@ -88,7 +92,7 @@ class PerAppProxyPage extends HookConsumerWidget with PresLogger {
         hideSystemApps.value,
         selectedApps.hasValue,
         searchQuery.value,
-        sortListener.value,
+        sortTicker.value,
       ],
     );
 
@@ -97,7 +101,7 @@ class PerAppProxyPage extends HookConsumerWidget with PresLogger {
         if (previous != null) {
           if ((previous, next) case (AsyncData(value: final prevData), AsyncData(value: final nextData))) {
             if (nextData.isNotEmpty) {
-              if ((nextData.length - prevData.length).abs() > 1) sortListener.value = !sortListener.value;
+              if ((nextData.length - prevData.length).abs() > 1) sortTicker.value++;
             }
           }
         }
@@ -156,7 +160,34 @@ class PerAppProxyPage extends HookConsumerWidget with PresLogger {
                   tooltip: localizations.searchFieldLabel,
                 ),
                 MenuAnchor(
+                  // 顺序对齐 NekoBox `res/menu/per_app_proxy_menu.xml:3-20`
+                  // （反选 → 清空 → 导出 → 导入）；分隔线之后是本项目特有项。
                   menuChildren: <Widget>[
+                    MenuItemButton(
+                      child: Text(t.pages.settings.routing.generalOptions.perAppProxy.options.invertSelections),
+                      onPressed: () async {
+                        await ref.read(PerAppProxyProvider(mode).notifier).invertSelections();
+                        // NekoBox 反选后重排列表；本项目靠 memo 依赖变化触发。
+                        if (context.mounted) sortTicker.value++;
+                      },
+                    ),
+                    MenuItemButton(
+                      child: Text(t.pages.settings.routing.generalOptions.perAppProxy.options.clearAllSelections),
+                      onPressed: () => ref.read(PerAppProxyProvider(mode).notifier).clearAll(),
+                    ),
+                    SubmenuButton(
+                      menuChildren: <Widget>[
+                        MenuItemButton(
+                          child: Text(t.pages.settings.routing.generalOptions.perAppProxy.options.export.clipboard),
+                          onPressed: () async => await ref.read(PerAppProxyProvider(mode).notifier).exportClipboard(),
+                        ),
+                        MenuItemButton(
+                          child: Text(t.pages.settings.routing.generalOptions.perAppProxy.options.export.file),
+                          onPressed: () async => await ref.read(PerAppProxyProvider(mode).notifier).exportFile(),
+                        ),
+                      ],
+                      child: Text(t.common.export),
+                    ),
                     SubmenuButton(
                       menuChildren: <Widget>[
                         MenuItemButton(
@@ -186,19 +217,7 @@ class PerAppProxyPage extends HookConsumerWidget with PresLogger {
                       ],
                       child: Text(t.common.import),
                     ),
-                    SubmenuButton(
-                      menuChildren: <Widget>[
-                        MenuItemButton(
-                          child: Text(t.pages.settings.routing.generalOptions.perAppProxy.options.export.clipboard),
-                          onPressed: () async => await ref.read(PerAppProxyProvider(mode).notifier).exportClipboard(),
-                        ),
-                        MenuItemButton(
-                          child: Text(t.pages.settings.routing.generalOptions.perAppProxy.options.export.file),
-                          onPressed: () async => await ref.read(PerAppProxyProvider(mode).notifier).exportFile(),
-                        ),
-                      ],
-                      child: Text(t.common.export),
-                    ),
+                    const PopupMenuDivider(),
                     if (ref.watch(ConfigOptions.region) != Region.other)
                       MenuItemButton(
                         child: Text(t.pages.settings.routing.generalOptions.perAppProxy.options.shareToAll),
@@ -206,11 +225,6 @@ class PerAppProxyPage extends HookConsumerWidget with PresLogger {
                             .read(appProxyLoadingProvider.notifier)
                             .doAsync(ref.read(PerAppProxyProvider(mode).notifier).shareOnGithub),
                       ),
-                    const PopupMenuDivider(),
-                    MenuItemButton(
-                      child: Text(t.pages.settings.routing.generalOptions.perAppProxy.options.clearAllSelections),
-                      onPressed: () => ref.read(PerAppProxyProvider(mode).notifier).clearAll(),
-                    ),
                   ],
                   builder: (context, controller, child) => AnimatedSwitcher(
                     duration: const Duration(milliseconds: 300),
