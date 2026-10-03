@@ -79,7 +79,9 @@ drift 只有 `ProfileEntries` + `AppProxyEntries`（`lib/core/db/db.dart:12`）�
 
 1. 凭据来源：`Parse` 返回**完整配置文本**（`buildconfighelper.go:46-82`），含每个出站的完整定义 —— 应用现在就用它抽单条出站做分享（`extractOutboundJson`）
 2. 配置提交：`Start` 的 `enable_raw_config`（`buildconfighelper.go:28-44`）允许**应用自己生成配置**喂给内核
+   - 【已推翻，2026-10-05】此路**最终未采用**：`enable_raw_config=true` 走 `ReadSingOptions` 跳过 builder，`setInbound`/`setDns`/`setRoutingOptions`/`setExperimental`/`setLog` 一次都不执行 ⇒ 没有入站端口、没有 DNS、没有路由策略；而 `GenerateConfig` 那条 RPC 在 proto 里是注释掉的（`hcore_service.proto`），应用拿不到"构建后的完整配置"当基准。最终机制是**只把出站表那一段喂给内核、按路径启动**（`configs/<id>.entities.json`），其余仍由内核按 HiddifyOptions 构建。详见 `nekobox-parity.md` §8.6.8
 3. 代价：应用要长期维护一套配置组装逻辑（等价于 NekoBox 的 `ConfigBuilder.kt`），并与内核 builder 的差异保持对齐
+   - 实际落地的代价小得多：只维护**节点出站覆盖**（`config_assembly.dart` 的 `applyEntitiesToOutbounds()`，24 项断言），不维护整份配置
 
 ---
 

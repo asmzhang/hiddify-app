@@ -68,6 +68,8 @@ FAB 展开 hitTestable + 收起 Opacity(0) / GeneralOptions 展开收起
 
 **对比收口**：NekoBox 滑删 + undo 无对位（本项目长按/右键删，形态分化）；
 路由规则页 = 项目增强面，**非 1:1 缺口**。
+（2026-10-06 补：当时判「非缺口」只在**页面骨架**层面成立 —— 后来按 m08253「全nekobox」
+定案 fork A 复查，发现**预置规则**是真缺口，见下方 ③-b。）
 
 **测试坑四条**：
 1. ConfirmationDialog 按钮用 `context.pop` —— 纯 MaterialApp 报 "No GoRouter found in context"，
@@ -76,6 +78,97 @@ FAB 展开 hitTestable + 收起 Opacity(0) / GeneralOptions 展开收起
 3. ReorderableListView 懒加载在默认 800×600 视口只 build 2 卡，3 卡断言须放大视口
 4. `_ExpandableFab` mini 项标签 Opacity(0) 常驻树内无 IgnorePointer ⇒ 收起后仍可命中
    = **疑似产品 bug，记录不修**
+
+### ③-b 路由页预置规则 1:1（fork A）`bf78eb19`（2026-10-06）
+
+**触发定案**：User said (m08253): 「全nekobox」⇒ 取 fork A = 忠实 NekoBox（进入路由页自动种下
+预置规则 + 删除 hiddify 自有的「预设规则」弹窗），而非保留弹窗的 B 方案。
+
+**规格源**：`ProfileManager.kt:184-237 getRules()` + `ui/RouteFragment.kt:131-144 RuleAdapter.reload()`
+（详见 `docs/design/nekobox-parity.md` §3.5.1，本轮已全量重写）。
+
+**对照结论**：原实现 2 条（广告 + bypassLan，且广告 `outbound` 误写 `direct` ⇒「拦截广告」实为
+「广告直连」）；新实现 5 条（cn）/ 9 条（非 cn），顺序与字段逐条对齐上游，全部默认关。
+国家维度用 `ConfigOptions.region`（上游用 `Locale.getDefault().country`，判据不同但结果集等价）。
+bypassLan 预置删除（上游无此项），内核侧 `bypass-lan` 通道不受影响。
+
+**测试用例**：`predefined_rules_test.dart` 13 例（纯函数逐字段 + 条数 + has-bit 往返 + zh-CN 文案）；
+`routing_options_page_spec_test.dart` 新增 ⑨a-⑨d（自动种下 9 条全关 / `region=cn` 只 5 条 /
+有历史存储不覆盖 / 重置后重种），全量 **291/291 passed**。
+
+**测试坑两条**：
+1. `Rule` 工厂必须**显式**传 `enabled: false` —— proto3 只在显式赋值时置 has-bit，
+   而「编辑已有规则 → 保存」走 `writeToJsonMap()` → `Rule.fromJson` 往返，has-bit 缺失会踩
+   `rule_notifier.dart:115 assert(state.hasListOrder() && state.hasEnabled())`。落盘语义不受影响
+   （`route_rule_json.dart:31` 只在 true 时输出该键）。
+2. 测试里 `reason:` 字符串含 `$country` 会被当 Dart 插值 ⇒ 需加 `r` 前缀（`Undefined name 'country'`）。
+
+### ③-c 按应用代理 ⋮ 菜单 · 反选（`per_app_proxy_menu.xml` 四项收口）（2026-10-06）
+
+**触发定案**：User said (m00190): 「你似乎没有必要问我，和NekoBox 一样不行吗」⇒ 不再逐事请示，
+NekoBox 有的直接照做（`action_invert_selections` 原样移植，不另设计）。
+
+**规格源**：`res/menu/app_list_menu.xml` + `per_app_proxy_menu.xml`（4 项，扁平无子菜单：
+invert → clear → export_clipboard → import）+ `AppListActivity.kt:239-303 onOptionsItemSelected`。
+
+**照抄的三条语义（决定实现范围）**：
+1. 反选遍历 **`apps` 全集**（`AppListActivity.kt:49 cachedApps` = 全部已安装包，仅去掉 NekoBox 自身），
+   `showSystemApps` / 搜索框只作用于 adapter 的 `filteredApps`，**从不缩小 `apps`** ⇒ 我方必须收全量
+   `phonePkgs`，不能拿当前可见/搜索过滤后的子集。
+2. `proxiedUids[key] = true` 对**没有条目的 uid 也置选中** ⇒ 无 DB 行的包反选后必须**新建行**且为
+   userSelection（纯变换已有行会漏掉绝大多数包）。
+3. 反选后 `apps.sortedWith(compareBy({!isProxiedApp(it)}, {name}))` 重排 ⇒ 我方列表也要重排。
+
+**★修正的判据缺陷（本功能真正的 bug）**：`invertSelectionFlag` 原先按 **userSelection 位**判定
+（`PkgFlag.userSelection.check(value)`），但界面勾选态是 `PkgFlag.checkboxValue(value)` 而它
+**forceDeselection 优先** ⇒ flag=3（userSelection|forceDeselection）被判「已勾选」→ 翻成 2，
+可见态仍是未勾选 = **点反选毫无反应**。改为
+`int invertSelectionFlag(int value) => PkgFlag.checkboxValue(value) == true ? PkgFlag.forceDeselection.add(value) : PkgFlag.userSelection.add(value);`
+（`lib/features/per_app_proxy/model/pkg_flag.dart:76-79`）。修正后映射
+0→1 / 1→2 / 2→1 / 3→1 / 4→5 / 5→6 / 6→5 / 7→5（旧 3→2、7→4 是错的），三条不变量仍成立：
+**结果永不置零（不会凭空删行）**、两个选择位互斥、autoSelection 位保留。
+
+**实现落点**：
+- `app_proxy_data_source.dart:71-108` `AppProxyDao.invertSelections({required Set<String> phonePkgs, required AppProxyMode mode})`：
+  `transaction` 内先 select 出该模式现况建 `{pkgName: flags}` 快照，再逐包算新值，
+  **已存在的行走 `b.replaceAll`（UPDATE-by-pk）、无行的包走 `b.insertAll`** —— 两条路必须分开：
+  `replaceAll` 的文档语义就是「同主键的行被替换」，**不会为不存在的包建行**（drift 2.28.2
+  `batch.dart:101-122`；实测只写它 → 2 例红：`Expected: <1> Actual: <null> 列表里还没有的包也要被翻成已勾选`）。
+  `phonePkgs` 之外的行走都不动（NekoBox 重写 `DataStore.routePackages` 会丢弃已卸载包的行，
+  我方按既有既定差异**保留历史行**）。
+  **★踩坑（勿再试）**：`insertAll(..., onConflict: DoUpdate((AppProxyEntries old) => ...))` 里
+  `old` 是 **DSL 表对象**、`old.flags` 是 `Column<int>` 不是 Dart `int` ⇒ 无法表达位运算，
+  编译报 `Error: The argument type 'Column<int>' can't be assigned to the parameter type 'int'.`
+  （drift 2.28.2 `insert.dart:483-564` `Insertable<D> Function(T old)`）。
+- `per_app_proxy_notifier.dart:62-70` `invertSelections()`：`loggy.info` → `_mode == null` 早退 →
+  `await future` 等首次发射 → 用字段 `_installedPkgs`（`build` 里 `InstalledApps.getInstalledApps(false)`
+  算出的全量手机包，原为闭包局部变量，本轮升为字段）→ 调 datasource。空集合 = 空转（对齐 NekoBox
+  `apps` 为空时循环即空转）。
+- `per_app_proxy_page.dart`：⋮ 菜单按 NekoBox 序重排为 **反选 → 清空 → 导出 → 导入 →（分隔线）→ 分享给所有人**
+  （`:163-228`；导出/导入仍是「剪贴板/文件」两子项的 submenu，`shareToAll` 是 region 门控的本项目特有项）；
+  `sortListener`（bool 翻转）改成 **`sortTicker`（递增 int）** —— 反选一次改动成千上万行而**行数不变**，
+  `ref.listen` 的「长度差 > 1」判据抓不到；bool 双翻转还会互相抵消（流发射与显式自增到达顺序不定），
+  改递增计数后 memo 依赖必变 ⇒ 必然重排。
+
+**i18n**：11 份 `assets/translations/*.i18n.json` 的 `perAppProxy.options` 段新增 `invertSelections`
+（插在 `shareToAll` 与 `clearAllSelections` 之间）：zh-CN「反选」/ en "Invert selections"（= NekoBox
+`values-zh-rCN` / `values` 词值）/ zh-TW「反向選取」/ ru「Инвертировать выбранное」/ ar「عكس التحديدات」/
+es "Invertir selecciones" / fa「برعکسکردن گزینههای انتخابشده」/ fr "Inverser la sélection" /
+id "Balikkan pilihan" / tr "Seçimleri ters çevir"（**pt-BR 无 NekoBox 对应，自撰 "Inverter seleções"**）。
+同时把 `clearAllSelections` 的 **zh-CN「清除所有选择」→「清空」、en "Clear all selections" → "Clear selections"**
+对齐 NekoBox `clear_selections`（其余 9 语言未动；全仓无任何测试断言旧串）。之后**全量**跑
+`dart run build_runner build --delete-conflicting-outputs`（`--build-filter` 会漏 slang 的
+`lib/gen/translations_*.g.dart`）。
+
+**测试（先红后绿）**：
+- `test/features/per_app_proxy/pkg_flag_test.dart` 13 例（纯函数，含 8 项映射表 + 4 条不变量 + 可见态翻转循环）。
+- `test/features/per_app_proxy/invert_selections_dao_test.dart` **8 例**打真 `AppProxyDao`（`Db(NativeDatabase.memory())`）：
+  全量遍历 / 无行包建行 / flag=3 按可见态翻 / autoSelection 位保留 / 已卸载包历史行不被删 / 另一模式不受影响 / 空集合空转 / 两次自反。
+- `test/features/per_app_proxy/per_app_proxy_menu_spec_test.dart` **6 例**泵**真 `PerAppProxyPage`**（family notifier
+  用 `PerAppProxyProvider(AppProxyMode.include).overrideWith(() => fake)` 替身记账；`installed_apps`
+  MethodChannel 用 `setMockMethodCallHandler` 拦成空列表）：四项文案齐备 / 权威顺序 / 旧顺序回归 / 点反选调用记账 /
+  点清空调用记账 / 导入子菜单两级仍在。**非空洞性验证**：把「反选」`MenuItemButton` 整块删掉重跑 ⇒ 3 红，随后还原。
+- 全量 `flutter test` **321/321 passed**，`flutter analyze lib test` **No issues found!**
 
 ### ④设置页 `e0339608`（2026-10-01）
 SettingsPage L1 spec 测试 7 用例全绿——desktop 骨架（五段头 + 五卡关键行 + 默认值 + 平台/视口分支行）/

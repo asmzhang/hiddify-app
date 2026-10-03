@@ -155,7 +155,7 @@ NekoBox 的 14 份表单：anytls 10 / hysteria 16 / mieru 7 / naive 12 / shadow
 ### 7.3 差距的性质
 
 - NekoBox 强的那一栏，**全部落在同一个前提上**：应用侧持有完整实体并能自己组装配置。这不是"功能实现得更努力"，而是**架构把它托起来了**。
-- hiddify 弱的那一栏（协议表单、手动节点、分组管理），**内核其实不缺能力**：`Parse` 回的配置文本里就有完整凭据，`Start` 的 `enable_raw_config` 也允许应用提供配置（见 `docs/design/proxy-model-root-fix.md`）。缺的是"应用侧实体化 + 接管组装"这一层。
+- hiddify 弱的那一栏（协议表单、手动节点、分组管理），**内核其实不缺能力**：`Parse` 回的配置文本里就有完整凭据；「应用侧实体化」这一层**已完成**（`ProxyGroups`/`ProxyEntities` drift 表 + 实体派生 + 出站覆盖，见 `nekobox-parity.md` §8.6）。但**组装范围只有「节点出站那一段」**——`Start` 的 `enable_raw_config` 那条路**未采用**（会让内核跳过 inbounds/dns/route/log 的生成，见 `nekobox-parity.md` §8.6.8），整份配置仍由内核按 HiddifyOptions 构建。
 - hiddify 强的那一栏（跨平台、TLS 调优、增强出站、订阅体验）**NekoBox 短期不可能追**——它只有 Android，也没有那套内核扩展。
 
 **所以"要不要更像 NekoBox"这个问题的实质是**：你愿不愿意为了那一栏功能，把 hiddify 的应用层改造成 NekoBox 的架构（DB 为真源 + 自建配置组装）。愿意 → 第 3 档；只想要够用的代理客户端 → hiddify 现有的功能面并不缺，缺的只是"暴露层"（比如协议字段只能用 JSON 编辑器改）。

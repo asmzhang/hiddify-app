@@ -117,7 +117,8 @@
 - **B13 路由规则活通** `8483aeeb`(core) + `99f9c6f8`(Go) + Dart 侧：根因 `config_option_repository.dart:572` proto3 单数键 + 枚举名 vs Go 复数键 + 数字枚举 → 静默丢弃
 - **B14 路由规则 NekoBox 全语义** `2b4d08c`/`eb37a6d`(core) + `78981c8a`/`d5268ad1`(Dart)：前缀语义（geosite:/full:/domain:/regexp:/keyword:、geoip:）+ 规则指向节点/分组 + 每规则覆写
 - **wireguard endpoint 结构验证 + 内核契约修复** core `eb52b62` + 主仓 `c58b70af`（内核硬校验 allowed_ips；`patchWarp` 补 `0.0.0.0/0 + ::/0`）
-- **各次根因修复**：`e86dfaa6` URL 测速双层 guard · `82a39b20` 节点页 ⋮ 菜单 1:1 八项 · `05c4e7a4` 日志页 + 测速闪帧 · `ee6ca57f` raw 通道 selector 归一化 · `15b41d37` 协议表单六缺口
+- **各次根因修复**：`e86dfaa6` URL 测速双层 guard · `82a39b20` 节点页 ⋮ 菜单 1:1 八项 · `05c4e7a4` 日志页 + 测速闪帧 · `ee6ca57f` raw 通道 selector 归一化 · `15b41d37` 协议表单六缺口 · `6309e141` socks 密码按协议版本置灰
+- **路由预置规则 1:1（fork A）** `bf78eb19`：新增 `lib/features/route_rules/data/predefined_rules.dart` 纯函数 `buildNekoBoxPresetRules(Translations, Region)`；删除 `predefined_rules_modal.dart` 及其 FAB 入口；`rules_notifier` 加 `ensureSeeded()`（以「规则文件是否存在」等价 NekoBox `rulesFirstCreate`）、`addRule` 去掉 `enabled = true` 硬编码、`resetRules()` 改无条件；`rule_notifier.dart:90` 新建分支补 `enabled: true`。顺带修掉旧弹窗把「拦截广告」写成 `Outbound.direct` 的语义 bug
 
 > 推送状态以 `git ls-remote origin my` 为准（本地 `git status` 的 ahead/behind 在沙箱里不可信）。
 
@@ -192,6 +193,7 @@
     | 协议表单六缺口修复 | ✅ 见 §2 | `15b41d37` |
     | 真缺口 #5 socks 密码置灰 | ✅ 见 §2 | `6309e141` |
     | ⑧ 9 语言翻译补全 | ✅ i18n 缺口清零 | `17f32a0b` |
+    | 路由页预置规则 1:1（fork A：自动种 + 默认关 + 删弹窗） | ✅ 13+4 用例 | `bf78eb19` |
     | ⑨ 小屏形态（360/320dp） | ✅ 10 用例 | `4f77caee` |
     | ⑨ 安卓真机 1:1 对比（vs NekoBox） | ✅ 八项真缺口全部真机复验通过 | 证据 `.workbuddy/device/`（gitignored） |
     | ⑨ Windows 真机窗口验收 | ❌ **未做**（工具已就位） | 见下方「真机自测工具链」 |

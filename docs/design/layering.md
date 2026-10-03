@@ -56,9 +56,13 @@ lib/
 
 已搬：`sort_profiles_dialog`→profile、`new_version_dialog`→app_update、
 `window_closing_dialog`→window、`setting_checkbox_dialog`→route_rules、
-`predefined_rules_modal`（入口函数）、`add_profile_modal`（含深链确认）、
+`add_profile_modal`（含深链确认）、
 `quick_settings_modal`→settings、`auto_apps_selection_modal`→per_app_proxy。
 顺手删掉零调用的 `showExperimentalFeatureNotice`。
+注：`predefined_rules_modal` 曾在本次搬迁中一起搬到 route_rules，后又因
+fork A「全nekobox」移植（m08253）整只删除 —— NekoBox 没有这个弹窗，预置规则改为
+进入路由页时自动种下（`lib/features/route_rules/data/predefined_rules.dart` +
+`rules_notifier.ensureSeeded()`）。
 
 ### B. 偏好 / 数据层（✅ 已完成，2026-09-14）
 
