@@ -9,7 +9,6 @@ import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/core/widget/nekobox/nk_card.dart';
-import 'package:hiddify/features/auto_start/notifier/auto_start_notifier.dart';
 import 'package:hiddify/features/common/general_pref_tiles.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/log/model/log_level.dart';
@@ -144,14 +143,9 @@ class SettingsPage extends HookConsumerWidget {
           NkSectionHeader(t.pages.settings.general.title),
           NkSettingCard(
             rows: [
-              if (PlatformUtils.isDesktop)
-                NkSwitchRow(
-                  title: t.pages.settings.general.autoStart,
-                  value: ref.watch(autoStartNotifierProvider).asData!.value,
-                  onChanged: (value) async => value
-                      ? await ref.read(autoStartNotifierProvider.notifier).enable()
-                      : await ref.read(autoStartNotifierProvider.notifier).disable(),
-                ),
+              // 「开机自启」不在这里：桌面规格源把它放在托盘右键菜单里
+              // （nekoray `ui/mainwindow.ui:507 actionStart_with_system`，属于 `menu_program`），
+              // 见 `lib/features/system_tray/tray_menu_spec.dart`。
               const NkPalettePrefTile(),
               const ThemeModePrefTile(),
               NkChoiceRow(

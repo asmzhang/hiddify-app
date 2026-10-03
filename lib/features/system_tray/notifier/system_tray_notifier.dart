@@ -3,14 +3,15 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/constants.dart';
+import 'package:hiddify/features/auto_start/notifier/auto_start_notifier.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_notifier.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
+import 'package:hiddify/features/system_tray/tray_menu_spec.dart';
 import 'package:hiddify/features/window/notifier/window_notifier.dart';
 import 'package:hiddify/gen/assets.gen.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
-import 'package:hiddify/singbox/model/singbox_config_enum.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tray_manager/tray_manager.dart';
@@ -48,40 +49,17 @@ class SystemTrayNotifier extends _$SystemTrayNotifier with TrayListener, AppLogg
         })
         .then((connection) => _modifyConnectionStatus(connection, urlTestDelay));
     final serviceMode = ref.watch(ConfigOptions.serviceMode);
+    // 「开机自启」的勾选状态直接来自 AutoStartNotifier —— 菜单项与设置项共用一个口径，
+    // 且它读的是平台实际状态；`.valueOrNull ?? false` 让「读不到」等同于「未启用」
+    // （`.asData!` 在 AsyncError/AsyncLoading 下都会崩，仓库约定是 `.valueOrNull`）。
+    final autoStart = ref.watch(autoStartNotifierProvider).valueOrNull ?? false;
 
     await trayManager.setIcon(_trayIconPath(connection), isTemplate: PlatformUtils.isMacOS);
     if (!PlatformUtils.isLinux) await trayManager.setToolTip(_trayTooltip(connection, urlTestDelay, t));
-    await trayManager.setContextMenu(_trayMenu(connection, serviceMode, t));
+    await trayManager.setContextMenu(
+      nkTrayMenu(connection: connection, serviceMode: serviceMode, autoStart: autoStart, t: t),
+    );
   }
-
-  Menu _trayMenu(ConnectionStatus connection, ServiceMode serviceMode, Translations t) => Menu(
-    items: [
-      if (PlatformUtils.isLinux) ...[MenuItem(key: 'dashboard', label: t.common.dashboard), MenuItem.separator()],
-      MenuItem(
-        key: 'connection',
-        label: switch (connection) {
-          Disconnected() => t.connection.connect,
-          Connecting() => t.connection.connecting,
-          Connected() => t.connection.disconnect,
-          Disconnecting() => t.connection.disconnecting,
-        },
-        disabled: connection.isSwitching,
-      ),
-      MenuItem.submenu(
-        label: t.pages.settings.inbound.serviceMode,
-        icon: Assets.images.trayIconIco,
-        submenu: Menu(
-          items: [
-            ...ServiceMode.values.map(
-              (e) => MenuItem.checkbox(checked: e == serviceMode, key: e.name, label: e.present(t)),
-            ),
-          ],
-        ),
-      ),
-      MenuItem.separator(),
-      MenuItem(key: 'quit', label: t.common.quit),
-    ],
-  );
 
   String _trayIconPath(ConnectionStatus status) {
     final isDarkMode = WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark;
@@ -125,19 +103,33 @@ class SystemTrayNotifier extends _$SystemTrayNotifier with TrayListener, AppLogg
 
   @override
   Future<void> onTrayMenuItemClick(MenuItem menuItem) async {
-    // if (menuItem.key == 'dashboard') {
-    //   await ref.read(windowNotifierProvider.notifier).open();
-    // }
-    if (menuItem.key == 'dashboard') {
-      await ref.read(windowNotifierProvider.notifier).show();
-    } else if (menuItem.key == 'connection') {
-      await ref.read(connectionNotifierProvider.notifier).toggleConnection();
-    } else if (menuItem.key == 'quit') {
-      await ref.read(windowNotifierProvider.notifier).exit();
-    } else {
-      final newMode = ServiceMode.values.byName(menuItem.key!);
-      loggy.debug("switching service mode: [$newMode]");
-      await ref.read(ConfigOptions.serviceMode.notifier).update(newMode);
+    switch (nkTrayMenuAction(menuItem.key)) {
+      case NkTrayMenuAction.dashboard:
+        await ref.read(windowNotifierProvider.notifier).show();
+      case NkTrayMenuAction.connection:
+        await ref.read(connectionNotifierProvider.notifier).toggleConnection();
+      case NkTrayMenuAction.autoStart:
+        // 勾选状态以 provider 里的权威值为准，而不是 `menuItem.checked`：
+        // 托盘插件从不自己翻转 checked（`tray_manager.dart:56-70` 只在点击前后
+        // 比较 checked，若应用没改就原样重推），跟着它走会读到一个陈旧值。
+        final notifier = ref.read(autoStartNotifierProvider.notifier);
+        final enabled = ref.read(autoStartNotifierProvider).valueOrNull ?? false;
+        loggy.debug("toggling auto start: [${enabled ? "disable" : "enable"}]");
+        if (enabled) {
+          await notifier.disable();
+        } else {
+          await notifier.enable();
+        }
+      case NkTrayMenuAction.serviceMode:
+        final newMode = trayMenuServiceMode(menuItem.key);
+        if (newMode == null) return;
+        loggy.debug("switching service mode: [$newMode]");
+        await ref.read(ConfigOptions.serviceMode.notifier).update(newMode);
+      case NkTrayMenuAction.quit:
+        await ref.read(windowNotifierProvider.notifier).exit();
+      case null:
+        loggy.warning("unknown tray menu item: [${menuItem.key}]");
+        return;
     }
   }
 

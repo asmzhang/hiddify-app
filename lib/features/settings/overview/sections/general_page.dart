@@ -3,7 +3,6 @@ import 'package:hiddify/core/haptic/haptic_service.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
-import 'package:hiddify/features/auto_start/notifier/auto_start_notifier.dart';
 import 'package:hiddify/features/common/general_pref_tiles.dart';
 import 'package:hiddify/features/settings/widget/preference_tile.dart';
 import 'package:hiddify/utils/utils.dart';
@@ -46,14 +45,9 @@ class GeneralPage extends HookConsumerWidget {
           ],
           if (PlatformUtils.isDesktop) ...[
             const ClosingPrefTile(),
-            SwitchListTile.adaptive(
-              title: Text(t.pages.settings.general.autoStart),
-              secondary: const Icon(Icons.auto_mode_rounded),
-              value: ref.watch(autoStartNotifierProvider).asData!.value,
-              onChanged: (value) async => value
-                  ? await ref.read(autoStartNotifierProvider.notifier).enable()
-                  : await ref.read(autoStartNotifierProvider.notifier).disable(),
-            ),
+            // 「开机自启」不在这里：桌面规格源把它放在托盘右键菜单里
+            // （nekoray `ui/mainwindow.ui:507 actionStart_with_system`，属于 `menu_program`），
+            // 见 `lib/features/system_tray/tray_menu_spec.dart`。
             SwitchListTile.adaptive(
               title: Text(t.pages.settings.general.silentStart),
               secondary: const Icon(Icons.visibility_off_rounded),

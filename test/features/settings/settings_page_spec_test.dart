@@ -2,8 +2,10 @@
 // 断言基准 zh-CN。规格与词值：.workbuddy/spec-settings-page-tests.md
 // （侦察固化 recon-settings-page-2026-09-30.md；批次 7 = 39f6075a 已做 38 项映射归一）。
 // - 五段卡（NkSectionHeader+NkSettingCard）：基础/路由/DNS/入站/其他；
-// - 注入面：configOptionNotifierProvider/autoStartNotifierProvider/hasAnyProfileProvider 必须 fake
-//   （真实 build 碰 connectionRepository/launch_at_startup/profileDataSource），其余 mock prefs；
+// - 注入面：configOptionNotifierProvider/hasAnyProfileProvider 必须 fake
+//   （真实 build 碰 connectionRepository/profileDataSource），其余 mock prefs；
+// - 「开机自启」不在此页（桌面规格源 nekoray 把它放在托盘菜单，归一原则）：断言 findsNothing，
+//   见 tray_menu_spec_test.dart；
 // - 行可见性按 OS（PlatformUtils.isDesktop）而非视口；AppBar 抽屉键/日志关于行按视口
 //   （Breakpoint.isMobile() = 逻辑宽 <600）——Windows 宿主 = desktop OS + 可放大视口；
 // - 导入菜单两级 SubmenuButton（more_vert → 导入 → 从剪贴板导入选项）；确认框
@@ -19,7 +21,6 @@ import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/preferences/preferences_provider.dart';
 import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
 import 'package:hiddify/core/router/navigation_keys.dart';
-import 'package:hiddify/features/auto_start/notifier/auto_start_notifier.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/settings/notifier/config_option/config_option_notifier.dart';
 import 'package:hiddify/features/settings/overview/settings_page.dart';
@@ -54,24 +55,7 @@ class _FakeConfigOptionNotifier extends ConfigOptionNotifier {
   Future<void> resetOption() async {}
 }
 
-class _FakeAutoStartNotifier extends AutoStartNotifier {
-  final List<bool> enableLog = [];
-
-  @override
-  Future<bool> build() async => false;
-
-  @override
-  Future<void> enable() async {
-    enableLog.add(true);
-  }
-
-  @override
-  Future<void> disable() async {
-    enableLog.add(false);
-  }
-}
-
-/// 标准测试泵：zh-CN + mock 偏好 + 三个 fake provider + GoRouter（确认框/输入框 context.pop 需要）。
+/// 标准测试泵：zh-CN + mock 偏好 + 两个 fake provider + GoRouter（确认框/输入框 context.pop 需要）。
 Future<ProviderContainer> _pump(
   WidgetTester tester, {
   Map<String, Object> prefs = const {},
@@ -94,17 +78,12 @@ Future<ProviderContainer> _pump(
       translationsProvider.overrideWith((ref) => Future.value(t)),
       sharedPreferencesProvider.overrideWith((ref) => Future.value(sp)),
       configOptionNotifierProvider.overrideWith(() => _FakeConfigOptionNotifier()),
-      autoStartNotifierProvider.overrideWith(() => _FakeAutoStartNotifier()),
       hasAnyProfileProvider.overrideWith((ref) => Stream.value(hasAnyProfile)),
     ],
   );
   addTearDown(container.dispose);
   await container.read(translationsProvider.future);
   await container.read(sharedPreferencesProvider.future);
-  // bootstrap.dart:80 启动即 await autoStartNotifierProvider.future（预热），
-  // 页面首帧看到的已是 AsyncData —— 测试同样预热，复刻启动时序，
-  // 否则首帧 settings_page.dart:150 asData! 落在 AsyncLoading 上炸。
-  await container.read(autoStartNotifierProvider.future);
 
   final router = GoRouter(
     initialLocation: '/',
@@ -165,7 +144,11 @@ void main() {
       );
 
       // 基础卡（Windows 宿主 = desktop OS，desktop 分支行全渲染）。
-      expect(find.text('开机自启'), findsOneWidget);
+      expect(
+        find.text('开机自启'),
+        findsNothing,
+        reason: '归一原则：开机自启只在托盘右键菜单（nekoray menu_program），设置页不再有入口',
+      );
       expect(find.text('主题色'), findsOneWidget);
       expect(find.text('主题模式'), findsOneWidget);
       expect(find.text('服务模式'), findsOneWidget);
@@ -231,23 +214,25 @@ void main() {
       _resetPlatformOverride();
     });
 
-    testWidgets('②autoStart 开关：默认 false → tap 行翻转 → enable 记账', (tester) async {
+    testWidgets('②开机自启在设置页无入口（归一原则：只在托盘菜单）', (tester) async {
       tester.view.physicalSize = const Size(1080, 4400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
 
-      final container = await _pump(tester);
-      final autoStart = container.read(autoStartNotifierProvider.notifier) as _FakeAutoStartNotifier;
+      await _pump(tester);
 
-      final autoStartTile = find.ancestor(of: find.text('开机自启'), matching: find.byType(ListTile)).first;
-      final initSwitch = tester.widget<Switch>(
-        find.descendant(of: autoStartTile, matching: find.byType(Switch)).first,
+      // 设置主表与「通用」子页都不得再出现该开关（原 settings_page.dart:147-154
+      // 与 general_page.dart:49-56 两处重复入口已删）。词值 zh-CN「开机自启」。
+      expect(find.text('开机自启'), findsNothing);
+      expect(
+        find.byWidgetPredicate((w) {
+          if (w is! SwitchListTile) return false;
+          final title = w.title;
+          return title is Text && title.data == '开机自启';
+        }),
+        findsNothing,
+        reason: '通用子页的 SwitchListTile 入口同样不得存在',
       );
-      expect(initSwitch.value, isFalse, reason: 'fake build = AsyncData(false)');
-
-      await tester.tap(autoStartTile);
-      await tester.pumpAndSettle();
-      expect(autoStart.enableLog, [true], reason: 'NkSwitchRow onTap = onChanged(!value) → enable');
       _resetPlatformOverride();
     });
 
@@ -368,7 +353,8 @@ void main() {
       await _pump(tester);
 
       expect(find.byType(ShellDrawerButton), findsOneWidget, reason: 'Breakpoint mobile → 抽屉键');
-      expect(find.text('开机自启'), findsOneWidget, reason: '行可见性按 OS：Windows 宿主 desktop 行仍渲染');
+      expect(find.text('静默启动'), findsOneWidget, reason: '行可见性按 OS：Windows 宿主 desktop 行仍渲染');
+      expect(find.text('开机自启'), findsNothing, reason: '归一原则：该能力只在托盘右键菜单，任何视口都不在设置页');
 
       // 日志/关于在页面底部——滚动到可见。
       await tester.scrollUntilVisible(find.text('日志'), 400, scrollable: find.byType(Scrollable).first);
