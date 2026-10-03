@@ -77,9 +77,15 @@ Future<void> lazyBootstrap(WidgetsBinding widgetsBinding, Environment env) async
     } else {
       Logger.bootstrap.debug("silent start, remain hidden accessible via tray");
     }
-    await _init("auto start service", () => container.read(autoStartNotifierProvider.future));
+    // 开机自启是可选桌面能力：平台实现（Windows 注册表 / Linux .desktop / macOS LaunchAgent）
+    // 被系统策略拒绝时只应显示为「未启用」，不得阻断启动链。同文件其它可选初始化
+    // （active profile / hiddify-core / system tray）一律走 _safeInit。
+    await _safeInit("auto start service", () => container.read(autoStartNotifierProvider.future));
   }
-  await _init("logs repository", () => container.read(logRepositoryProvider.future));
+  // 日志仓库同样属于「可选能力」：它失败只应降级为「本次没有日志」，不得阻断启动链。
+  // 仓库内部已对写盘失败降级（log_repository.dart 的 _prepareLogFiles），这里再兜一层，
+  // 让任何未预料的初始化失败也只丢日志、不丢窗口。
+  await _safeInit("logs repository", () => container.read(logRepositoryProvider.future));
   await _init("logger controller", () => LoggerController.postInit(debug));
 
   Logger.bootstrap.info(appInfo.format());
