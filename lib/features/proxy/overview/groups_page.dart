@@ -13,7 +13,9 @@ import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/failures.dart';
 import 'package:hiddify/core/model/proxy_group.dart';
 import 'package:hiddify/core/notification/in_app_notification_controller.dart';
+import 'package:hiddify/core/router/adaptive_layout/shell_drawer.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
+import 'package:hiddify/core/router/go_router/helper/active_breakpoint_notifier.dart';
 import 'package:hiddify/core/widget/adaptive_icon.dart';
 import 'package:hiddify/core/widget/adaptive_menu.dart';
 import 'package:hiddify/core/widget/nekobox/nk_card.dart';
@@ -67,6 +69,10 @@ class GroupsPage extends HookConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        // 差异清单 D-1：NekoBox 分组页挂在 MainActivity 的 DrawerLayout 上，
+        // 汉堡键由 Activity 提供；本项目手机端各顶级页统一自己挂（见 tools_page.dart:31）。
+        // 分组页此前漏了 ⇒ 从抽屉进「分组」后无法再开抽屉，只能系统返回。
+        leading: Breakpoint(context).isMobile() ? const ShellDrawerButton() : null,
         title: Text(t.pages.groups.title),
         // NekoBox add_group_menu.xml：两枚常驻工具栏动作（顺序权威；无 FAB）。
         actions: [
